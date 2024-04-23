@@ -203,6 +203,7 @@ e.g.
 {datetime: float}
 ```
 ## mo.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
+積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 30 分毎のデータで過去最大6時間分取得する。
 ### Arguments
 - timestamp: 収集日時
 - num_of_data_points: 収集コマ数 1~12
@@ -217,12 +218,14 @@ e.g.
     'reverse direction': float}}]
 ```
 ## mo.set_time_for_which_to_retrieve_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
+積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
 - timestamp: 収集日時
 - num_of_data_points: 収集コマ数
 ### Return Value
 - None
 ## mo.get_time_for_which_to_retrieve_historical_data_2()
+積算履歴収集日時ならびに収集コマ数を取得する。
 ### Arguments
 - Void
 ### Return Value
