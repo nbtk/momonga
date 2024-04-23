@@ -204,12 +204,11 @@ e.g.
 ```
 ## mo.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
 ### Arguments
-timestamp: 収集日時
-num_of_data_points: 収集コマ数 1~12
-### Arguments
-- Void
+- timestamp: 収集日時
+- num_of_data_points: 収集コマ数 1~12
 ### Return Value
 - list: 収集日時と正方向および逆方向の積算電力量(kWh)
+
 e.g.
 ```python3
 [{'timestamp': datetime.datetime,
