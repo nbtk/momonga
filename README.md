@@ -1,8 +1,8 @@
 # Momonga
 Python Route B Library: A Comunicator for Low-voltage Smart Electric Energy Meters
 # Discription
-MomongaはROHM社製Wi-SUNモジュールBP35C2をサポートした、Route-Bサービスを利用してスマートメーターと通信するライブラリです。ターゲットデバイスはラトックシステム RS-WSUHA-Pです。
-# Installation 
+MomongaはBルートサービスを利用してスマートメーターと通信するライブラリです。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2を搭載したラトックシステムRS-WSUHA-Pです。
+# Installation
 ```shell
 $ pip install momonga
 ```
@@ -31,9 +31,9 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 # Logging
 Momongaには下記のロガーがあります。
 ## momonga.logger
-スマートメータークラスのログ
+ECHONET Lite スマートメータークラスを抽象化したレイヤのログ
 ## momonga.session_manager_logger
-PANAセッション管理のログ
+PANAセッション管理レイヤのログ
 ## momonga.sk_wrapper_logger
 Wi-SUNモジュールとの通信ログ
 ## ログを有効にした例
@@ -158,7 +158,7 @@ PANAセッションを終了する。
 - list: 収集日時と積算電力量(kWh)
 
 e.g.
-```
+```python3
 [{'timestamp': datetime.datetime, 'cumulative energy': float}]
 ```
 Note: 収集日時はスマートメーター側で設定されたものではなくMomonga自身が設定しているため、実行中に日を跨ぐと収集日時に齟齬が生じる可能性がある。
@@ -188,7 +188,7 @@ Note: 収集日時はスマートメーター側で設定されたものでは�
 - dict: R相瞬時電流(A)とT相瞬時電流(A)
 
 e.g.
-```
+```python3
 {'r phase current': float, 't phase current': float}
 ```
 ## mo.get_cumulative_energy_measured_at_fixed_time(reverse: bool = False)
@@ -199,7 +199,7 @@ e.g.
 - dict: 収集日時と積算電力量(kWh)
 
 e.g.
-```
+```python3
 {datetime: float}
 ```
 ## mo.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
@@ -211,7 +211,7 @@ num_of_data_points: 収集コマ数 1~12
 ### Return Value
 - list: 収集日時と正方向および逆方向の積算電力量(kWh)
 e.g.
-```
+```python3
 [{'timestamp': datetime.datetime,
   'cumulative energy': {
     'normal direction': float,
@@ -230,6 +230,6 @@ e.g.
 - dict: 収集日時と収集コマ数
 
 e.g.
-```
+```python3
 {'timestamp': datetime, 'number of data points': int}
 ```
