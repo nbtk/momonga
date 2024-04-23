@@ -181,9 +181,9 @@ class Momonga:
     def get_operation_status(self) -> int:
         res = self.__request(0x80)
         status = int.from_bytes(res.get('edt'), 'big')
-        if status == 0x30:
+        if status == 0x30: # turned on
             status = True
-        elif status == 0x31:
+        elif status == 0x31: # turned off
             status = False
         else:
             status = None
@@ -233,7 +233,7 @@ class Momonga:
     def get_historical_cumulative_energy_1(self,
                                            day: int = 0,
                                            reverse: bool = False,
-                                          ) -> dict:
+                                          ) -> list:
         self.__prepare_to_get_cumulative_energy()
         self.set_day_for_which_to_retrieve_historical_data_1(day)
 
@@ -268,15 +268,15 @@ class Momonga:
                                                        ) -> None:
         self.__request(0xE5, day.to_bytes(1, 'big'))
 
-    def get_day_for_which_to_retrieve_historical_data_1(self) -> None:
+    def get_day_for_which_to_retrieve_historical_data_1(self) -> int:
         res = self.__request(0xE5)
         day = int.from_bytes(res.get('edt'), 'big')
         return day
  
-    def get_instantaneous_power(self) -> int:
+    def get_instantaneous_power(self) -> float:
         res = self.__request(0xE7)
-        energy = int.from_bytes(res.get('edt'), 'big', signed=True)
-        return energy
+        power = int.from_bytes(res.get('edt'), 'big', signed=True)
+        return power
 
     def get_instantaneous_current(self) -> dict:
         res = self.__request(0xE8)
@@ -309,8 +309,8 @@ class Momonga:
 
     def get_historical_cumulative_energy_2(self,
                                            timestamp: datetime.datetime = datetime.datetime.now(),
-                                           num_of_data_points: int = 6,
-                                          ) -> dict:
+                                           num_of_data_points: int = 12,
+                                          ) -> list:
         self.__prepare_to_get_cumulative_energy()
         self.set_time_for_which_to_retrieve_historical_data_2(timestamp, num_of_data_points)
 
@@ -344,22 +344,10 @@ class Momonga:
                  'reverse direction': reverse_direction_energy}})
             timestamp -= datetime.timedelta(minutes=30)
         return historical_cumulative_energy
-
-    def get_time_for_which_to_retrieve_historical_data_2(self) -> dict:
-        res = self.__request(0xED)
-        edt = res.get('edt')
-        year = int.from_bytes(edt[0:2], 'big')
-        if year == 0xFFFF:
-            timestamp = None
-        else:
-            timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
-
-        num_of_data_points = edt[6]
-        return {'timestamp': timestamp, 'number of data points': num_of_data_points}
  
     def set_time_for_which_to_retrieve_historical_data_2(self,
                                                          timestamp: datetime.datetime,
-                                                         num_of_data_points: int = 6
+                                                         num_of_data_points: int = 12,
                                                         ) -> None:
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
@@ -374,3 +362,15 @@ class Momonga:
         minute = minute.to_bytes(1, 'big')
         num_of_data_points = num_of_data_points.to_bytes(1, 'big')
         self.__request(0xED, year + month + day + hour + minute + num_of_data_points)
+
+    def get_time_for_which_to_retrieve_historical_data_2(self) -> dict:
+        res = self.__request(0xED)
+        edt = res.get('edt')
+        year = int.from_bytes(edt[0:2], 'big')
+        if year == 0xFFFF:
+            timestamp = None
+        else:
+            timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
+
+        num_of_data_points = edt[6]
+        return {'timestamp': timestamp, 'number of data points': num_of_data_points}
