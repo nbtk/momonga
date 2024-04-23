@@ -20,7 +20,7 @@ pwd  = 'SET A ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
-    res = mo.get_instantaneous_power()
+    res = momonga.get_instantaneous_power()
     print('%0.1fW' % res)
 ```
 ### Arguments
@@ -59,7 +59,7 @@ pwd  = 'SET A ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
-    res = mo.get_instantaneous_power()
+    res = momonga.get_instantaneous_power()
     print('%0.1fW' % res)
 ```
 # Exceptions
@@ -83,7 +83,7 @@ dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 while True:
     try:
         with momonga.Momonga(rbid, pwd, dev) as mo:
-            res = mo.get_instantaneous_power()
+            res = momonga.get_instantaneous_power()
             print('%0.1fW' % res)
             break
     except (momonga.MomongaSkScanFailure,
@@ -100,7 +100,7 @@ while True:
 
 したがって開発者はデータ取得関数を呼び出して、即座に応答が返ってこない可能性を考慮してください。
 # Consideration
-送信がブロッキングされるなど諸条件により関数呼び出しのあと応答が即座に返らないことがあるため、`mo.get_historical_cumulative_energy_1()`は呼び出したときに期待した履歴の日付と結果の日付に齟齬が生じる可能性があることに注意してください。特にこの関数は日を跨ぐタイミングで実行すべきではありません。
+送信がブロッキングされるなど諸条件により関数呼び出しのあと応答が即座に返らないことがあるため、`momonga.get_historical_cumulative_energy_1()`は呼び出したときに期待した履歴の日付と結果の日付に齟齬が生じる可能性があることに注意してください。特にこの関数は日を跨ぐタイミングで実行すべきではありません。
 # API
 ## momonga.Momonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True)
 Momongaクラスのインスタンス化。
@@ -122,36 +122,36 @@ PANAセッションを終了する。
 - Void
 ### Return Value
 - None
-## mo.get_operation_status()
+## momonga.get_operation_status()
 スマートメーターの状態を取得する。
 ### Arguments
 - Void
 ### Return Value
 - bool: スマートメーターの状態 (True: オン False: オフ None: 不明)
-## mo.get_coefficient_for_cumulative_energy()
+## momonga.get_coefficient_for_cumulative_energy()
 積算電力量計測値、履歴を実使用量に換算する係数を取得する。Momongaが出力する結果には適宜この値が乗じられている。
 ### Arguments
 - Void
 ### Return Value
 - Int: 係数
-## mo.get_number_of_effective_digits_for_cumulative_energy()
+## momonga.get_number_of_effective_digits_for_cumulative_energy()
 積算電力量計測値の有効桁数を取得する。
 - Void
 ### Return Value
 - Int: 有効桁数
-## mo.get_measured_cumulative_energy(reverse: bool = False)
+## momonga.get_measured_cumulative_energy(reverse: bool = False)
 積算電力量計測値を取得する。
 ### Arguments
 - reverse: Trueのとき逆方向の積算電力量を取得する
 ### Return Value
 - float: 積算電力量(kWh)
-## mo.get_unit_for_cumulative_energy()
+## momonga.get_unit_for_cumulative_energy()
 積算電力量計測値、履歴の乗率を取得する。Momongaが出力する結果には適宜この値が乗じられている。
 ### Arguments
 - Void
 ### Return Value
 - int | float: 積算電力量の乗率
-## mo.get_historical_cumulative_energy_1(day: int = 0, reverse: bool = False)
+## momonga.get_historical_cumulative_energy_1(day: int = 0, reverse: bool = False)
 積算電力量計測値履歴1を取得する。
 ### Arguments
 - day: 積算履歴収集日(0:当日、1~:前日の日数)
@@ -164,25 +164,25 @@ e.g.
 [{'timestamp': datetime.datetime, 'cumulative energy': float}]
 ```
 Note: 収集日時はスマートメーター側で設定されたものではなくMomonga自身が設定しているため、実行中に日を跨ぐと収集日時に齟齬が生じる可能性がある。
-## mo.set_day_for_which_to_retrieve_historical_data_1(day: int = 0)
+## momonga.set_day_for_which_to_retrieve_historical_data_1(day: int = 0)
 積算履歴収集日1を設定する。
 ### Arguments
 - day: 積算履歴収集日 0:当日、1~:前日の日数
 ### Return Value
 - None
-## mo.get_day_for_which_to_retrieve_historical_data_1()
+## momonga.get_day_for_which_to_retrieve_historical_data_1()
 積算履歴収集日1を設定する。
 ### Arguments
 - Void
 ### Return Value
 - int: 積算履歴収集日1
-## mo.get_instantaneous_power()
+## momonga.get_instantaneous_power()
 瞬時電力計測値を取得する。
 ### Arguments
 - Void
 ### Return Value
 - float: 瞬時電力測定値(W)
-## mo.get_instantaneous_current()
+## momonga.get_instantaneous_current()
 瞬時電流計測値を取得する。
 ### Arguments
 - Void
@@ -193,7 +193,7 @@ e.g.
 ```python3
 {'r phase current': float, 't phase current': float}
 ```
-## mo.get_cumulative_energy_measured_at_fixed_time(reverse: bool = False)
+## momonga.get_cumulative_energy_measured_at_fixed_time(reverse: bool = False)
 定時積算電力量計測値を取得する。
 ### Arguments
 - reverse: Trueのとき逆方向の積算電力量を取得する
@@ -204,7 +204,7 @@ e.g.
 ```python3
 {datetime: float}
 ```
-## mo.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
+## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
 積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 30 分毎のデータで過去最大6時間分取得する。
 ### Arguments
 - timestamp: 収集日時
@@ -219,14 +219,14 @@ e.g.
     'normal direction': float,
     'reverse direction': float}}]
 ```
-## mo.set_time_for_which_to_retrieve_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
+## momonga.set_time_for_which_to_retrieve_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
 積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
 - timestamp: 収集日時
 - num_of_data_points: 収集コマ数
 ### Return Value
 - None
-## mo.get_time_for_which_to_retrieve_historical_data_2()
+## momonga.get_time_for_which_to_retrieve_historical_data_2()
 積算履歴収集日時ならびに収集コマ数を取得する。
 ### Arguments
 - Void
