@@ -109,14 +109,14 @@ Momongaクラスのインスタンス化。
 - pwd: Bルートパスワード
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
-- reset_dev: mo.open()を実行するときSKRESETコマンドを実行するかどうか
-## mo.open()
+- reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
+## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　
 ### Arguments
 - Void
 ### Return Value
 - None
-## mo.close()
+## momonga.close()
 PANAセッションを終了する。
 ### Arguments
 - Void
