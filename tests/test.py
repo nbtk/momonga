@@ -18,7 +18,7 @@ momonga.session_manager_logger.setLevel(logging.DEBUG)
 momonga.sk_wrapper_logger.addHandler(log_hnd)
 momonga.sk_wrapper_logger.setLevel(logging.DEBUG)
 
-# set the following parameters before run.
+# set the following environment values before run.
 rbid = os.environ.get('MOMONGA_ROUTEB_ID')
 pwd = os.environ.get('MOMONGA_ROUTEB_PASSWORD')
 dev = os.environ.get('MOMONGA_DEV_PATH')
