@@ -309,9 +309,12 @@ class Momonga:
                 'cumulative_energy': cumulative_energy}
 
     def get_historical_cumulative_energy_2(self,
-                                           timestamp: datetime.datetime = datetime.datetime.now(),
+                                           timestamp: datetime.datetime = None,
                                            num_of_data_points: int = 12,
                                           ) -> list:
+        if timestamp is None:
+            timestamp = datetime.datetime.now()
+
         self.__prepare_to_get_cumulative_energy()
         self.set_time_for_which_to_retrieve_historical_data_2(timestamp, num_of_data_points)
 
