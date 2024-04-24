@@ -222,7 +222,8 @@ e.g.
 
 e.g.
 ```python3
-{'r phase current': float, 't phase current': float}
+{'r phase current': float,
+ 't phase current': float}
 ```
 
 ## momonga.get_cumulative_energy_measured_at_fixed_time(reverse: bool = False)
