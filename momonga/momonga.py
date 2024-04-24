@@ -308,7 +308,7 @@ class Momonga:
         return {'timestamp': timestamp,
                 'cumulative_energy': cumulative_energy}
 
-    def get_historical_cumulative_energy_3(self,
+    def get_historical_cumulative_energy_2(self,
                                            timestamp: datetime.datetime = None,
                                            num_of_data_points: int = 12,
                                           ) -> list:
