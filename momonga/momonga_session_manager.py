@@ -261,7 +261,7 @@ class MomongaSessionManager:
         self.xmit_restriction_cnt += 1
         logger.debug('The counter for the restriction was incremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmition is inconsistent: The counter is set to a value that is a too big.'
+        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmition is inconsistent: The value is set too large for the counter.'
 
         if self.xmit_restriction_cnt == 1:
             logger.debug('Trying to restrict data transmission.')
