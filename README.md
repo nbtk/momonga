@@ -1,7 +1,7 @@
 # Momonga
 Python Route B Library: A Comunicator for Low-voltage Smart Electric Energy Meters
 
-# Discription
+# Description
 MomongaはBルートサービスを利用してスマートメーターと通信するライブラリです。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2を搭載したラトックシステムRS-WSUHA-Pです。
 
 # Preparation
@@ -86,7 +86,7 @@ PANAセッションを確立できなかったときに送出される。Bルー
 ## momonga.MomongaNeedToReopen
 スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される。
 
-## 例外を補足する例
+## 例外を捕捉する例
 ```python3
 import momonga
 import sys
