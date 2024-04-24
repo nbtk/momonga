@@ -68,7 +68,7 @@ class MomongaSkWrapper:
         self.ser.write(b'\r\n')
         self.ser.flush()
         timeout = self.ser.timeout
-        self.ser.timeout = 2 # will wait the specifyed seconds.
+        self.ser.timeout = 2 # will wait the specified seconds.
         while self.ser.read():
             # this loop clears garbage data if it exists.
             pass
@@ -216,9 +216,9 @@ class MomongaSkWrapper:
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
             res = self.exec_command(['SKSCAN', '2', 'FFFFFFFF', str(duration), '0'], 'EVENT 22')
-            # extimated execution time: 0.0096s*(2^(DURATION=6)+1)*28 = 17.5s
-            # extimated execution time: 0.0096s*(2^(DURATION=7)+1)*28 = 34.7s
-            # extimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
+            # estimated execution time: 0.0096s*(2^(DURATION=6)+1)*28 = 17.5s
+            # estimated execution time: 0.0096s*(2^(DURATION=7)+1)*28 = 34.7s
+            # estimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
             if 'EPANDESC' in res:
                 return SkScanResponse(res)
             duration += 1

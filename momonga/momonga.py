@@ -86,7 +86,7 @@ class Momonga:
                                   ):
         ehd = data[0:2]
         if  ehd != b'\x10\x81': # econet lite edata format 1
-            raise MomongaResponseNotExpected('The data format is not Econet Lite data format 1')
+            raise MomongaResponseNotExpected('The data format is not Econet Lite EDATA format 1')
 
         if int.from_bytes(data[2:4], 'big') != tid:
             raise MomongaResponseNotExpected('The transaction ID does not match.')
@@ -131,21 +131,21 @@ class Momonga:
                 try:
                     res = self.session_manager.recv_q.get(timeout=12)
                 except queue.Empty:
-                    logger.warning('Timed out to obtain a response for "%X" reqeust.' % (epc))
+                    logger.warning('Timed out to obtain a response for "%X" request.' % (epc))
                     break
                 if res.startswith('EVENT 21'):
                     param = res.split()[-1]
                     if param == '00':
-                        logger.info('Successfully transmitted a packet for "%X" reqeust.' % (epc))
+                        logger.info('Successfully transmitted a packet for "%X" request.' % (epc))
                         continue
                     elif param == '01':
-                        logger.warning('Retransmitting the packet for "%X" reqeust.' % (epc))
+                        logger.warning('Retransmitting the packet for "%X" request.' % (epc))
                         break # to rexmit
                     elif param == '02':
-                        logger.warning('Automatically retrying to transmit the packet for "%X" reqeust.' % (epc))
+                        logger.warning('Automatically retrying to transmit the packet for "%X" request.' % (epc))
                         continue
                 elif res.startswith('EVENT 02'):
-                    logger.info('Successfully retransmitted the packet for "%X" reqeust.' % (epc))
+                    logger.info('Successfully retransmitted the packet for "%X" request.' % (epc))
                     continue
                 elif res.startswith('ERXUDP'):
                     udp_pkt = SkEventRxUdp([res])
@@ -308,7 +308,7 @@ class Momonga:
         return {'timestamp': timestamp,
                 'cumulative_energy': cumulative_energy}
 
-    def get_historical_cumulative_energy_2(self,
+    def get_historical_cumulative_energy_3(self,
                                            timestamp: datetime.datetime = None,
                                            num_of_data_points: int = 12,
                                           ) -> list:

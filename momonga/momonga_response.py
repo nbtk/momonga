@@ -10,7 +10,7 @@ class MomongaSkResponseBase:
     def decode(self):
         pass
 
-    def extruct(self, key):
+    def extract(self, key):
         for elm in reversed(self.raw_response):
             if key in elm:
                 return elm
@@ -18,19 +18,19 @@ class MomongaSkResponseBase:
 
 class SkVerResponse(MomongaSkResponseBase):
     def decode(self):
-        res_list = self.extruct('EVER').split()
+        res_list = self.extract('EVER').split()
         self.stack_ver = res_list[1]
 
 
 class SkAppVerResponse(MomongaSkResponseBase):
     def decode(self):
-        res_list = self.extruct('EAPPVER').split()
+        res_list = self.extract('EAPPVER').split()
         self.app_ver = res_list[1]
 
 
 class SkInfoResponse(MomongaSkResponseBase):
     def decode(self):
-        res_list = self.extruct('EINFO').split()
+        res_list = self.extract('EINFO').split()
         self.ip6_addr = res_list[1]
         self.mac_addr = bytes.fromhex(res_list[2])
         self.channel = int(res_list[3], 16)
@@ -40,24 +40,24 @@ class SkInfoResponse(MomongaSkResponseBase):
 
 class SkScanResponse(MomongaSkResponseBase):
     def decode(self):
-        self.channel = int(self.extruct('Channel:').split(':')[-1], 16)
-        self.channel_page = int(self.extruct('Channel Page:').split(':')[-1], 16)
-        self.pan_id = bytes.fromhex(self.extruct('Pan ID:').split(':')[-1])
-        self.mac_addr = bytes.fromhex(self.extruct('Addr:').split(':')[-1])
-        self.lqi = int(self.extruct('LQI:').split(':')[-1], 16)
+        self.channel = int(self.extract('Channel:').split(':')[-1], 16)
+        self.channel_page = int(self.extract('Channel Page:').split(':')[-1], 16)
+        self.pan_id = bytes.fromhex(self.extract('Pan ID:').split(':')[-1])
+        self.mac_addr = bytes.fromhex(self.extract('Addr:').split(':')[-1])
+        self.lqi = int(self.extract('LQI:').split(':')[-1], 16)
         self.rssi = 0.275 * self.lqi - 104.27
-        self.side = int(self.extruct('Side:').split(':')[-1], 16)
-        self.pair_id = bytes.fromhex(self.extruct('PairID:').split(':')[-1])
+        self.side = int(self.extract('Side:').split(':')[-1], 16)
+        self.pair_id = bytes.fromhex(self.extract('PairID:').split(':')[-1])
 
 
 class SkLl64Response(MomongaSkResponseBase):
     def decode(self):
-        self.ip6_addr = self.extruct('FE80:')
+        self.ip6_addr = self.extract('FE80:')
 
 
 class SkSendToResponse(MomongaSkResponseBase):
     def decode(self):
-        self.res_list = self.extruct('EVENT 21').split()
+        self.res_list = self.extract('EVENT 21').split()
         self.event_num = int(self.res_list[1], 16)
         self.src_addr = self.res_list[2]
         self.side = int(self.res_list[3], 16)
@@ -66,7 +66,7 @@ class SkSendToResponse(MomongaSkResponseBase):
 
 class SkEventRxUdp(MomongaSkResponseBase):
     def decode(self):
-        self.res_list = self.extruct('ERXUDP').split()
+        self.res_list = self.extract('ERXUDP').split()
         self.src_addr = self.res_list[1]
         self.des_addr = self.res_list[2]
         self.src_port = int(self.res_list[3], 16)

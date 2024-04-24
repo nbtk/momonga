@@ -76,7 +76,7 @@ class MomongaSessionManager:
             # to show the rssi of the received packets.
             self.skw.sksreg('SA2', '1')
 
-            # scaning a PAN from here.
+            # scanning a PAN from here.
             # to set a route b id.
             self.skw.sksetrbid(self.rbid)
             # to set a pasword.
@@ -249,7 +249,7 @@ class MomongaSessionManager:
             except MomongaSkCommandExecutionFailure as e:
                 logger.warning('Failed to transmit a packet: %s' % str(e))
             except Exception as e:
-                logger.warning('An error occured to transmit a packet. %s: %s' % (type(e).__name__, str(e)))
+                logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, str(e)))
             finally:
                 self.xmit_lock.release()
             time.sleep(3)
@@ -261,7 +261,7 @@ class MomongaSessionManager:
         self.xmit_restriction_cnt += 1
         logger.debug('The counter for the restriction was incremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmition is inconsistent: The value is set too large for the counter.'
+        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmission is inconsistent: The value is set too large for the counter.'
 
         if self.xmit_restriction_cnt == 1:
             logger.debug('Trying to restrict data transmission.')
