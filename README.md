@@ -269,5 +269,6 @@ e.g.
 
 e.g.
 ```python3
-{'timestamp': datetime, 'number of data points': int}
+{'timestamp': datetime,
+ 'number of data points': int}
 ```
