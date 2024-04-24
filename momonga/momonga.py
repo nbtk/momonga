@@ -79,7 +79,7 @@ class Momonga:
 
         return ehd + tid + seoj + deoj + esv + opc + epc + pdc + edt
 
-    def __extruct_response_payload(self,
+    def __extract_response_payload(self,
                                    data: bytes,
                                    tid: int,
                                    epc: int,
@@ -157,17 +157,17 @@ class Momonga:
                         continue
 
                     try:
-                        rx_payload = self.__extruct_response_payload(udp_pkt.data,
+                        rx_payload = self.__extract_response_payload(udp_pkt.data,
                                                                      self.transaction_id,
                                                                      epc)
                     except MomongaResponseNotExpected:
                         continue
 
-                    logger.info('Successfully received a packet for "%X" resnponse.' % (epc))
+                    logger.info('Successfully received a packet for "%X" response.' % (epc))
                     return rx_payload
 
-        logger.error('Gave up to obtain a response for "%X" reqeust. Close Momonga and open it again.' % (epc))
-        raise MomongaNeedToReopen('Gave up to obtain a response for "%X" reqeust. Close Momonga and open it again.' % (epc))
+        logger.error('Gave up to obtain a response for "%X" request. Close Momonga and open it again.' % (epc))
+        raise MomongaNeedToReopen('Gave up to obtain a response for "%X" request. Close Momonga and open it again.' % (epc))
 
     def __prepare_to_get_cumulative_energy(self) -> None:
         if self.energy_coefficient is None:
