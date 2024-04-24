@@ -181,7 +181,7 @@ class Momonga:
     def get_operation_status(self) -> int:
         res = self.__request(0x80)
         status = int.from_bytes(res.get('edt'), 'big')
-        if status == 0x30: # turned on
+        if status == 0x30:   # turned on
             status = True
         elif status == 0x31: # turned off
             status = False
@@ -305,7 +305,8 @@ class Momonga:
         cumulative_energy = int.from_bytes(edt[7:], 'big')
         cumulative_energy *= self.energy_coefficient
         cumulative_energy *= self.energy_unit 
-        return {timestamp: cumulative_energy}
+        return {'timestamp': timestamp,
+                'cumulative_energy': cumulative_energy}
 
     def get_historical_cumulative_energy_2(self,
                                            timestamp: datetime.datetime = datetime.datetime.now(),
@@ -339,9 +340,9 @@ class Momonga:
                 reverse_direction_energy *= self.energy_unit 
 
             historical_cumulative_energy.append(
-                {'timestamp': timestamp, 'cumulative energy': {
-                 'normal direction': normal_direction_energy,
-                 'reverse direction': reverse_direction_energy}})
+                {'timestamp': timestamp,
+                 'cumulative energy': {'normal direction': normal_direction_energy,
+                                       'reverse direction': reverse_direction_energy}})
             timestamp -= datetime.timedelta(minutes=30)
         return historical_cumulative_energy
  
@@ -373,4 +374,5 @@ class Momonga:
             timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
 
         num_of_data_points = edt[6]
-        return {'timestamp': timestamp, 'number of data points': num_of_data_points}
+        return {'timestamp': timestamp,
+                'number of data points': num_of_data_points}

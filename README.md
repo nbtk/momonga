@@ -233,7 +233,8 @@ e.g.
 
 e.g.
 ```python3
-{datetime: float}
+{'datetime': datetime.datetime,
+ 'cumulative energy': float}
 ```
 
 ## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
@@ -247,9 +248,8 @@ e.g.
 e.g.
 ```python3
 [{'timestamp': datetime.datetime,
-  'cumulative energy': {
-    'normal direction': float,
-    'reverse direction': float}}]
+  'cumulative energy': {'normal direction': float,
+                        'reverse direction': float}}]
 ```
 
 ## momonga.set_time_for_which_to_retrieve_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
