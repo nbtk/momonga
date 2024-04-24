@@ -187,7 +187,8 @@ PANAセッションを終了する。
 
 e.g.
 ```python3
-[{'timestamp': datetime.datetime, 'cumulative energy': float}]
+[{'timestamp': datetime.datetime,
+  'cumulative energy': float}]
 ```
 注意: 収集日時はスマートメーター側で設定されたものではなくMomonga自身が設定しているため、実行中に日を跨ぐと収集日時に齟齬が生じる可能性がある。
 
