@@ -1,5 +1,5 @@
 # Momonga
-Python Route B Library: A Comunicator for Low-voltage Smart Electric Energy Meters
+Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Meters
 
 # Description
 MomongaはBルートサービスを利用してスマートメーターと通信するライブラリです。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2を搭載したラトックシステムRS-WSUHA-Pです。
@@ -239,7 +239,7 @@ e.g.
  'cumulative energy': float}
 ```
 
-## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = datetime.datetime.now(), num_of_data_points: int = 12)
+## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = None, num_of_data_points: int = 12)
 積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 30 分毎のデータで過去最大6時間分取得する。
 ### Arguments
 - timestamp: 収集日時
