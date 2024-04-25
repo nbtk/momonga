@@ -17,15 +17,17 @@ $ pip install momonga
 BルートID、パスワード、デバイスファイルへのパスは適宜変更してください。
 ```python3
 import momonga
-
+import time
 
 rbid = 'SET A ROUTE B ID'
 pwd  = 'SET A ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
-    res = momonga.get_instantaneous_power()
-    print('%0.1fW' % res)
+    while True:
+        res = mo.get_instantaneous_power()
+        print('%0.1fW' % res)
+        time.sleep(60)
 ```
 
 ### Arguments
@@ -52,8 +54,8 @@ Wi-SUNモジュールとの通信ログ
 ## ログを有効にした例
 ```python3
 import momonga
+import time
 import logging
-
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
@@ -70,8 +72,10 @@ pwd  = 'SET A ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
-    res = momonga.get_instantaneous_power()
-    print('%0.1fW' % res)
+    while True:
+        res = mo.get_instantaneous_power()
+        print('%0.1fW' % res)
+        time.sleep(60)
 ```
 
 # Exception
@@ -89,8 +93,8 @@ PANAセッションを確立できなかったときに送出される。Bルー
 ## 例外を捕捉する例
 ```python3
 import momonga
+import time
 import sys
-
 
 rbid = 'SET A ROUTE B ID'
 pwd  = 'SET A ROUTE B PASSWORD'
@@ -99,9 +103,10 @@ dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 while True:
     try:
         with momonga.Momonga(rbid, pwd, dev) as mo:
-            res = momonga.get_instantaneous_power()
-            print('%0.1fW' % res)
-            break
+            while True:
+                res = mo.get_instantaneous_power()
+                print('%0.1fW' % res)
+                time.sleep(60)
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaNeedToReopen) as e:
