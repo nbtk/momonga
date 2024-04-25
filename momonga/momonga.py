@@ -142,10 +142,10 @@ class Momonga:
                         logger.warning('Retransmitting the packet for "%X" request.' % (epc))
                         break # to rexmit
                     elif param == '02':
-                        logger.warning('Automatically retrying to transmit the packet for "%X" request.' % (epc))
+                        logger.warning('Transmitting neighbor solicitation packets.' % (epc))
                         continue
                 elif res.startswith('EVENT 02'):
-                    logger.info('Successfully retransmitted the packet for "%X" request.' % (epc))
+                    logger.info('Received a neighbor advertisement packet.' % (epc))
                     continue
                 elif res.startswith('ERXUDP'):
                     udp_pkt = SkEventRxUdp([res])
