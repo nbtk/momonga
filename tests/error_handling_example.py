@@ -1,4 +1,5 @@
 import momonga
+import time
 import os
 import sys
 
@@ -10,9 +11,10 @@ dev = os.environ.get('MOMONGA_DEV_PATH')
 while True:
     try:
         with momonga.Momonga(rbid, pwd, dev) as mo:
-            res = mo.get_instantaneous_power()
-            print('%0.1fW' % res)
-            break
+            while True:
+                res = mo.get_instantaneous_power()
+                print('%0.1fW' % res)
+                time.sleep(60)
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaNeedToReopen) as e:
