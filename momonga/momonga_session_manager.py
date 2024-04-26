@@ -106,7 +106,7 @@ class MomongaSessionManager:
                 self.skw.skjoin(self.smart_meter_addr)
                 self.session_established = True
                 logger.info('A PANA session has been established.')
-            except MomongaSkJoinFailure as e:
+            except MomongaSkJoinFailure:
                 logger.error('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
                 raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
 
@@ -126,33 +126,32 @@ class MomongaSessionManager:
             logger.info('A Momonga session is open.')
             return self
         except Exception as e:
-            logger.error('Could not open a Momonga session. %s: %s' % (type(e).__name__, str(e)))
+            logger.error('Could not open a Momonga session. %s: %s' % (type(e).__name__, e))
             self.close()
             raise e
 
     def close(self) -> None:
         logger.info('Closing the Momonga session...')
-        for _ in range(3):
-            self.rejoin_lock.acquire(timeout=200)
 
-            if self.session_established is True:
-                try:
-                    self.session_established = False
-                    logger.info('Terminating the PANA session...')
-                    self.skw.skterm()
-                    break
-                except MomongaSkCommandFailedToExecute:
-                    logger.warning('Failed to terminate the PANA session.')
-                finally:
-                    self.rejoin_lock.release()
-            else:
+        if self.rejoin_lock.acquire(timeout=120) is False:
+            logger.warning('Failed to acquire "rejoin_lock".')
+
+        if self.session_established is True:
+            try:
+                self.session_established = False
+                logger.info('Terminating the PANA session...')
+                self.skw.skterm()
+            except Exception as e:
+                logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
+            finally:
                 self.rejoin_lock.release()
-                break
-            time.sleep(3)
+        else:
+            self.rejoin_lock.release()
 
-        if self.receiver_th is not None and self.receiver_th.is_alive():
-            self.pkt_sbsc_q.put('__CLOSE__') # to close the receiver thread.
-            self.receiver_th.join()
+        if self.receiver_th is not None:
+            if self.receiver_th.is_alive():
+                self.pkt_sbsc_q.put('__CLOSE__') # to close the receiver thread.
+                self.receiver_th.join()
             self.receiver_th = None
 
         if self.skw.subscribers.get('pkt_sbsc_q') is not None:
@@ -193,6 +192,8 @@ class MomongaSessionManager:
                             raise MomongaNeedToReopen('%s Close Momonga and open it again.' % e)
                         finally:
                             self.rejoin_lock.release()
+                    else:
+                        self.rejoin_lock.release()
                 elif res.startswith('EVENT 25'):
                     logger.debug('Successfully rejoined the PAN.')
                     self.session_established = True
@@ -222,23 +223,24 @@ class MomongaSessionManager:
     def xmitter(self,
                 data: bytes,
                ) -> None:
-        logger.debug('Trying to acquire "rejoin_lock".')
-        if self.rejoin_lock.acquire(timeout=600) is False: # waiting for rejoining the PAN
-            logger.error('Rejoining a PANA session may fail. Close Momonga and open it again.')
-            raise MomongaNeedToReopen('Rejoining a PANA session may fail. Close Momonga and open it again.')
-        logger.debug('Acquired "rejoin_lock".')
-        self.rejoin_lock.release()
-        if self.receiver_exception is not None:
-            logger.error('Got an exception from the packet receiver. %s: %s' % (type(self.receiver_exception).__name__, str(e)))
-            raise self.receiver_exception
-
         xmitted = False
         for _ in range(3):
             logger.debug('Trying to acquire "xmit_lock".')
-            if self.xmit_lock.acquire(timeout=3600) is False: 
+            for _ in range(30):
+                unlocked =  self.xmit_lock.acquire(timeout=120) 
+                if unlocked is False: 
+                    logger.warning('Could not acquire "xmit_lock".')
+                    if self.receiver_exception is not None:
+                        logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
+                        raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
+                else:
+                    break
+
+            if unlocked is False: 
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
-            logger.debug('Acquired "xmit_lock".')
+            else:
+                logger.debug('Acquired "xmit_lock".')
 
             assert self.session_established is not False, 'Tried to transmit a packet, but no PANA session was established.'
 
@@ -247,9 +249,9 @@ class MomongaSessionManager:
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:
-                logger.warning('Failed to transmit a packet: %s' % str(e))
+                logger.warning('Failed to transmit a packet: %s' % e)
             except Exception as e:
-                logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, str(e)))
+                logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
             finally:
                 self.xmit_lock.release()
             time.sleep(3)
@@ -261,7 +263,7 @@ class MomongaSessionManager:
         self.xmit_restriction_cnt += 1
         logger.debug('The counter for the restriction was incremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmission is inconsistent: The value is set too large for the counter.'
+        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmission is inconsistent: Too big than expected.'
 
         if self.xmit_restriction_cnt == 1:
             logger.debug('Trying to restrict data transmission.')
@@ -276,12 +278,12 @@ class MomongaSessionManager:
             self.xmit_restriction_cnt -= 1
             logger.debug('The counter for the restriction was decremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt >= 0, 'The critical section counter for data transmit is inconsistent: The counter is set to a value that is a too small.'
+        assert self.xmit_restriction_cnt >= 0, 'The critical section counter for data transmit is inconsistent: Too small than expected.'
 
         if self.xmit_restriction_cnt == 0:
             try:
                 self.xmit_lock.release()
             except RuntimeError as e:
-                #logger.warning('Could not release "xmit_lock": %s' % str(e))
+                #logger.warning('Could not release "xmit_lock": %s' % e)
                 pass
             logger.debug('Data transmission is being unrestricted.')
