@@ -197,14 +197,14 @@ e.g.
 ```
 注意: 収集日時はスマートメーター側で設定されたものではなくMomonga自身が設定しているため、実行中に日を跨ぐと収集日時に齟齬が生じる可能性がある。
 
-## momonga.set_day_for_which_to_retrieve_historical_data_1(day: int = 0)
+## momonga.set_day_for_historical_data_1(day: int = 0)
 積算履歴収集日1を設定する。
 ### Arguments
 - day: 積算履歴収集日(0:当日、1~:前日の日数)
 ### Return Value
 - None
 
-## momonga.get_day_for_which_to_retrieve_historical_data_1()
+## momonga.get_day_for_historical_data_1()
 積算履歴収集日1を設定する。
 ### Arguments
 - Void
@@ -259,7 +259,7 @@ e.g.
                         'reverse direction': float}}]
 ```
 
-## momonga.set_time_for_which_to_retrieve_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
+## momonga.set_time_for_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
 積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
 - timestamp: 収集日時
@@ -267,7 +267,7 @@ e.g.
 ### Return Value
 - None
 
-## momonga.get_time_for_which_to_retrieve_historical_data_2()
+## momonga.get_time_for_historical_data_2()
 積算履歴収集日時ならびに収集コマ数を取得する。
 ### Arguments
 - Void

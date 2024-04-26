@@ -65,7 +65,7 @@ class Momonga:
                                 epc: int,
                                 edt: bytes = b'',
                                ) -> bytes:
-        ehd  = b'\x10\x81'     # econet lite edata format 1
+        ehd  = b'\x10\x81'     # echonet lite edata format 1
         tid  = tid.to_bytes(4, 'big')[-2:]
         seoj = b'\x05\xFF\x01' # controller class
         deoj = b'\x02\x88\x01' # low-voltage smart electric energy meter class
@@ -85,8 +85,8 @@ class Momonga:
                                    epc: int,
                                   ):
         ehd = data[0:2]
-        if  ehd != b'\x10\x81': # econet lite edata format 1
-            raise MomongaResponseNotExpected('The data format is not Econet Lite EDATA format 1')
+        if  ehd != b'\x10\x81': # echonet lite edata format 1
+            raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1')
 
         if int.from_bytes(data[2:4], 'big') != tid:
             raise MomongaResponseNotExpected('The transaction ID does not match.')
@@ -99,12 +99,16 @@ class Momonga:
         if deoj != b'\x05\xFF\x01': # controller class
             raise MomongaResponseNotExpected('The destination is not a controller.')
 
+        if data[12] != epc:
+            raise MomongaResponseNotExpected('The property code does not match. EPC: %X' % epc)
+
         esv = data[10]
         if 0x50 <= esv <= 0x5F:
             raise MomongaResponseNotPossible('The target smart meter could not respond. ESV: %X' % esv)
+
         opc = data[11]
         assert opc == 1, 'Unexpected packet format. OPC is expected 1 but %d was set.' % opc
-        epc = data[12]
+
         pdc = data[13]
         if pdc == 0:
             edt = None
@@ -235,7 +239,7 @@ class Momonga:
                                            reverse: bool = False,
                                           ) -> list:
         self.__prepare_to_get_cumulative_energy()
-        self.set_day_for_which_to_retrieve_historical_data_1(day)
+        self.set_day_for_historical_data_1(day)
 
         if reverse is False:
             epc = 0xE2
@@ -263,12 +267,12 @@ class Momonga:
             timestamp += datetime.timedelta(minutes=30)
         return historical_cumulative_energy
  
-    def set_day_for_which_to_retrieve_historical_data_1(self,
-                                                        day: int = 0,
-                                                       ) -> None:
+    def set_day_for_historical_data_1(self,
+                                      day: int = 0,
+                                     ) -> None:
         self.__request(0xE5, day.to_bytes(1, 'big'))
 
-    def get_day_for_which_to_retrieve_historical_data_1(self) -> int:
+    def get_day_for_historical_data_1(self) -> int:
         res = self.__request(0xE5)
         day = int.from_bytes(res.get('edt'), 'big')
         return day
@@ -316,7 +320,7 @@ class Momonga:
             timestamp = datetime.datetime.now()
 
         self.__prepare_to_get_cumulative_energy()
-        self.set_time_for_which_to_retrieve_historical_data_2(timestamp, num_of_data_points)
+        self.set_time_for_historical_data_2(timestamp, num_of_data_points)
 
         res = self.__request(0xEC)
         edt = res.get('edt')
@@ -349,10 +353,10 @@ class Momonga:
             timestamp -= datetime.timedelta(minutes=30)
         return historical_cumulative_energy
  
-    def set_time_for_which_to_retrieve_historical_data_2(self,
-                                                         timestamp: datetime.datetime,
-                                                         num_of_data_points: int = 12,
-                                                        ) -> None:
+    def set_time_for_historical_data_2(self,
+                                       timestamp: datetime.datetime,
+                                       num_of_data_points: int = 12,
+                                      ) -> None:
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
         day = timestamp.day.to_bytes(1, 'big')
@@ -367,7 +371,7 @@ class Momonga:
         num_of_data_points = num_of_data_points.to_bytes(1, 'big')
         self.__request(0xED, year + month + day + hour + minute + num_of_data_points)
 
-    def get_time_for_which_to_retrieve_historical_data_2(self) -> dict:
+    def get_time_for_historical_data_2(self) -> dict:
         res = self.__request(0xED)
         edt = res.get('edt')
         year = int.from_bytes(edt[0:2], 'big')
