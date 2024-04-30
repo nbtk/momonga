@@ -1,5 +1,6 @@
 
 import datetime
+import time
 import queue
 import logging
 
@@ -129,7 +130,7 @@ class Momonga:
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get() # drops stored data
 
-        for _ in range(12):
+        for _ in range(10):
             self.session_manager.xmitter(tx_payload)
             while True:
                 try:
@@ -144,6 +145,7 @@ class Momonga:
                         continue
                     elif param == '01':
                         logger.warning('Retransmitting the packet for "%X" request.' % (epc))
+                        time.sleep(3)
                         break # to rexmit
                     elif param == '02':
                         logger.warning('Transmitting neighbor solicitation packets.' % (epc))
@@ -177,10 +179,12 @@ class Momonga:
         if self.energy_coefficient is None:
             try:
                 self.energy_coefficient = self.get_coefficient_for_cumulative_energy()
+                time.sleep(3)
             except MomongaResponseNotPossible:
                 self.energy_coefficient = 1
         if self.energy_unit is None:
             self.energy_unit = self.get_unit_for_cumulative_energy()
+            time.sleep(3)
 
     def get_operation_status(self) -> int:
         res = self.__request(0x80)
