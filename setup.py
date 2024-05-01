@@ -7,7 +7,7 @@ with open('README.md', 'r') as f:
 
 setuptools.setup(
     name='momonga',
-    version='0.0.7',
+    version='0.0.8',
     description='Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Meters',
     long_description=long_description,
     long_description_content_type='text/markdown',
