@@ -28,6 +28,9 @@ class Momonga:
                  baudrate: int = 115200,
                  reset_dev: bool = True,
                 ) -> None:
+        self.xmit_retry = 12
+        self.recv_timeout = 12
+        self.internal_xmit_interval = 5
         self.transaction_id = 0
         self.energy_coefficient = None
         self.energy_unit = None
@@ -51,6 +54,7 @@ class Momonga:
     def open(self):
         logger.info('Opening Momonga.')
         self.session_manager.open()
+        time.sleep(self.internal_xmit_interval)
         logger.info('Momonga is open.')
         return self
 
@@ -130,11 +134,11 @@ class Momonga:
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get() # drops stored data
 
-        for _ in range(10):
+        for _ in range(self.xmit_retry):
             self.session_manager.xmitter(tx_payload)
             while True:
                 try:
-                    res = self.session_manager.recv_q.get(timeout=12)
+                    res = self.session_manager.recv_q.get(timeout=self.recv_timeout)
                 except queue.Empty:
                     logger.warning('Timed out to obtain a response for "%X" request.' % (epc))
                     break
@@ -145,7 +149,7 @@ class Momonga:
                         continue
                     elif param == '01':
                         logger.warning('Retransmitting the packet for "%X" request.' % (epc))
-                        time.sleep(3)
+                        time.sleep(self.internal_xmit_interval)
                         break # to rexmit
                     elif param == '02':
                         logger.warning('Transmitting neighbor solicitation packets.' % (epc))
@@ -179,12 +183,12 @@ class Momonga:
         if self.energy_coefficient is None:
             try:
                 self.energy_coefficient = self.get_coefficient_for_cumulative_energy()
-                time.sleep(3)
+                time.sleep(self.internal_xmit_interval)
             except MomongaResponseNotPossible:
                 self.energy_coefficient = 1
         if self.energy_unit is None:
             self.energy_unit = self.get_unit_for_cumulative_energy()
-            time.sleep(3)
+            time.sleep(self.internal_xmit_interval)
 
     def get_operation_status(self) -> int:
         res = self.__request(0x80)
