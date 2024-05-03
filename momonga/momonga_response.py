@@ -1,5 +1,4 @@
-
-from .momonga_exception import *
+from .momonga_exception import MomongaKeyError
 
 
 class MomongaSkResponseBase:
@@ -15,6 +14,7 @@ class MomongaSkResponseBase:
             if key in elm:
                 return elm
         raise MomongaKeyError(key)
+
 
 class SkVerResponse(MomongaSkResponseBase):
     def decode(self):

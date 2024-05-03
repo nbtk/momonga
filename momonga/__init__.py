@@ -6,4 +6,3 @@ from .momonga import (
 )
 
 from .momonga_exception import *
-

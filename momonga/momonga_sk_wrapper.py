@@ -1,11 +1,23 @@
-
 import logging
 import threading
 import queue
 import serial
 
-from .momonga_exception import *
-from .momonga_response import *
+from .momonga_exception import (MomongaError,
+                                MomongaTimeoutError,
+                                MomongaSkCommandUnknownError,
+                                MomongaSkCommandUnsupported,
+                                MomongaSkCommandInvalidArgument,
+                                MomongaSkCommandInvalidSyntax,
+                                MomongaSkCommandSerialInputError,
+                                MomongaSkCommandFailedToExecute,
+                                MomongaSkScanFailure,
+                                MomongaSkJoinFailure)
+from .momonga_response import (SkVerResponse,
+                               SkAppVerResponse,
+                               SkInfoResponse,
+                               SkScanResponse,
+                               SkLl64Response)
 
 
 try:
@@ -30,14 +42,14 @@ class MomongaSkWrapper:
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
 
-#    def __enter__(self) -> Self:
+    #def __enter__(self) -> Self:
     def __enter__(self):
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-#    def open(self) -> Self:
+    #def open(self) -> Self:
     def open(self):
         self.ser = serial.Serial(self.dev, self.baudrate)
 
@@ -52,7 +64,7 @@ class MomongaSkWrapper:
             while not q.empty():
                 q.get()
 
-        self.publisher_th_breaker = False # set True when you want to stop the publisher.
+        self.publisher_th_breaker = False  # set True when you want to stop the publisher.
         self.publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
         self.publisher_th.start()
 
@@ -64,18 +76,18 @@ class MomongaSkWrapper:
         if self.ser is not None and not self.ser.closed:
             self.ser.close()
 
-    def __clear_buf(self) -> None: # do not call this after open().
+    def __clear_buf(self) -> None:  # do not call this after open().
         self.ser.write(b'\r\n')
         self.ser.flush()
         timeout = self.ser.timeout
-        self.ser.timeout = 2 # will wait the specified seconds.
+        self.ser.timeout = 2  # will wait the specified seconds.
         while self.ser.read():
             # this loop clears garbage data if it exists.
             pass
         # to undo the timeout.
         self.ser.timeout = timeout
 
-    def __exec_ropt(self) -> str: # do not call this after open().
+    def __exec_ropt(self) -> str:  # do not call this after open().
         self.ser.write(b'ROPT\r')
         self.ser.flush()
         res = b''
@@ -98,7 +110,7 @@ class MomongaSkWrapper:
         line = data_bytes.decode().split('\r\n')[0]
         return line
 
-    def received_packet_publisher(self):
+    def received_packet_publisher(self) -> None:
         logger.debug('The received packet publisher has been started.')
         while True:
             if self.publisher_th_breaker is True:
@@ -107,14 +119,14 @@ class MomongaSkWrapper:
             if line == '':
                 continue
             for q in self.subscribers.values():
-                q.put(line) # will dispatch the line to each subscriber
+                q.put(line)  # will dispatch the line to each subscriber
         logger.debug('The received packet publisher has been stopped.')
-   
+
     def __writeline(self,
                     line: str,
                     payload: bytes | None = None,
                    ) -> None:
-        if payload is not None: 
+        if payload is not None:
             data_bytes = (line + ' ').encode() + payload
         else:
             data_bytes = (line + '\r\n').encode()
@@ -211,7 +223,7 @@ class MomongaSkWrapper:
 
     def skscan(self,
                retry: int = 3,
-               ) -> SkScanResponse:
+              ) -> SkScanResponse:
         duration = 6
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
@@ -257,8 +269,6 @@ class MomongaSkWrapper:
                  sec: int = 2,
                  side: int = 0,
                 ) -> None:
-        self.exec_command(['SKSENDTO', str(handle),
-                          ip6_addr, '%04X' % port,
-                          str(sec), str(side),
-                          '%04X' % len(data)],
-                          payload=data)
+        self.exec_command(['SKSENDTO', str(handle), ip6_addr, '%04X' % port,
+                           str(sec), str(side), '%04X' % len(data)],
+                          payload = data)
