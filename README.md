@@ -1,4 +1,4 @@
-[![Downloads](https://static.pepy.tech/badge/momonga)](https://pepy.tech/project/momonga)
+[![Downloads](https://static.pepy.tech/personalized-badge/momonga?period=total&units=none&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/momonga)
 
 # Momonga
 Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Meters
@@ -156,7 +156,7 @@ PANAセッションを終了する。
 ### Arguments
 - Void
 ### Return Value
-- bool: スマートメーターの状態 (True: オン False: オフ None: 不明)
+- bool | None: スマートメーターの状態 (True: オン False: オフ None: 不明)
 
 ## momonga.get_coefficient_for_cumulative_energy()
 積算電力量計測値、履歴を実使用量に換算する係数を取得する。Momongaが出力する結果には適宜この値が乗じられている。
@@ -170,12 +170,13 @@ PANAセッションを終了する。
 - Void
 ### Return Value
 - int: 有効桁数
+
 ## momonga.get_measured_cumulative_energy(reverse: bool = False)
 積算電力量計測値を取得する。
 ### Arguments
 - reverse: Trueのとき逆方向の積算電力量を取得する
 ### Return Value
-- float: 積算電力量(kWh)
+- int | float: 積算電力量(kWh)
 
 ## momonga.get_unit_for_cumulative_energy()
 積算電力量計測値、履歴の乗率を取得する。Momongaが出力する結果には適宜この値が乗じられている。
@@ -195,7 +196,7 @@ PANAセッションを終了する。
 e.g.
 ```python3
 [{'timestamp': datetime.datetime,
-  'cumulative energy': float}]
+  'cumulative energy': int | float | None}]
 ```
 注意: 収集日時はスマートメーター側で設定されたものではなくMomonga自身が設定しているため、実行中に日を跨ぐと収集日時に齟齬が生じる可能性がある。
 
@@ -242,14 +243,14 @@ e.g.
 
 e.g.
 ```python3
-{'datetime': datetime.datetime,
- 'cumulative energy': float}
+{'timestamp': datetime.datetime,
+ 'cumulative energy': int | float}
 ```
 
 ## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = None, num_of_data_points: int = 12)
 積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 30 分毎のデータで過去最大6時間分取得する。
 ### Arguments
-- timestamp: 収集日時
+- timestamp: 収集日時 (Noneのときは現時刻)
 - num_of_data_points: 収集コマ数 1~12
 ### Return Value
 - list: 収集日時と正方向および逆方向の積算電力量(kWh)
@@ -257,14 +258,14 @@ e.g.
 e.g.
 ```python3
 [{'timestamp': datetime.datetime,
-  'cumulative energy': {'normal direction': float,
-                        'reverse direction': float}}]
+  'cumulative energy': {'normal direction': int | float | None,
+                        'reverse direction': int | float | None}}]
 ```
 
 ## momonga.set_time_for_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
 積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
-- timestamp: 収集日時
+- timestamp: 収集日時 (Noneのときは現時刻)
 - num_of_data_points: 収集コマ数
 ### Return Value
 - None
@@ -278,6 +279,6 @@ e.g.
 
 e.g.
 ```python3
-{'timestamp': datetime,
+{'timestamp': datetime.datetime | None,
  'number of data points': int}
 ```
