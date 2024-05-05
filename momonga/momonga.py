@@ -240,7 +240,8 @@ class Momonga:
                                            day: int = 0,
                                            reverse: bool = False,
                                            ) -> list[dict[str: datetime.datetime,
-                                                          str: int | float | None]]:
+                                                          str: dict[str: int | float | None,
+                                                                    str: int | float | None]]]:
         self.__prepare_to_get_cumulative_energy()
         self.set_day_for_historical_data_1(day)
 
