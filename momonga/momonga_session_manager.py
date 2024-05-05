@@ -56,14 +56,14 @@ class MomongaSessionManager:
         self.recv_q = queue.Queue()
         self.xmit_q = queue.Queue()
 
-    #def __enter__(self) -> Self:
+    # def __enter__(self) -> Self:
     def __enter__(self):
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    #def open(self) -> Self:
+    # def open(self) -> Self:
     def open(self):
         logger.info('Opening a Momonga session...')
         try:
@@ -74,7 +74,7 @@ class MomongaSessionManager:
                 self.skw.skreset()
 
             # to disable echoback.
-            #self.sksreg('SFE', '0')
+            # self.sksreg('SFE', '0')
 
             # to show the rssi of the received packets.
             self.skw.sksreg('SA2', '1')
@@ -213,9 +213,10 @@ class MomongaSessionManager:
                 elif res.startswith('EVENT 28'):  # there was no session to close.
                     self.restrict_to_xmit()
                     logger.warning('There was no PANA session to close.')
-                elif self.is_restricted_to_xmit() is False and (res.startswith("EVENT 21") or
-                                                                res.startswith("EVENT 02") or
-                                                                res.startswith("ERXUDP")):
+                elif res.startswith("EVENT 21") or res.startswith("EVENT 02"):
+                    if self.is_restricted_to_xmit() is False:
+                        self.recv_q.put(res)
+                elif res.startswith("ERXUDP"):
                     self.recv_q.put(res)
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
