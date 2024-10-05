@@ -6,8 +6,8 @@ Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Met
 # Description
 MomongaはBルートサービスを利用してスマートメーターと通信するライブラリです。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2を搭載したラトックシステムRS-WSUHA-Pです。
 
-# Preparation
-Momongaを使用するためには事前にWi-SUNモジュールにシリアル接続し`WOPT 01\r`コマンドを実行してUDPパケットのペイロードをASCIIフォーマットで出力するように設定してください。注意: WOPTコマンドは実行回数に制限がありますので初回のみ実行してください。設定は保存されます。
+# Note
+Momongaは`WOPT 01\r`コマンドを実行して、Wi-SUNモジュールがUDPパケットのペイロードをASCIIフォーマットで出力するように設定します。注意: WOPTコマンドは実行回数に制限があるので初回のみ実行し、その設定はWi-SUNモジュールに保存されます。
 
 # Installation
 ```shell
