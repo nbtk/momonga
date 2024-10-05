@@ -54,13 +54,13 @@ class MomongaSkWrapper:
         # to drop garbage data in the buffer.
         self.__clear_buf()
 
-        # to check to be returned the udp payloads in ascii.
+        # to check udp payloads returned from the wi-sun module are in ascii format.
         if self.__exec_ropt() != 1:
-            logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return the UDP payloads "
+            logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
                            "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
                            "This configuration is saved in the Wi-SUN module, so this log message should "
                            "no longer appear.")
-            self.__exec_wopt(1)  # to make the wi-sun module return the UDP payloads in ASCII format.
+            self.__exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
 
         for q in self.subscribers.values():
             while not q.empty():
