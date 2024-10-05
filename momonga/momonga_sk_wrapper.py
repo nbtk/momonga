@@ -19,12 +19,10 @@ from .momonga_response import (SkVerResponse,
                                SkScanResponse,
                                SkLl64Response)
 
-
 try:
     from typing import Self
 except ImportError:
     Self = object
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ class MomongaSkWrapper:
     def __init__(self,
                  dev: str,
                  baudrate: int = 115200,
-                ) -> None:
+                 ) -> None:
         self.dev = dev
         self.baudrate = baudrate
 
@@ -57,8 +55,12 @@ class MomongaSkWrapper:
         self.__clear_buf()
 
         # to check to be returned the udp payloads in ascii.
-        if self.__exec_ropt() != '01':
-            raise MomongaError("Execute 'WOPT 01\\r' yourself before using Momonga to make the wi-sun module return the UDP payloads in ASCII format. Note: The WOPT command can only be executed a limited number of times, so execute it only once!")
+        if self.__exec_ropt() != 1:
+            logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return the UDP payloads "
+                           "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
+                           "This configuration is saved in the Wi-SUN module, so this log message should "
+                           "no longer appear.")
+            self.__exec_wopt(1)  # to make the wi-sun module return the UDP payloads in ASCII format.
 
         for q in self.subscribers.values():
             while not q.empty():
@@ -87,7 +89,7 @@ class MomongaSkWrapper:
         # to undo the timeout.
         self.ser.timeout = timeout
 
-    def __exec_ropt(self) -> str:  # do not call this after open().
+    def __exec_ropt(self) -> int:  # do not call this after open().
         self.ser.write(b'ROPT\r')
         self.ser.flush()
         res = b''
@@ -96,11 +98,29 @@ class MomongaSkWrapper:
             res += self.ser.read()
             if ok in res and res.endswith(b'\r'):
                 break
-        return res[res.index(ok)+len(ok):-1].decode()
+        return int(res[res.index(ok) + len(ok):-1].decode())
+
+    def __exec_wopt(self,
+                    opt: int,
+                    ) -> None:  # do not call this after open().
+        supported_opts = (0,  # binary mode
+                          1,  # hex ascii mode
+                          )
+        if opt not in supported_opts:
+            raise MomongaError('WOPT command dose not support the given option: %03d' % opt)
+
+        self.ser.write(('WOPT %02d\r' % opt).encode())
+        self.ser.flush()
+        res = b''
+        while True:
+            res += self.ser.read()
+            if b'OK\r' in res:
+                break
+        return
 
     def __readline(self,
                    timeout: int | None = None,
-                  ) -> str:
+                   ) -> str:
         org_timeout = self.ser.timeout
         self.ser.timeout = timeout
         data_bytes = self.ser.readline()
@@ -125,7 +145,7 @@ class MomongaSkWrapper:
     def __writeline(self,
                     line: str,
                     payload: bytes | None = None,
-                   ) -> None:
+                    ) -> None:
         if payload is not None:
             data_bytes = (line + ' ').encode() + payload
         else:
@@ -139,7 +159,7 @@ class MomongaSkWrapper:
                      wait_until: str | list[str] = 'OK',
                      timeout: int | None = None,
                      payload: bytes | None = None,
-                    ) -> list[str]:
+                     ) -> list[str]:
         command = ' '.join(command)
 
         if type(wait_until) is str:
@@ -174,7 +194,8 @@ class MomongaSkWrapper:
                 elif error_code == 9:
                     raise MomongaSkCommandSerialInputError('Serial input error: %s' % (command))
                 elif error_code == 10:
-                    raise MomongaSkCommandFailedToExecute('The specified command was accepted but failed to execute: %s' % (command))
+                    raise MomongaSkCommandFailedToExecute(
+                        'The specified command was accepted but failed to execute: %s' % (command))
             else:
                 res.append(r)
                 matched = False
@@ -204,7 +225,7 @@ class MomongaSkWrapper:
     def sksreg(self,
                reg: str,
                val: str | int | bytes,
-              ) -> None:
+               ) -> None:
         if type(val) is int:
             val = '%X' % val
         elif type(val) is bytes:
@@ -213,17 +234,17 @@ class MomongaSkWrapper:
 
     def sksetrbid(self,
                   rbid: str,
-                 ) -> None:
+                  ) -> None:
         self.exec_command(['SKSETRBID', rbid])
 
     def sksetpwd(self,
                  pwd: str,
-                ) -> None:
+                 ) -> None:
         self.exec_command(['SKSETPWD', '%X' % len(pwd), pwd])
 
     def skscan(self,
                retry: int = 3,
-              ) -> SkScanResponse:
+               ) -> SkScanResponse:
         duration = 6
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
@@ -238,14 +259,14 @@ class MomongaSkWrapper:
 
     def skll64(self,
                mac_addr: bytes,
-              ) -> SkLl64Response:
+               ) -> SkLl64Response:
         res = self.exec_command(['SKLL64', mac_addr.hex().upper()], 'FE80:')
         return SkLl64Response(res)
 
     def skjoin(self,
                ip6_addr: str,
                retry: int = 3,
-              ) -> None:
+               ) -> None:
         for _ in range(retry):
             logger.debug('Trying to establish a PANA session...')
             res = self.exec_command(['SKJOIN', ip6_addr], ['EVENT 24', 'EVENT 25'])
@@ -268,7 +289,7 @@ class MomongaSkWrapper:
                  port: int = 0x0E1A,
                  sec: int = 2,
                  side: int = 0,
-                ) -> None:
+                 ) -> None:
         self.exec_command(['SKSENDTO', str(handle), ip6_addr, '%04X' % port,
                            str(sec), str(side), '%04X' % len(data)],
-                          payload = data)
+                          payload=data)
