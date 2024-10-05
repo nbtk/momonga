@@ -131,7 +131,7 @@ class MomongaSkWrapper:
         return line
 
     def received_packet_publisher(self) -> None:
-        logger.debug('The received packet publisher has been started.')
+        logger.debug('A received packet publisher has been started.')
         while True:
             if self.publisher_th_breaker is True:
                 break

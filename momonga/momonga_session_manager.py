@@ -169,7 +169,7 @@ class MomongaSessionManager:
         logger.info('The Momonga session is closed.')
 
     def receiver(self) -> None:
-        logger.debug('The packet receiver has been started.')
+        logger.debug('A packet receiver has been started.')
         try:
             while True:
                 res = self.pkt_sbsc_q.get()
