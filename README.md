@@ -285,4 +285,5 @@ e.g.
 
 ## Feedback
 イシュー報告、プルリクエスト、コメント等、なんでもよいのでフィードバックお待ちしています。星をもらうと開発が活発になります。
-If you have any problems, questions, suggestions or comments, please let me know. All feedback is welcome.
+
+If you have any problems, questions, suggestions or comments, please let me know. It can be in English. All feedback is welcome.
