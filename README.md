@@ -21,8 +21,8 @@ BルートID、パスワード、デバイスファイルへのパスは適宜�
 import momonga
 import time
 
-rbid = 'SET A ROUTE B ID'
-pwd  = 'SET A ROUTE B PASSWORD'
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
@@ -69,8 +69,8 @@ momonga.session_manager_logger.setLevel(logging.DEBUG)
 momonga.sk_wrapper_logger.addHandler(log_hnd)
 momonga.sk_wrapper_logger.setLevel(logging.DEBUG)
 
-rbid = 'SET A ROUTE B ID'
-pwd  = 'SET A ROUTE B PASSWORD'
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
@@ -98,8 +98,8 @@ import momonga
 import time
 import sys
 
-rbid = 'SET A ROUTE B ID'
-pwd  = 'SET A ROUTE B PASSWORD'
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
 while True:
