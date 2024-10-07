@@ -107,7 +107,7 @@ class MomongaSkWrapper:
                           1,  # hex ascii mode
                           )
         if opt not in supported_opts:
-            raise MomongaError('WOPT command dose not support the given option: %03d' % opt)
+            raise MomongaError('WOPT command dose not support the given option: %02d' % opt)
 
         self.ser.write(('WOPT %02d\r' % opt).encode())
         self.ser.flush()
