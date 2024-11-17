@@ -145,11 +145,11 @@ class Momonga:
                         logger.info('Successfully transmitted a packet for "%X" request.' % (epc))
                         continue
                     elif param == '01':
-                        logger.warning('Retransmitting the packet for "%X" request.' % (epc))
+                        logger.info('Retransmitting the packet for "%X" request.' % (epc))
                         time.sleep(self.internal_xmit_interval)
                         break  # to rexmit
                     elif param == '02':
-                        logger.warning('Transmitting neighbor solicitation packets.' % (epc))
+                        logger.info('Transmitting neighbor solicitation packets.' % (epc))
                         continue
                 elif res.startswith('EVENT 02'):
                     logger.info('Received a neighbor advertisement packet.' % (epc))
