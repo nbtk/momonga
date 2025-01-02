@@ -1,5 +1,7 @@
 [![Downloads](https://static.pepy.tech/personalized-badge/momonga?period=total&units=none&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/momonga)
 
+<img src="https://raw.githubusercontent.com/nbtk/momonga/refs/heads/main/logo.png" width="256">
+
 # Momonga
 Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Meters
 
