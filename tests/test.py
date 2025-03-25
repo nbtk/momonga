@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+import traceback
 import momonga
 
 from pprint import pprint
@@ -131,6 +132,7 @@ while True:
         continue
     except Exception as e:
         print('%s: %s' % (type(e).__name__, str(e)), file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         break
 
 exit(exit_code)
