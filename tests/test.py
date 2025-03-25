@@ -93,9 +93,15 @@ while True:
 
             print('---- instantaneous current [A] ----')
             res = mo.get_instantaneous_current()
-            pprint(res)
+            print(res, 'A')
             print('----')
             time.sleep(5)
+
+            print('---- instantaneous power and current ----')
+            req = [momonga.EchonetProperty(momonga.EchonetPropertyCode.instantaneous_power),
+                   momonga.EchonetProperty(momonga.EchonetPropertyCode.instantaneous_current)]
+            res = mo.request_to_get(req)
+            print(res)
 
             print('---- cumulative energy measured at fixed time (normal direction) [kWh] ----')
             res = mo.get_cumulative_energy_measured_at_fixed_time()
