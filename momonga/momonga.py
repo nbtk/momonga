@@ -174,18 +174,23 @@ class Momonga:
                 'Unexpected packet format. OPC is expected %s but %d was set.' % (req_opc, opc))
 
         properties = []
-        cur = 12
+        cur = 11
         for rp in req_properties:
+            cur += 1
             epc = EchonetPropertyCode(data[cur])
             if epc != rp.epc:
                 raise MomongaResponseNotExpected('The property code does not match. EPC: %X' % rp.epc)
+
             cur += 1
             pdc = data[cur]
             if pdc == 0:
                 edt = None
             else:
-                edt = data[cur:cur + pdc]
-                cur += pdc + 1
+                cur += 1
+                edt_from = cur
+                cur += pdc
+                edt = data[edt_from:cur]
+
             properties.append(EchonetPropertyWithData(epc, edt))
 
         return properties
