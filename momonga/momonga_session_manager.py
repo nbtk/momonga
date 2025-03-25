@@ -232,9 +232,10 @@ class MomongaSessionManager:
         xmitted = False
         for _ in range(retry_to_xmit):
             logger.debug('Trying to acquire "xmit_lock".')
+            locked = False
             for r in range(retry_to_acquire_xmit_lock):
-                unlocked = self.xmit_lock.acquire(timeout=60)
-                if unlocked is False:
+                locked = self.xmit_lock.acquire(timeout=60)
+                if locked is False:
                     logger.warning('Could not acquire "xmit_lock". (%d/%d)' % (r + 1, retry_to_acquire_xmit_lock))
                     if self.receiver_exception is not None:
                         logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
@@ -242,7 +243,7 @@ class MomongaSessionManager:
                 else:
                     break
 
-            if unlocked is False:
+            if locked is False:
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
             else:
