@@ -176,7 +176,7 @@ class Momonga:
         properties = []
         cur = 12
         for rp in req_properties:
-            epc = EchonetPropertyCode(cur)
+            epc = EchonetPropertyCode(data[cur])
             if epc != rp.epc:
                 raise MomongaResponseNotExpected('The property code does not match. EPC: %X' % rp.epc)
             cur += 1
