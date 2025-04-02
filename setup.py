@@ -23,5 +23,5 @@ setuptools.setup(
     install_requires=[
         'pyserial~=3.5',
     ],
-    python_requires='>=3.10',
+    python_requires='>=3.11',
 )

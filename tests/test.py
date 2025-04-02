@@ -1,13 +1,12 @@
-
 import logging
 import os
 import sys
 import time
+import datetime
 import traceback
 import momonga
 
 from pprint import pprint
-
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
@@ -98,12 +97,6 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- instantaneous power and current ----')
-            req = [momonga.EchonetProperty(momonga.EchonetPropertyCode.instantaneous_power),
-                   momonga.EchonetProperty(momonga.EchonetPropertyCode.instantaneous_current)]
-            res = mo.request_to_get(req)
-            print(res)
-
             print('---- cumulative energy measured at fixed time (normal direction) [kWh] ----')
             res = mo.get_cumulative_energy_measured_at_fixed_time()
             pprint(res)
@@ -122,16 +115,58 @@ while True:
             print('----')
             time.sleep(5)
 
+            print('---- set parameters with request_to_set() ----')
+
+            now = datetime.datetime.now()
+            mo.request_to_set(day_for_historical_data_1=0,
+                              time_for_historical_data_2=(now, 12),
+                              time_for_historical_data_3=(now, 10),
+                              )
+            print('----')
+            time.sleep(5)
+
+            print('---- test all EchonetPropertyCode using request_to_get() one by one ----')
+            all_codes = [e for e in momonga.EchonetPropertyCode]
+            for epc_req in all_codes:
+                epc, r = mo.request_to_get([epc_req]).popitem()
+                print(f'epc: {epc.name}, result: {r}')
+            print('----')
+            time.sleep(5)
+
+            print('---- request with 7 epcs using request_to_get() at once ----')
+            req = [momonga.EchonetPropertyCode.operation_status,
+                   momonga.EchonetPropertyCode.coefficient_for_cumulative_energy,
+                   momonga.EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy,
+                   momonga.EchonetPropertyCode.measured_cumulative_energy,
+                   momonga.EchonetPropertyCode.measured_cumulative_energy_reserved,
+                   momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time,
+                   momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed,
+                   ]
+            res = mo.request_to_get(req)
+            for epc, r in res:
+                print(f'epc: {epc.name}, result: {r}')
+            print('----')
+            time.sleep(5)
+
+            print('---- instantaneous power and current using request_to_get() at once ----')
+            req = [momonga.EchonetPropertyCode.instantaneous_power,
+                   momonga.EchonetPropertyCode.instantaneous_current,
+                   ]
+            res = mo.request_to_get(req)
+            for epc, r in res:
+                print(f'epc: {epc.name}, result: {r}')
+            print('----')
+            time.sleep(5)
+
             exit_code = 0
             break
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaNeedToReopen,
-           ):
+            ):
         time.sleep(60)
         continue
     except Exception as e:
-        print('%s: %s' % (type(e).__name__, str(e)), file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
         break
 
