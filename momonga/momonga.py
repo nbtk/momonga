@@ -4,7 +4,7 @@ import time
 import queue
 import logging
 
-from typing import Any, Self
+from typing import TypedDict, Any, Self
 
 from .momonga_exception import (MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
@@ -273,12 +273,18 @@ class Momonga:
 
     @staticmethod
     def __build_edata_to_set_day_for_historical_data_1(day: int = 0) -> bytes:
+        if day < 0 or day > 99:
+            raise ValueError('The parameter "day" must be between 0 and 99.')
+
         return day.to_bytes(1, 'big')
 
     @staticmethod
     def __build_edata_to_set_time_for_historical_data_2(timestamp: datetime.datetime,
                                                         num_of_data_points: int = 12,
                                                         ) -> bytes:
+        if num_of_data_points < 1 or num_of_data_points > 12:
+            raise ValueError('The parameter "num_of_data_points" must be between 1 and 12.')
+
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
         day = timestamp.day.to_bytes(1, 'big')
@@ -296,6 +302,9 @@ class Momonga:
     def __build_edata_to_set_time_for_historical_data_3(timestamp: datetime.datetime,
                                                         num_of_data_points: int = 10,
                                                         ) -> bytes:
+        if num_of_data_points < 1 or num_of_data_points > 10:
+            raise ValueError('The parameter "num_of_data_points" must be between 1 and 10.')
+
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
         day = timestamp.day.to_bytes(1, 'big')
@@ -672,29 +681,37 @@ class Momonga:
         res = self.__request_to_get([req])[0]
         return self.__parse_time_for_historical_data_3(res.edt)
 
+    class DayForHistoricalData1(TypedDict, total=False):
+        day: int
+
+    class TimeForHistoricalData2(TypedDict, total=False):
+        timestamp: datetime.datetime
+        num_of_data_points: int
+
+    class TimeForHistoricalData3(TypedDict, total=False):
+        timestamp: datetime.datetime
+        num_of_data_points: int
+
     def request_to_set(self,
-                       day_for_historical_data_1: int | None = None,
-                       time_for_historical_data_2: tuple[datetime.datetime, int] | None = None,
-                       time_for_historical_data_3: tuple[datetime.datetime, int] | None = None) -> None:
+                       day_for_historical_data_1: DayForHistoricalData1 | None = None,
+                       time_for_historical_data_2: TimeForHistoricalData2 | None = None,
+                       time_for_historical_data_3: TimeForHistoricalData3 | None = None) -> None:
         properties_with_data = []
         if day_for_historical_data_1 is not None:
-            edt = self.__build_edata_to_set_day_for_historical_data_1(day_for_historical_data_1)
+            edt = self.__build_edata_to_set_day_for_historical_data_1(**day_for_historical_data_1)
             properties_with_data.append(EchonetPropertyWithData(EchonetPropertyCode.day_for_historical_data_1, edt))
         if time_for_historical_data_2 is not None:
-            timestamp, num_of_data_points = time_for_historical_data_2
-            edt = self.__build_edata_to_set_time_for_historical_data_2(timestamp, num_of_data_points)
+            edt = self.__build_edata_to_set_time_for_historical_data_2(**time_for_historical_data_2)
             properties_with_data.append(EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_2, edt))
         if time_for_historical_data_3 is not None:
-            timestamp, num_of_data_points = time_for_historical_data_3
-            edt = self.__build_edata_to_set_time_for_historical_data_3(timestamp, num_of_data_points)
+            edt = self.__build_edata_to_set_time_for_historical_data_3(**time_for_historical_data_3)
             properties_with_data.append(EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_3, edt))
 
         self.__request_to_set(properties_with_data)
 
     def request_to_get(self,
-                       properties: list[EchonetPropertyCode]) -> dict[EchonetPropertyCode, Any]:
-        echonet_properties = [EchonetProperty(epc) for epc in properties]
-        results = self.__request_to_get(echonet_properties)
+                       properties: set[EchonetPropertyCode]) -> dict[EchonetPropertyCode, Any]:
+        results = self.__request_to_get([EchonetProperty(epc) for epc in properties])
         parsed_results = {}
         for r in results:
             if r.epc == EchonetPropertyCode.operation_status:
