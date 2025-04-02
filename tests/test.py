@@ -119,9 +119,9 @@ while True:
             print('---- set parameters with request_to_set() ----')
 
             now = datetime.datetime.now()
-            mo.request_to_set(day_for_historical_data_1=0,
-                              time_for_historical_data_2=(now, 12),
-                              time_for_historical_data_3=(now, 10),
+            mo.request_to_set(day_for_historical_data_1={'day': 0},
+                              time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
+                              time_for_historical_data_3={'timestamp': now, 'num_of_data_points': 10},
                               )
             print('----')
             time.sleep(5)
@@ -129,31 +129,31 @@ while True:
             print('---- test all EchonetPropertyCode using request_to_get() one by one ----')
             all_codes = [e for e in momonga.EchonetPropertyCode]
             for epc_req in all_codes:
-                epc, r = mo.request_to_get([epc_req]).popitem()
+                epc, r = mo.request_to_get({epc_req}).popitem()
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)
 
             print('---- request with 7 epcs using request_to_get() at once ----')
-            req = [EPC.operation_status,
-                   EPC.coefficient_for_cumulative_energy,
-                   EPC.number_of_effective_digits_for_cumulative_energy,
-                   EPC.measured_cumulative_energy,
-                   EPC.measured_cumulative_energy_reserved,
-                   EPC.cumulative_energy_measured_at_fixed_time,
-                   EPC.cumulative_energy_measured_at_fixed_time_reversed,
-                   ]
-            res = mo.request_to_get(req)
+            req = mo.request_to_get(
+                {
+                    EPC.operation_status,
+                    EPC.coefficient_for_cumulative_energy,
+                    EPC.number_of_effective_digits_for_cumulative_energy,
+                    EPC.measured_cumulative_energy,
+                    EPC.measured_cumulative_energy_reserved,
+                    EPC.cumulative_energy_measured_at_fixed_time,
+                    EPC.cumulative_energy_measured_at_fixed_time_reversed,
+                })
             for epc, r in res:
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)
 
             print('---- instantaneous power and current using request_to_get() at once ----')
-            req = [EPC.instantaneous_power,
-                   EPC.instantaneous_current,
-                   ]
-            res = mo.request_to_get(req)
+            req = mo.request_to_get({EPC.instantaneous_power,
+                                     EPC.instantaneous_current,
+                                     })
             for epc, r in res:
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
