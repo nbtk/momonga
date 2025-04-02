@@ -134,7 +134,7 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- request with 7 epcs using request_to_get() at once ----')
+            print('---- request with 7 EPCs using request_to_get() at once ----')
             req = mo.request_to_get(
                 {
                     EPC.operation_status,
