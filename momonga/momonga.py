@@ -285,6 +285,9 @@ class Momonga:
         if num_of_data_points < 1 or num_of_data_points > 12:
             raise ValueError('The parameter "num_of_data_points" must be between 1 and 12.')
 
+        if timestamp.year < 1 or timestamp.year > 9999:
+            raise ValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
+
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
         day = timestamp.day.to_bytes(1, 'big')
@@ -304,6 +307,9 @@ class Momonga:
                                                         ) -> bytes:
         if num_of_data_points < 1 or num_of_data_points > 10:
             raise ValueError('The parameter "num_of_data_points" must be between 1 and 10.')
+
+        if timestamp.year < 1 or timestamp.year > 9999:
+            raise ValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
 
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
