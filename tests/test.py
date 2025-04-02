@@ -7,6 +7,7 @@ import traceback
 import momonga
 
 from pprint import pprint
+from momonga import EchonetPropertyCode as EPC
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
@@ -134,13 +135,13 @@ while True:
             time.sleep(5)
 
             print('---- request with 7 epcs using request_to_get() at once ----')
-            req = [momonga.EchonetPropertyCode.operation_status,
-                   momonga.EchonetPropertyCode.coefficient_for_cumulative_energy,
-                   momonga.EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy,
-                   momonga.EchonetPropertyCode.measured_cumulative_energy,
-                   momonga.EchonetPropertyCode.measured_cumulative_energy_reserved,
-                   momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time,
-                   momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed,
+            req = [EPC.operation_status,
+                   EPC.coefficient_for_cumulative_energy,
+                   EPC.number_of_effective_digits_for_cumulative_energy,
+                   EPC.measured_cumulative_energy,
+                   EPC.measured_cumulative_energy_reserved,
+                   EPC.cumulative_energy_measured_at_fixed_time,
+                   EPC.cumulative_energy_measured_at_fixed_time_reversed,
                    ]
             res = mo.request_to_get(req)
             for epc, r in res:
@@ -149,8 +150,8 @@ while True:
             time.sleep(5)
 
             print('---- instantaneous power and current using request_to_get() at once ----')
-            req = [momonga.EchonetPropertyCode.instantaneous_power,
-                   momonga.EchonetPropertyCode.instantaneous_current,
+            req = [EPC.instantaneous_power,
+                   EPC.instantaneous_current,
                    ]
             res = mo.request_to_get(req)
             for epc, r in res:
