@@ -180,10 +180,10 @@ class Momonga:
 
             cur += 1
             pdc = data[cur]
+            cur += 1
             if pdc == 0:
                 edt = None
             else:
-                cur += 1
                 edt_from = cur
                 cur += pdc
                 edt = data[edt_from:cur]
@@ -213,15 +213,15 @@ class Momonga:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)
                 except queue.Empty:
-                    logger.warning('The request for transaction id "%02X" timed out.' % tid)
+                    logger.warning('The request for transaction id "%04X" timed out.' % tid)
                     break
                 if res.startswith('EVENT 21'):
                     param = res.split()[-1]
                     if param == '00':
-                        logger.info('Successfully transmitted a request packet for transaction id "%02X".' % tid)
+                        logger.info('Successfully transmitted a request packet for transaction id "%04X".' % tid)
                         continue
                     elif param == '01':
-                        logger.info('Retransmitting the request packet for transaction id "%02X".' % tid)
+                        logger.info('Retransmitting the request packet for transaction id "%04X".' % tid)
                         time.sleep(self.internal_xmit_interval)
                         break  # to rexmit
                     elif param == '02':
@@ -244,11 +244,11 @@ class Momonga:
                     except MomongaResponseNotExpected:
                         continue
 
-                    logger.info('Successfully received a response packet for transaction id "%02X".' % tid)
+                    logger.info('Successfully received a response packet for transaction id "%04X".' % tid)
                     return res_properties
 
-        logger.error('Gave up to obtain a response for transaction id "%02X". Close Momonga and open it again.' % tid)
-        raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%02X".'
+        logger.error('Gave up to obtain a response for transaction id "%04X". Close Momonga and open it again.' % tid)
+        raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 
     def __request_to_set(self,
@@ -755,6 +755,6 @@ class Momonga:
             elif r.epc == EchonetPropertyCode.time_for_historical_data_3:
                 parsed_results[r.epc] = self.__parse_time_for_historical_data_3(r.edt)
             else:
-                raise AssertionError(f"No parser found for EPC: %02X" % r.epc)
+                raise AssertionError(f"No parser found for EPC: %X" % r.epc)
 
         return parsed_results
