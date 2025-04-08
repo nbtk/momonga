@@ -388,10 +388,10 @@ class Momonga:
     @staticmethod
     def __parse_fault_status(edt: bytes) -> bool:
         status_code = int.from_bytes(edt, 'big')
-        if status_code == 0x41:
-            status = False # no fault has occurred
-        elif status_code == 0x42:
+        if status_code == 0x42:
             status = True  # fault occurred
+        elif status_code == 0x41:
+            status = False # no fault occurred
         else:
             status = None  # unknown
 
@@ -654,6 +654,51 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.installation_location)
         res = self.__request_to_get([req])[0]
         return self.__parse_installation_location(res.edt)
+
+    def get_standard_version(self) -> str:
+        req = EchonetProperty(EchonetPropertyCode.standard_version_information)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_standard_version_information(res.edt)
+
+    def get_fault_status(self) -> bool | None:
+        req = EchonetProperty(EchonetPropertyCode.fault_status)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_fault_status(res.edt)
+
+    def get_manufacturer_code(self) -> bytes:
+        req = EchonetProperty(EchonetPropertyCode.manufacturer_code)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_manufacturer_code(res.edt)
+
+    def get_serial_number(self) -> str:
+        req = EchonetProperty(EchonetPropertyCode.serial_number)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_serial_number(res.edt)
+
+    def get_current_time_setting(self) -> datetime.time:
+        req = EchonetProperty(EchonetPropertyCode.current_time_setting)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_current_time_setting(res.edt)
+
+    def get_current_date_setting(self) -> datetime.date:
+        req = EchonetProperty(EchonetPropertyCode.current_date_setting)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_current_date_setting(res.edt)
+
+    def get_properties_for_status_notification(self) -> set[EchonetPropertyCode]:
+        req = EchonetProperty(EchonetPropertyCode.properties_for_status_notification)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_property_map(res.edt)
+
+    def get_properties_to_set_values(self) -> set[EchonetPropertyCode]:
+        req = EchonetProperty(EchonetPropertyCode.properties_to_set_values)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_property_map(res.edt)
+
+    def get_properties_to_get_values(self) -> set[EchonetPropertyCode]:
+        req = EchonetProperty(EchonetPropertyCode.properties_to_get_values)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_property_map(res.edt)
 
     def get_coefficient_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)

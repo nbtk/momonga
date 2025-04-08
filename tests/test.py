@@ -56,6 +56,70 @@ while True:
             print('----')
             time.sleep(5)
 
+            print('---- installation location ----')
+            res = mo.get_installation_location()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- standard version information ----')
+            res = mo.get_standard_version()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- fault status ----')
+            res = mo.get_fault_status()
+            if res is True:
+                print('fault occurred')
+            elif res is False:
+                print('no fault occurred')
+            else:
+                print('unknown')
+            print('----')
+
+            print('---- manufacturer code ----')
+            res = mo.get_manufacturer_code()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- serial number ----')
+            res = mo.get_serial_number()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- current time setting ----')
+            res = mo.get_current_time_setting()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- current date setting ----')
+            res = mo.get_current_date_setting()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties for status notification ----')
+            res = mo.get_properties_for_status_notification()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties to set values ----')
+            res = mo.get_properties_to_set_values()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties to get values ----')
+            res = mo.get_properties_to_get_values()
+            print(res)
+            print('----')
+            time.sleep(5)
+
             print('---- number of effective digits for cumulative energy ----')
             res = mo.get_number_of_effective_digits_for_cumulative_energy()
             print(res)
