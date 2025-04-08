@@ -183,9 +183,10 @@ while True:
 
             print('---- setting parameters with request_to_set() ----')
             now = datetime.datetime.now()
-            mo.request_to_set(day_for_historical_data_1={'day': 0},
-                              time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
-                              )
+            mo.request_to_set(
+                day_for_historical_data_1={'day': 0},
+                time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
+            )
             print('----')
             time.sleep(5)
 
