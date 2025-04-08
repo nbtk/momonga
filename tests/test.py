@@ -121,7 +121,6 @@ while True:
             now = datetime.datetime.now()
             mo.request_to_set(day_for_historical_data_1={'day': 0},
                               time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
-                              time_for_historical_data_3={'timestamp': now, 'num_of_data_points': 10},
                               )
             print('----')
             time.sleep(5)
@@ -134,27 +133,27 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- request with 7 EPCs using request_to_get() at once ----')
-            req = mo.request_to_get(
+            print('---- request with 3 EPCs using request_to_get() at once ----')
+            res = mo.request_to_get(
                 {
-                    EPC.operation_status,
-                    EPC.coefficient_for_cumulative_energy,
-                    EPC.number_of_effective_digits_for_cumulative_energy,
+                    EPC.instantaneous_power,
+                    EPC.instantaneous_current,
                     EPC.measured_cumulative_energy,
-                    EPC.measured_cumulative_energy_reserved,
-                    EPC.cumulative_energy_measured_at_fixed_time,
-                    EPC.cumulative_energy_measured_at_fixed_time_reversed,
                 })
             for epc, r in res:
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)
 
-            print('---- instantaneous power and current using request_to_get() at once ----')
-            req = mo.request_to_get({EPC.instantaneous_power,
-                                     EPC.instantaneous_current,
-                                     })
-            for epc, r in res:
+            print('---- request with 4 EPCs using request_to_get() at once ----')
+            res = mo.request_to_get(
+                {
+                    EPC.instantaneous_power,
+                    EPC.instantaneous_current,
+                    EPC.measured_cumulative_energy,
+                    EPC.measured_cumulative_energy_reserved,
+                })
+            for epc, r in res.items():
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)

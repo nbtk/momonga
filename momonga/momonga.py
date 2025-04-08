@@ -24,6 +24,16 @@ class EchonetServiceCode(enum.IntEnum):
 
 class EchonetPropertyCode(enum.IntEnum):
     operation_status = 0x80
+    installation_location = 0x81
+    standard_version_information = 0x82
+    fault_status = 0x88
+    manufacturer_code = 0x8A
+    serial_number = 0x8D
+    current_time_setting = 0x97
+    current_date_setting = 0x98
+    properties_for_status_notification = 0x9D
+    properties_to_set_values = 0x9E
+    properties_to_get_values = 0x9F
     coefficient_for_cumulative_energy = 0xD3
     number_of_effective_digits_for_cumulative_energy = 0xD7
     measured_cumulative_energy = 0xE0
@@ -322,14 +332,105 @@ class Momonga:
     @staticmethod
     def __parse_operation_status(edt: bytes) -> bool | None:
         status = int.from_bytes(edt, 'big')
-        if status == 0x30:  # turned on
+        if status == 0x30:    # turned on
             status = True
         elif status == 0x31:  # turned off
             status = False
         else:
+            status = None     # unknown
+
+        return status
+
+    @staticmethod
+    def __parse_installation_location(edt: bytes) -> str:
+        code = edt[0]
+        location = None
+        if code == 0x00:
+            location = 'location not set'
+        elif code == 0x01:
+            location = 'location information: ' +  edt[1:].hex()
+        elif 0x02 <= code <= 0x07: # reserved for the future
+            location = 'not implemented'
+        elif 0x08 <= code <= 0x7F:
+            location_map = {
+                1: 'living room',
+                2: 'dining room',
+                3: 'kitchen',
+                4: 'bathroom',
+                5: 'toilet',
+                6: 'washroom',
+                7: 'hallway',
+                8: 'room',
+                9: 'stairs',
+                10: 'entrance',
+                11: 'storage room',
+                12: 'garden/perimeter',
+                13: 'garage',
+                14: 'veranda',
+                15: 'other',
+            }
+            location_code = code & 0x78
+            location = location_map[location_code]
+            location += ' ' + str(code & 0x07)
+        elif 0x80 <= code <= 0xFE:
+            location = 'not implemented'
+        elif code == 0xFF:
+            location = 'location not fixed'
+        else:
+            raise AssertionError('Obtained location for installation (%X) is not defined.' % code)
+
+        return location
+
+    @staticmethod
+    def __parse_standard_version_information(edt: bytes) -> str:
+        return chr(edt[2]) + '.' + str(edt[3])
+
+    @staticmethod
+    def __parse_fault_status(edt: bytes) -> bool:
+        status_code = int.from_bytes(edt, 'big')
+        if status_code == 0x41:
+            status = False # no fault has occurred
+        elif status_code == 0x42:
+            status = True  # fault occurred
+        else:
             status = None  # unknown
 
         return status
+
+    @staticmethod
+    def __parse_manufacturer_code(edt: bytes) -> bytes:
+        return edt
+
+    @staticmethod
+    def __parse_serial_number(edt: bytes) -> str:
+        return edt.decode()
+
+    @staticmethod
+    def __parse_current_time_setting(edt: bytes) -> datetime.time:
+        hour = edt[0]
+        minute = edt[1]
+        return datetime.time(hour=hour, minute=minute, second=0)
+
+    @staticmethod
+    def __parse_current_date_setting(edt: bytes) -> datetime.date:
+        year = int.from_bytes(edt[0:2], 'big')
+        month = edt[2]
+        day = edt[3]
+        return datetime.date(year=year, month=month, day=day)
+
+    @staticmethod
+    def __parse_property_map(edt: bytes) -> set[EchonetPropertyCode]:
+        if len(edt) < 16:
+            properties = {EchonetPropertyCode(b) for b in edt}
+        else:
+            properties = set()
+            for i in range(len(edt)):
+                b = edt[i]
+                for j in range(8):
+                    if b & j:
+                        properties.add(EchonetPropertyCode(j + 8 << 4) + i)
+
+        return properties
 
     @staticmethod
     def __parse_coefficient_for_cumulative_energy(edt: bytes) -> int:
@@ -549,6 +650,11 @@ class Momonga:
         res = self.__request_to_get([req])[0]
         return self.__parse_operation_status(res.edt)
 
+    def get_installation_location(self) -> str:
+        req = EchonetProperty(EchonetPropertyCode.installation_location)
+        res = self.__request_to_get([req])[0]
+        return self.__parse_installation_location(res.edt)
+
     def get_coefficient_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
         res = self.__request_to_get([req])[0]
@@ -722,6 +828,26 @@ class Momonga:
         for r in results:
             if r.epc == EchonetPropertyCode.operation_status:
                 parsed_results[r.epc] = self.__parse_operation_status(r.edt)
+            elif r.epc == EchonetPropertyCode.installation_location:
+                parsed_results[r.epc] = self.__parse_installation_location(r.edt)
+            elif r.epc == EchonetPropertyCode.standard_version_information:
+                parsed_results[r.epc] = self.__parse_standard_version_information(r.edt)
+            elif r.epc == EchonetPropertyCode.fault_status:
+                parsed_results[r.epc] = self.__parse_fault_status(r.edt)
+            elif r.epc == EchonetPropertyCode.manufacturer_code:
+                parsed_results[r.epc] = self.__parse_manufacturer_code(r.edt)
+            elif r.epc == EchonetPropertyCode.serial_number:
+                parsed_results[r.epc] = self.__parse_serial_number(r.edt)
+            elif r.epc == EchonetPropertyCode.current_time_setting:
+                parsed_results[r.epc] = self.__parse_current_time_setting(r.edt)
+            elif r.epc == EchonetPropertyCode.current_date_setting:
+                parsed_results[r.epc] = self.__parse_current_date_setting(r.edt)
+            elif r.epc == EchonetPropertyCode.properties_for_status_notification:
+                parsed_results[r.epc] = self.__parse_property_map(r.edt)
+            elif r.epc == EchonetPropertyCode.properties_to_set_values:
+                parsed_results[r.epc] = self.__parse_property_map(r.edt)
+            elif r.epc == EchonetPropertyCode.properties_to_get_values:
+                parsed_results[r.epc] = self.__parse_property_map(r.edt)
             elif r.epc == EchonetPropertyCode.coefficient_for_cumulative_energy:
                 parsed_results[r.epc] = self.__parse_coefficient_for_cumulative_energy(r.edt)
             elif r.epc == EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy:
