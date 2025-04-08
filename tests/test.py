@@ -218,12 +218,17 @@ while True:
             try:
                 res = mo.request_to_get_raw(
                     [
-                        EchonetProperty(0x83),
-                        EchonetProperty(0x99),
+                        EchonetProperty(0xD3), # coefficient_for_cumulative_energy
+                        EchonetProperty(0xE1), # unit_for_cumulative_energy
+                        EchonetProperty(0xE0), # measured_cumulative_energy
+                        EchonetProperty(0xE3), # measured_cumulative_energy_reversed
                     ]
                 )
             except momonga.MomongaResponseNotPossible:
                 print('response not possible')
+            else:
+                for r in res:
+                    print(f'epc: {hex(r.epc)}, result: {r.edt}')
             print('----')
             time.sleep(5)
 

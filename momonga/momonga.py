@@ -184,7 +184,11 @@ class Momonga:
         properties = []
         cur = 12
         for rp in req_properties:
-            epc = EchonetPropertyCode(data[cur])
+            try:
+                epc = EchonetPropertyCode(data[cur])
+            except ValueError:
+                epc = data[cur]
+
             if epc != rp.epc:
                 raise MomongaResponseNotExpected('The property code does not match. EPC: %X' % rp.epc)
 
@@ -383,7 +387,12 @@ class Momonga:
 
     @staticmethod
     def __parse_standard_version_information(edt: bytes) -> str:
-        return chr(edt[2]) + '.' + str(edt[3])
+        version = ''
+        if edt[0] > 0:
+            version += chr(edt[0])
+        if edt[1] > 0:
+            version += chr(edt[1])
+        return version + chr(edt[2]) + '.' + str(edt[3])
 
     @staticmethod
     def __parse_fault_status(edt: bytes) -> bool:
