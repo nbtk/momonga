@@ -369,7 +369,7 @@ class Momonga:
                 14: 'veranda',
                 15: 'other',
             }
-            location_code = code & 0x78
+            location_code = code >> 3
             location = location_map[location_code]
             location += ' ' + str(code & 0x07)
         elif 0x80 <= code <= 0xFE:
