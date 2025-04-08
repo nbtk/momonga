@@ -8,6 +8,7 @@ import momonga
 
 from pprint import pprint
 from momonga import EchonetPropertyCode as EPC
+from momonga import EchonetProperty, EchonetPropertyWithData
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
@@ -192,20 +193,11 @@ while True:
             print('---- test all EchonetPropertyCode using request_to_get() one by one ----')
             all_codes = [e for e in momonga.EchonetPropertyCode]
             for epc_req in all_codes:
-                epc, r = mo.request_to_get({epc_req}).popitem()
-                print(f'epc: {epc.name}, result: {r}')
-            print('----')
-            time.sleep(5)
-
-            print('---- request with 3 EPCs using request_to_get() at once ----')
-            res = mo.request_to_get(
-                {
-                    EPC.instantaneous_power,
-                    EPC.instantaneous_current,
-                    EPC.measured_cumulative_energy,
-                })
-            for epc, r in res:
-                print(f'epc: {epc.name}, result: {r}')
+                try:
+                    epc, r = mo.request_to_get({epc_req}).popitem()
+                    print(f'epc: {epc.name}, result: {r}')
+                except momonga.MomongaResponseNotPossible:
+                    print(f'epc: {epc_req.name} not possible')
             print('----')
             time.sleep(5)
 
@@ -221,6 +213,21 @@ while True:
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)
+
+            print('---- request with multiple EPCs using request_to_get_raw() ----')
+            try:
+                res = mo.request_to_get_raw(
+                    [
+                        EchonetProperty(0x83),
+                        EchonetProperty(0x99),
+                    ]
+                )
+            except momonga.MomongaResponseNotPossible:
+                print('response not possible')
+            print('----')
+            time.sleep(5)
+
+            print('---- closing the session ----')
 
             exit_code = 0
             break
