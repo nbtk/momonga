@@ -181,7 +181,7 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- set parameters with request_to_set() ----')
+            print('---- setting parameters with request_to_set() ----')
             now = datetime.datetime.now()
             mo.request_to_set(day_for_historical_data_1={'day': 0},
                               time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
@@ -189,7 +189,7 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- test all EchonetPropertyCode using request_to_get() one by one ----')
+            print('---- testing all EchonetPropertyCode using request_to_get() one by one ----')
             all_codes = [e for e in momonga.EchonetPropertyCode]
             for epc_req in all_codes:
                 try:
@@ -200,20 +200,19 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- request with 4 EPCs using request_to_get() at once ----')
-            res = mo.request_to_get(
-                {
-                    EPC.instantaneous_power,
-                    EPC.instantaneous_current,
-                    EPC.measured_cumulative_energy,
-                    EPC.measured_cumulative_energy_reversed,
-                })
+            print('---- requesting with 4 EPCs using request_to_get() at once ----')
+            res = mo.request_to_get({
+                EPC.instantaneous_power,
+                EPC.instantaneous_current,
+                EPC.measured_cumulative_energy,
+                EPC.measured_cumulative_energy_reversed,
+            })
             for epc, r in res.items():
                 print(f'epc: {epc.name}, result: {r}')
             print('----')
             time.sleep(5)
 
-            print('---- request with multiple EPCs using request_to_set_raw() ----')
+            print('---- requesting with multiple EPCs using request_to_set_raw() ----')
             now = datetime.datetime.now()
             mo.request_to_set_raw(
                 [
@@ -230,13 +229,13 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- request with multiple EPCs using request_to_get_raw() ----')
+            print('---- requesting with multiple EPCs using request_to_get_raw() ----')
             res = mo.request_to_get_raw(
                 [
-                    EchonetProperty(0xD3), # coefficient_for_cumulative_energy
-                    EchonetProperty(0xE1), # unit_for_cumulative_energy
-                    EchonetProperty(0xE0), # measured_cumulative_energy
-                    EchonetProperty(0xE3), # measured_cumulative_energy_reversed
+                    EchonetProperty(0xD3),  # coefficient_for_cumulative_energy
+                    EchonetProperty(0xE1),  # unit_for_cumulative_energy
+                    EchonetProperty(0xE0),  # measured_cumulative_energy
+                    EchonetProperty(0xE3),  # measured_cumulative_energy_reversed
                 ]
             )
             for r in res:
@@ -245,7 +244,6 @@ while True:
             time.sleep(5)
 
             print('---- closing the session ----')
-
             exit_code = 0
             break
     except (momonga.MomongaSkScanFailure,
