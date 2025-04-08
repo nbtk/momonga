@@ -37,7 +37,7 @@ class EchonetPropertyCode(enum.IntEnum):
     coefficient_for_cumulative_energy = 0xD3
     number_of_effective_digits_for_cumulative_energy = 0xD7
     measured_cumulative_energy = 0xE0
-    measured_cumulative_energy_reserved = 0xE3
+    measured_cumulative_energy_reversed = 0xE3
     unit_for_cumulative_energy = 0xE1
     historical_cumulative_energy_1 = 0xE2
     historical_cumulative_energy_1_reversed = 0xE4
@@ -98,7 +98,7 @@ class Momonga:
             EchonetPropertyCode.coefficient_for_cumulative_energy: self.parse_coefficient_for_cumulative_energy,
             EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy: self.parse_number_of_effective_digits_for_cumulative_energy,
             EchonetPropertyCode.measured_cumulative_energy: self.parse_measured_cumulative_energy,
-            EchonetPropertyCode.measured_cumulative_energy_reserved: self.parse_measured_cumulative_energy,
+            EchonetPropertyCode.measured_cumulative_energy_reversed: self.parse_measured_cumulative_energy,
             EchonetPropertyCode.unit_for_cumulative_energy: self.parse_unit_for_cumulative_energy,
             EchonetPropertyCode.historical_cumulative_energy_1: self.parse_historical_cumulative_energy_1,
             EchonetPropertyCode.historical_cumulative_energy_1_reversed: self.parse_historical_cumulative_energy_1,
@@ -383,7 +383,7 @@ class Momonga:
             location = 'location not set'
         elif code == 0x01:
             location = 'location information: ' + edt[1:].hex()
-        elif 0x02 <= code <= 0x07:  # reserved for the future
+        elif 0x02 <= code <= 0x07:  # reserved for future use
             location = 'not implemented'
         elif 0x08 <= code <= 0x7F:
             location_map = {
@@ -768,7 +768,7 @@ class Momonga:
         if reverse is False:
             epc = EchonetPropertyCode.measured_cumulative_energy
         else:
-            epc = EchonetPropertyCode.measured_cumulative_energy_reserved
+            epc = EchonetPropertyCode.measured_cumulative_energy_reversed
 
         req = EchonetProperty(epc)
         res = self.request_to_get_raw([req])[0]

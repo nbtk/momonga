@@ -206,7 +206,7 @@ while True:
                     EPC.instantaneous_power,
                     EPC.instantaneous_current,
                     EPC.measured_cumulative_energy,
-                    EPC.measured_cumulative_energy_reserved,
+                    EPC.measured_cumulative_energy_reversed,
                 })
             for epc, r in res.items():
                 print(f'epc: {epc.name}, result: {r}')
