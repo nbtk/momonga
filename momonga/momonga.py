@@ -419,16 +419,27 @@ class Momonga:
         return datetime.date(year=year, month=month, day=day)
 
     @staticmethod
-    def __parse_property_map(edt: bytes) -> set[EchonetPropertyCode]:
+    def __parse_property_map(edt: bytes) -> set[EchonetPropertyCode | int]:
+        properties = set()
         if len(edt) < 16:
-            properties = {EchonetPropertyCode(b) for b in edt}
+            for prop_code in edt:
+                try:
+                    prop_code = EchonetPropertyCode(prop_code)
+                except ValueError:
+                    pass
+
+                properties.add(prop_code)
         else:
-            properties = set()
             for i in range(len(edt)):
                 b = edt[i]
                 for j in range(8):
                     if b & j:
-                        properties.add(EchonetPropertyCode(j + 8 << 4) + i)
+                        prop_code = (j + 8 << 4) + i
+                        try:
+                            prop_code = EchonetPropertyCode(prop_code)
+                        except ValueError:
+                            pass
+                        properties.add(prop_code)
 
         return properties
 
@@ -685,17 +696,17 @@ class Momonga:
         res = self.__request_to_get([req])[0]
         return self.__parse_current_date_setting(res.edt)
 
-    def get_properties_for_status_notification(self) -> set[EchonetPropertyCode]:
+    def get_properties_for_status_notification(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_for_status_notification)
         res = self.__request_to_get([req])[0]
         return self.__parse_property_map(res.edt)
 
-    def get_properties_to_set_values(self) -> set[EchonetPropertyCode]:
+    def get_properties_to_set_values(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_to_set_values)
         res = self.__request_to_get([req])[0]
         return self.__parse_property_map(res.edt)
 
-    def get_properties_to_get_values(self) -> set[EchonetPropertyCode]:
+    def get_properties_to_get_values(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_to_get_values)
         res = self.__request_to_get([req])[0]
         return self.__parse_property_map(res.edt)
