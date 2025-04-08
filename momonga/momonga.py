@@ -388,9 +388,9 @@ class Momonga:
     @staticmethod
     def __parse_fault_status(edt: bytes) -> bool:
         status_code = int.from_bytes(edt, 'big')
-        if status_code == 0x42:
+        if status_code == 0x41:
             status = True  # fault occurred
-        elif status_code == 0x41:
+        elif status_code == 0x42:
             status = False # no fault occurred
         else:
             status = None  # unknown
@@ -433,12 +433,13 @@ class Momonga:
             for i in range(len(edt)):
                 b = edt[i]
                 for j in range(8):
-                    if b & j:
-                        prop_code = (j + 8 << 4) + i
+                    if b & 1 << j:
+                        prop_code = (j + 0x08 << 4) + i
                         try:
                             prop_code = EchonetPropertyCode(prop_code)
                         except ValueError:
                             pass
+
                         properties.add(prop_code)
 
         return properties
