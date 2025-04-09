@@ -76,7 +76,7 @@ class Momonga:
                  baudrate: int = 115200,
                  reset_dev: bool = True,
                  ) -> None:
-        self.xmit_retry = 12
+        self.xmit_retries = 12
         self.recv_timeout = 12
         self.internal_xmit_interval = 5
         self.transaction_id = 0
@@ -251,14 +251,16 @@ class Momonga:
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get()  # drops stored data
 
-        for _ in range(self.xmit_retry):
+        for _ in range(self.xmit_retries):
             self.session_manager.xmitter(tx_payload)
             while True:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)
                 except queue.Empty:
                     logger.warning('The request for transaction id "%04X" timed out.' % tid)
-                    break
+                    break  # to rexmit the request.
+
+                # messages of event types 21, 02, and received udp payloads will only be delivered.
                 if res.startswith('EVENT 21'):
                     param = res.split()[-1]
                     if param == '00':
@@ -267,9 +269,12 @@ class Momonga:
                     elif param == '01':
                         logger.info('Retransmitting the request packet for transaction id "%04X".' % tid)
                         time.sleep(self.internal_xmit_interval)
-                        break  # to rexmit
+                        break  # to rexmit the request.
                     elif param == '02':
                         logger.info('Transmitting neighbor solicitation packets.')
+                        continue
+                    else:
+                        logger.debug('A message for event 21 with an unknown parameter "%s" will be ignored.' % param)
                         continue
                 elif res.startswith('EVENT 02'):
                     logger.info('Received a neighbor advertisement packet.')
@@ -290,7 +295,9 @@ class Momonga:
 
                     logger.info('Successfully received a response packet for transaction id "%04X".' % tid)
                     return res_properties
-
+                else:
+                    # this line should never be reached
+                    continue
         logger.error('Gave up to obtain a response for transaction id "%04X". Close Momonga and open it again.' % tid)
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
