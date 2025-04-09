@@ -177,7 +177,7 @@ class MomongaSessionManager:
                     break
 
                 if not (res.startswith('EVENT') or res.startswith('ERXUDP')):
-                    # droping the command responses.
+                    # messages that do not need to be handled will be discarded.
                     continue
 
                 if res.startswith('EVENT 29'):
@@ -218,6 +218,9 @@ class MomongaSessionManager:
                         self.recv_q.put(res)
                 elif res.startswith("ERXUDP"):
                     self.recv_q.put(res)
+                else:
+                    # other events that do not need to be handled will be discarded.
+                    continue
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
             self.receiver_exception = e
