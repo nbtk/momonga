@@ -197,6 +197,8 @@ class MomongaSkWrapper:
                 elif error_code == 10:
                     raise MomongaSkCommandFailedToExecute(
                         'The specified command was accepted but failed to execute: %s' % (command))
+                else:
+                    raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
             else:
                 res.append(r)
                 matched = False
