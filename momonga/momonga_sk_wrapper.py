@@ -37,6 +37,7 @@ class MomongaSkWrapper:
 
         # the following value will be set a pyserial object.
         self.ser = None
+        self.publisher_th_breaker = False
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
 
