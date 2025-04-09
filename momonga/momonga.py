@@ -378,7 +378,6 @@ class Momonga:
     @staticmethod
     def parse_installation_location(edt: bytes) -> str:
         code = edt[0]
-        location = None
         if code == 0x00:
             location = 'location not set'
         elif code == 0x01:
@@ -406,12 +405,12 @@ class Momonga:
             location_code = code >> 3
             location = location_map[location_code]
             location += ' ' + str(code & 0x07)
-        elif 0x80 <= code <= 0xFE:
+        elif 0x80 <= code <= 0xFE:  # reserved for future use
             location = 'not implemented'
         elif code == 0xFF:
             location = 'location not fixed'
         else:
-            raise AssertionError('Obtained location for installation (%X) is not defined.' % code)
+            location = 'unknown'
 
         return location
 
