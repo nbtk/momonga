@@ -213,37 +213,6 @@ while True:
             print('----')
             time.sleep(5)
 
-            print('---- requesting with multiple EPCs using request_to_set_raw() ----')
-            now = datetime.datetime.now()
-            mo.request_to_set_raw(
-                [
-                    EchonetPropertyWithData(
-                        0xE5,
-                        mo.build_edata_to_set_day_for_historical_data_1(0)
-                    ),
-                    EchonetPropertyWithData(
-                        0xED,
-                        mo.build_edata_to_set_time_for_historical_data_2(now, 12),
-                    ),
-                ]
-            )
-            print('----')
-            time.sleep(5)
-
-            print('---- requesting with multiple EPCs using request_to_get_raw() ----')
-            res = mo.request_to_get_raw(
-                [
-                    EchonetProperty(0xD3),  # coefficient_for_cumulative_energy
-                    EchonetProperty(0xE1),  # unit_for_cumulative_energy
-                    EchonetProperty(0xE0),  # measured_cumulative_energy
-                    EchonetProperty(0xE3),  # measured_cumulative_energy_reversed
-                ]
-            )
-            for r in res:
-                print(f'epc: {hex(r.epc)}, result: {mo.parser_map[r.epc](r.edt)}')
-            print('----')
-            time.sleep(5)
-
             print('---- closing the session ----')
             exit_code = 0
             break
