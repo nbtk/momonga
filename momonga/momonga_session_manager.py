@@ -3,6 +3,8 @@ import threading
 import queue
 import time
 
+from typing import Self
+
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
@@ -12,10 +14,6 @@ from .momonga_sk_wrapper import MomongaSkWrapper
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 
-try:
-    from typing import Self
-except ImportError:
-    Self = object
 
 
 logger = logging.getLogger(__name__)
@@ -56,15 +54,13 @@ class MomongaSessionManager:
         self.recv_q = queue.Queue()
         self.xmit_q = queue.Queue()
 
-    # def __enter__(self) -> Self:
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    # def open(self) -> Self:
-    def open(self):
+    def open(self) -> Self:
         logger.info('Opening a Momonga session...')
         try:
             self.skw.open()

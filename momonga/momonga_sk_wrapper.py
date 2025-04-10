@@ -3,6 +3,8 @@ import threading
 import queue
 import serial
 
+from typing import Self
+
 from .momonga_exception import (MomongaError,
                                 MomongaTimeoutError,
                                 MomongaSkCommandUnknownError,
@@ -18,11 +20,6 @@ from .momonga_response import (SkVerResponse,
                                SkInfoResponse,
                                SkScanResponse,
                                SkLl64Response)
-
-try:
-    from typing import Self
-except ImportError:
-    Self = object
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +38,13 @@ class MomongaSkWrapper:
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
 
-    #def __enter__(self) -> Self:
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    #def open(self) -> Self:
-    def open(self):
+    def open(self) -> Self:
         self.ser = serial.Serial(self.dev, self.baudrate)
 
         # to drop garbage data in the buffer.
