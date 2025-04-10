@@ -8,7 +8,8 @@ from typing import TypedDict, Any, Self
 
 from .momonga_exception import (MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
-                                MomongaNeedToReopen)
+                                MomongaNeedToReopen,
+                                MomongaRuntimeError)
 from .momonga_response import SkEventRxUdp
 from .momonga_session_manager import MomongaSessionManager
 from .momonga_session_manager import logger as session_manager_logger
@@ -18,46 +19,46 @@ logger = logging.getLogger(__name__)
 
 
 class EchonetServiceCode(enum.IntEnum):
-    set_c = 0x61
-    get = 0x62
+    set_c: int = 0x61
+    get: int = 0x62
 
 
 class EchonetPropertyCode(enum.IntEnum):
-    operation_status = 0x80
-    installation_location = 0x81
-    standard_version_information = 0x82
-    fault_status = 0x88
-    manufacturer_code = 0x8A
-    serial_number = 0x8D
-    current_time_setting = 0x97
-    current_date_setting = 0x98
-    properties_for_status_notification = 0x9D
-    properties_to_set_values = 0x9E
-    properties_to_get_values = 0x9F
-    route_b_id = 0xC0
-    one_minute_measured_cumulative_energy = 0xD0
-    coefficient_for_cumulative_energy = 0xD3
-    number_of_effective_digits_for_cumulative_energy = 0xD7
-    measured_cumulative_energy = 0xE0
-    measured_cumulative_energy_reversed = 0xE3
-    unit_for_cumulative_energy = 0xE1
-    historical_cumulative_energy_1 = 0xE2
-    historical_cumulative_energy_1_reversed = 0xE4
-    day_for_historical_data_1 = 0xE5
-    instantaneous_power = 0xE7
-    instantaneous_current = 0xE8
-    cumulative_energy_measured_at_fixed_time = 0xEA
-    cumulative_energy_measured_at_fixed_time_reversed = 0xEB
-    historical_cumulative_energy_2 = 0xEC
-    time_for_historical_data_2 = 0xED
-    historical_cumulative_energy_3 = 0xEE
-    time_for_historical_data_3 = 0xEF
+    operation_status: int = 0x80
+    installation_location: int = 0x81
+    standard_version_information: int = 0x82
+    fault_status: int = 0x88
+    manufacturer_code: int = 0x8A
+    serial_number: int = 0x8D
+    current_time_setting: int = 0x97
+    current_date_setting: int = 0x98
+    properties_for_status_notification: int = 0x9D
+    properties_to_set_values: int = 0x9E
+    properties_to_get_values: int = 0x9F
+    route_b_id: int = 0xC0
+    one_minute_measured_cumulative_energy: int = 0xD0
+    coefficient_for_cumulative_energy: int = 0xD3
+    number_of_effective_digits_for_cumulative_energy: int = 0xD7
+    measured_cumulative_energy: int = 0xE0
+    measured_cumulative_energy_reversed: int = 0xE3
+    unit_for_cumulative_energy: int = 0xE1
+    historical_cumulative_energy_1: int = 0xE2
+    historical_cumulative_energy_1_reversed: int = 0xE4
+    day_for_historical_data_1: int = 0xE5
+    instantaneous_power: int = 0xE7
+    instantaneous_current: int = 0xE8
+    cumulative_energy_measured_at_fixed_time: int = 0xEA
+    cumulative_energy_measured_at_fixed_time_reversed: int = 0xEB
+    historical_cumulative_energy_2: int = 0xEC
+    time_for_historical_data_2: int = 0xED
+    historical_cumulative_energy_3: int = 0xEE
+    time_for_historical_data_3: int = 0xEF
 
 
 class EchonetProperty:
     def __init__(self,
                  epc: EchonetPropertyCode | int,
-                 ):
+                 ) -> None:
         self.epc = epc
 
 
@@ -65,9 +66,23 @@ class EchonetPropertyWithData:
     def __init__(self,
                  epc: EchonetPropertyCode | int,
                  edt: bytes | None = None,
-                 ):
+                 ) -> None:
         self.epc = epc
         self.edt = edt
+
+
+class DayForHistoricalData1(TypedDict, total=False):
+    day: int
+
+
+class TimeForHistoricalData2(TypedDict, total=False):
+    timestamp: datetime.datetime
+    num_of_data_points: int
+
+
+class TimeForHistoricalData3(TypedDict, total=False):
+    timestamp: datetime.datetime
+    num_of_data_points: int
 
 
 class Momonga:
@@ -78,14 +93,14 @@ class Momonga:
                  baudrate: int = 115200,
                  reset_dev: bool = True,
                  ) -> None:
-        self.xmit_retries = 12
-        self.recv_timeout = 12
-        self.internal_xmit_interval = 5
-        self.transaction_id = 0
-        self.energy_coefficient = None
-        self.energy_unit = None
+        self.xmit_retries: int = 12
+        self.recv_timeout: int | float = 12
+        self.internal_xmit_interval: int | float = 5
+        self.transaction_id: int = 0
+        self.energy_coefficient: int | None = None
+        self.energy_unit: int | float | None = None
 
-        self.parser_map = {
+        self.parser_map: dict[EchonetPropertyCode, callable] = {
             EchonetPropertyCode.operation_status: self.parse_operation_status,
             EchonetPropertyCode.installation_location: self.parse_installation_location,
             EchonetPropertyCode.standard_version_information: self.parse_standard_version_information,
@@ -130,23 +145,23 @@ class Momonga:
         logger.info('Opening Momonga.')
         self.session_manager.open()
         time.sleep(self.internal_xmit_interval)
-        self.__prepare_to_get_cumulative_energy()
+        self.__init_coefficient_for_cumulative_energy()
         logger.info('Momonga is open.')
         return self
 
-    def close(self):
+    def close(self) -> None:
         logger.info('Closing Momonga.')
         self.energy_coefficient = None
         self.energy_unit = None
         self.session_manager.close()
         logger.info('Momonga is closed.')
 
-    def __get_transaction_id(self):
+    def __get_transaction_id(self) -> int:
         self.transaction_id += 1
         return self.transaction_id
 
     @staticmethod
-    def __build_request_header(tid: int, esv: EchonetServiceCode):
+    def __build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
         ehd = b'\x10\x81'  # echonet lite edata format 1
         tid = tid.to_bytes(4, 'big')[-2:]
         seoj = b'\x05\xFF\x01'  # controller class
@@ -250,7 +265,7 @@ class Momonga:
         elif esv == EchonetServiceCode.get:
             tx_payload = self.__build_request_payload(tid, esv, req_properties)
         else:
-            raise AssertionError('Unsupported service code')
+            raise MomongaRuntimeError('Unsupported service code.')
 
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get()  # drops stored data
@@ -300,7 +315,7 @@ class Momonga:
                     logger.info('Successfully received a response packet for transaction id "%04X".' % tid)
                     return res_properties
                 else:
-                    # this line should never be reached
+                    # this line should never be reached.
                     continue
         logger.error('Gave up to obtain a response for transaction id "%04X". Close Momonga and open it again.' % tid)
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
@@ -316,15 +331,19 @@ class Momonga:
                            ) -> list[EchonetPropertyWithData]:
         return self.__request(EchonetServiceCode.get, properties)
 
-    def __prepare_to_get_cumulative_energy(self) -> None:
-        try:
-            self.energy_coefficient = self.get_coefficient_for_cumulative_energy()
-            time.sleep(self.internal_xmit_interval)
-        except MomongaResponseNotPossible:  # due to the property 0xD3 is optional.
-            self.energy_coefficient = 1
+    def __init_coefficient_for_cumulative_energy(self, force_reload: bool = False) -> int | float:
+        if self.energy_coefficient is None or force_reload is True:
+            try:
+                self.energy_coefficient = self.get_coefficient_for_cumulative_energy()
+                time.sleep(self.internal_xmit_interval)
+            except MomongaResponseNotPossible:  # due to the property 0xD3 is optional.
+                self.energy_coefficient = 1
 
-        self.energy_unit = self.get_unit_for_cumulative_energy()
-        time.sleep(self.internal_xmit_interval)
+        if self.energy_unit is None or force_reload is True:
+            self.energy_unit = self.get_unit_for_cumulative_energy()
+            time.sleep(self.internal_xmit_interval)
+
+        return self.energy_coefficient * self.energy_unit
 
     @staticmethod
     def build_edata_to_set_day_for_historical_data_1(day: int = 0) -> bytes:
@@ -503,29 +522,21 @@ class Momonga:
 
     def parse_one_minute_measured_cumulative_energy(self, edt: bytes) -> dict[str, datetime.datetime |
                                                                                    dict[str, int | float | None]]:
-        if self.energy_coefficient is None:
-            raise RuntimeError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise RuntimeError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
-                                  edt[2], edt[3], edt[4], edt[5], edt[6])
+                                      edt[2], edt[3], edt[4], edt[5], edt[6])
 
         normal_direction_energy = int.from_bytes(edt[7:11], 'big')
         if normal_direction_energy == 0xFFFFFFFE:
             normal_direction_energy = None
         else:
-            normal_direction_energy *= self.energy_coefficient
-            normal_direction_energy *= self.energy_unit
+            normal_direction_energy *= coefficient_for_cumulative_energy
 
         reverse_direction_energy = int.from_bytes(edt[11:15], 'big')
         if reverse_direction_energy == 0xFFFFFFFE:
             reverse_direction_energy = None
         else:
-            reverse_direction_energy *= self.energy_coefficient
-            reverse_direction_energy *= self.energy_unit
+            reverse_direction_energy *= coefficient_for_cumulative_energy
 
         return {'timestamp': timestamp,
                 'cumulative energy': {'normal direction': normal_direction_energy,
@@ -542,16 +553,9 @@ class Momonga:
         return digits
 
     def parse_measured_cumulative_energy(self, edt: bytes) -> int | float:
-        if self.energy_coefficient is None:
-            raise AssertionError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise AssertionError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         cumulative_energy = int.from_bytes(edt, 'big')
-        cumulative_energy *= self.energy_coefficient
-        cumulative_energy *= self.energy_unit
+        cumulative_energy *= coefficient_for_cumulative_energy
         return cumulative_energy
 
     @staticmethod
@@ -568,21 +572,14 @@ class Momonga:
                     0x0D: 10000}
         unit = unit_map.get(unit_index)
         if unit is None:
-            raise AssertionError('Obtained unit for cumulative energy (%X) is not defined.' % unit_index)
+            raise MomongaRuntimeError('Obtained unit for cumulative energy (%X) is not defined.' % unit_index)
 
         return unit
 
     def parse_historical_cumulative_energy_1(self,
                                              edt: bytes,
-                                             ) -> list[dict[str: datetime.datetime,
-                                                       str: dict[str: int | float | None]]]:
-        if self.energy_coefficient is None:
-            raise AssertionError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise AssertionError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+                                             ) -> list[dict[str, datetime.datetime | int | float | None]]:
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         day = int.from_bytes(edt[0:2], 'big')
         timestamp = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
         timestamp -= datetime.timedelta(days=day)
@@ -594,8 +591,7 @@ class Momonga:
             if cumulative_energy == 0xFFFFFFFE:
                 cumulative_energy = None
             else:
-                cumulative_energy *= self.energy_coefficient
-                cumulative_energy *= self.energy_unit
+                cumulative_energy *= coefficient_for_cumulative_energy
             historical_cumulative_energy.append({'timestamp': timestamp, 'cumulative energy': cumulative_energy})
             timestamp += datetime.timedelta(minutes=30)
 
@@ -612,7 +608,7 @@ class Momonga:
         return power
 
     @staticmethod
-    def parse_instantaneous_current(edt: bytes) -> dict[str: float]:
+    def parse_instantaneous_current(edt: bytes) -> dict[str, float]:
         r_phase_current = int.from_bytes(edt[0:2], 'big', signed=True)
         t_phase_current = int.from_bytes(edt[2:4], 'big', signed=True)
         r_phase_current *= 0.1  # to Ampere
@@ -621,33 +617,19 @@ class Momonga:
 
     def parse_cumulative_energy_measured_at_fixed_time(self,
                                                        edt: bytes,
-                                                       ) -> dict[str: datetime.datetime,
-                                                                 str: int | float]:
-        if self.energy_coefficient is None:
-            raise AssertionError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise AssertionError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+                                                       ) -> dict[str, datetime.datetime | int | float]:
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
         cumulative_energy = int.from_bytes(edt[7:], 'big')
-        cumulative_energy *= self.energy_coefficient
-        cumulative_energy *= self.energy_unit
-        return {'timestamp': timestamp, 'cumulative_energy': cumulative_energy}
+        cumulative_energy *= coefficient_for_cumulative_energy
+        return {'timestamp': timestamp, 'cumulative energy': cumulative_energy}
 
     def parse_historical_cumulative_energy_2(self,
                                              edt: bytes,
-                                             ) -> list[dict[str: datetime.datetime,
-                                                            str: dict[str: int | float | None]]]:
-        if self.energy_coefficient is None:
-            raise AssertionError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise AssertionError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+                                             ) -> list[dict[str, datetime.datetime |
+                                                                 dict[str, int | float | None]]]:
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         year = int.from_bytes(edt[0:2], 'big')
         num_of_data_points = edt[6]
         energy_data_points = edt[7:]
@@ -659,15 +641,13 @@ class Momonga:
             if normal_direction_energy == 0xFFFFFFFE:
                 normal_direction_energy = None
             else:
-                normal_direction_energy *= self.energy_coefficient
-                normal_direction_energy *= self.energy_unit
+                normal_direction_energy *= coefficient_for_cumulative_energy
 
             reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
             if reverse_direction_energy == 0xFFFFFFFE:
                 reverse_direction_energy = None
             else:
-                reverse_direction_energy *= self.energy_coefficient
-                reverse_direction_energy *= self.energy_unit
+                reverse_direction_energy *= coefficient_for_cumulative_energy
 
             historical_cumulative_energy.append(
                 {'timestamp': timestamp,
@@ -678,8 +658,7 @@ class Momonga:
         return historical_cumulative_energy
 
     @staticmethod
-    def parse_time_for_historical_data_2(edt) -> dict[str: datetime.datetime | None,
-                                                      str: int]:
+    def parse_time_for_historical_data_2(edt: bytes) -> dict[str, datetime.datetime | None | int]:
         year = int.from_bytes(edt[0:2], 'big')
         if year == 0xFFFF:
             timestamp = None
@@ -692,15 +671,9 @@ class Momonga:
 
     def parse_historical_cumulative_energy_3(self,
                                              edt: bytes,
-                                             ) -> list[dict[str: datetime.datetime,
-                                                            str: dict[str: int | float | None]]]:
-        if self.energy_coefficient is None:
-            raise AssertionError(
-                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
-        if self.energy_unit is None:
-            raise AssertionError(
-                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
-
+                                             ) -> list[dict[str, datetime.datetime |
+                                                                 dict[str, dict[str, int | float | None]]]]:
+        coefficient_for_cumulative_energy = self.__init_coefficient_for_cumulative_energy()
         year = int.from_bytes(edt[0:2], 'big')
         num_of_data_points = edt[6]
         energy_data_points = edt[7:]
@@ -712,15 +685,13 @@ class Momonga:
             if normal_direction_energy == 0xFFFFFFFE:
                 normal_direction_energy = None
             else:
-                normal_direction_energy *= self.energy_coefficient
-                normal_direction_energy *= self.energy_unit
+                normal_direction_energy *= coefficient_for_cumulative_energy
 
             reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
             if reverse_direction_energy == 0xFFFFFFFE:
                 reverse_direction_energy = None
             else:
-                reverse_direction_energy *= self.energy_coefficient
-                reverse_direction_energy *= self.energy_unit
+                reverse_direction_energy *= coefficient_for_cumulative_energy
 
             historical_cumulative_energy.append(
                 {'timestamp': timestamp,
@@ -731,8 +702,7 @@ class Momonga:
         return historical_cumulative_energy
 
     @staticmethod
-    def parse_time_for_historical_data_3(edt) -> dict[str: datetime.datetime | None,
-                                                      str: int]:
+    def parse_time_for_historical_data_3(edt: bytes) -> dict[str, datetime.datetime | None | int]:
         year = int.from_bytes(edt[0:2], 'big')
         if year == 0xFFFF:
             timestamp = None
@@ -839,8 +809,7 @@ class Momonga:
     def get_historical_cumulative_energy_1(self,
                                            day: int = 0,
                                            reverse: bool = False,
-                                           ) -> list[dict[str: datetime.datetime,
-                                                          str: dict[str: int | float | None]]]:
+                                           ) -> list[dict[str, datetime.datetime | dict[str, int | float | None]]]:
         self.set_day_for_historical_data_1(day)
 
         if reverse is False:
@@ -869,16 +838,14 @@ class Momonga:
         res = self.request_to_get_raw([req])[0]
         return self.parse_instantaneous_power(res.edt)
 
-    def get_instantaneous_current(self) -> dict[str: float]:
+    def get_instantaneous_current(self) -> dict[str, float]:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_current)
         res = self.request_to_get_raw([req])[0]
         return self.parse_instantaneous_current(res.edt)
 
     def get_cumulative_energy_measured_at_fixed_time(self,
                                                      reverse: bool = False,
-                                                     ) -> dict[str: datetime.datetime,
-                                                               str: int | float]:
-
+                                                     ) -> dict[str, datetime.datetime | int | float]:
         if reverse is False:
             epc = EchonetPropertyCode.cumulative_energy_measured_at_fixed_time
         else:
@@ -891,8 +858,8 @@ class Momonga:
     def get_historical_cumulative_energy_2(self,
                                            timestamp: datetime.datetime = None,
                                            num_of_data_points: int = 12,
-                                           ) -> list[dict[str: datetime.datetime,
-                                                          str: dict[str: int | float | None]]]:
+                                           ) -> list[dict[str, datetime.datetime |
+                                                               dict[str, int | float | None]]]:
         if timestamp is None:
             timestamp = datetime.datetime.now()
 
@@ -920,8 +887,8 @@ class Momonga:
     def get_historical_cumulative_energy_3(self,
                                            timestamp: datetime.datetime = None,
                                            num_of_data_points: int = 10,
-                                           ) -> list[dict[str: datetime.datetime,
-                                                          str: dict[str: int | float | None]]]:
+                                           ) -> list[dict[str, datetime.datetime |
+                                                               dict[str, int | float | None]]]:
         if timestamp is None:
             timestamp = datetime.datetime.now()
 
@@ -940,22 +907,11 @@ class Momonga:
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_3, edt)
         self.request_to_set_raw([req])
 
-    def get_time_for_historical_data_3(self) -> dict[str: datetime.datetime | None,
-                                                     str: int]:
+    def get_time_for_historical_data_3(self) -> dict[str, datetime.datetime | None | int]:
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_3)
         res = self.request_to_get_raw([req])[0]
         return self.parse_time_for_historical_data_3(res.edt)
 
-    class DayForHistoricalData1(TypedDict, total=False):
-        day: int
-
-    class TimeForHistoricalData2(TypedDict, total=False):
-        timestamp: datetime.datetime
-        num_of_data_points: int
-
-    class TimeForHistoricalData3(TypedDict, total=False):
-        timestamp: datetime.datetime
-        num_of_data_points: int
 
     def request_to_set(self,
                        day_for_historical_data_1: DayForHistoricalData1 | None = None,
@@ -982,6 +938,6 @@ class Momonga:
             try:
                 parsed_results[r.epc] = self.parser_map[r.epc](r.edt)
             except KeyError:
-                raise AssertionError(f"No parser found for EPC: %X" % r.epc)
+                raise MomongaRuntimeError(f"No parser found for EPC: %X" % r.epc)
 
         return parsed_results
