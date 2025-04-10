@@ -34,6 +34,8 @@ class EchonetPropertyCode(enum.IntEnum):
     properties_for_status_notification = 0x9D
     properties_to_set_values = 0x9E
     properties_to_get_values = 0x9F
+    route_b_id = 0xC0
+    one_minute_measured_cumulative_energy = 0xD0
     coefficient_for_cumulative_energy = 0xD3
     number_of_effective_digits_for_cumulative_energy = 0xD7
     measured_cumulative_energy = 0xE0
@@ -95,6 +97,8 @@ class Momonga:
             EchonetPropertyCode.properties_for_status_notification: self.parse_property_map,
             EchonetPropertyCode.properties_to_set_values: self.parse_property_map,
             EchonetPropertyCode.properties_to_get_values: self.parse_property_map,
+            EchonetPropertyCode.route_b_id: self.parse_route_b_id,
+            EchonetPropertyCode.one_minute_measured_cumulative_energy: self.parse_one_minute_measured_cumulative_energy,
             EchonetPropertyCode.coefficient_for_cumulative_energy: self.parse_coefficient_for_cumulative_energy,
             EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy: self.parse_number_of_effective_digits_for_cumulative_energy,
             EchonetPropertyCode.measured_cumulative_energy: self.parse_measured_cumulative_energy,
@@ -492,6 +496,42 @@ class Momonga:
         return properties
 
     @staticmethod
+    def parse_route_b_id(edt: bytes) -> dict[str, bytes]:
+        manufacturer_code = edt[1:4]
+        authentication_id = edt[4:]
+        return {'manufacturer code': manufacturer_code, 'authentication id': authentication_id}
+
+    def parse_one_minute_measured_cumulative_energy(self, edt: bytes) -> dict[str, datetime.datetime |
+                                                                                   dict[str, int | float | None]]:
+        if self.energy_coefficient is None:
+            raise RuntimeError(
+                'The parameter "energy_coefficient" must be resolved before parsing "cumulative_energy".')
+        if self.energy_unit is None:
+            raise RuntimeError(
+                'The parameter "energy_unit" must be resolved before parsing "cumulative_energy".')
+
+        timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
+                                  edt[2], edt[3], edt[4], edt[5], edt[6])
+
+        normal_direction_energy = int.from_bytes(edt[7:11], 'big')
+        if normal_direction_energy == 0xFFFFFFFE:
+            normal_direction_energy = None
+        else:
+            normal_direction_energy *= self.energy_coefficient
+            normal_direction_energy *= self.energy_unit
+
+        reverse_direction_energy = int.from_bytes(edt[11:15], 'big')
+        if reverse_direction_energy == 0xFFFFFFFE:
+            reverse_direction_energy = None
+        else:
+            reverse_direction_energy *= self.energy_coefficient
+            reverse_direction_energy *= self.energy_unit
+
+        return {'timestamp': timestamp,
+                'cumulative energy': {'normal direction': normal_direction_energy,
+                                      'reverse direction': reverse_direction_energy}}
+
+    @staticmethod
     def parse_coefficient_for_cumulative_energy(edt: bytes) -> int:
         coefficient = int.from_bytes(edt, 'big')
         return coefficient
@@ -757,6 +797,17 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.properties_to_get_values)
         res = self.request_to_get_raw([req])[0]
         return self.parse_property_map(res.edt)
+
+    def get_route_b_id(self) -> dict[str, bytes]:
+        req = EchonetProperty(EchonetPropertyCode.route_b_id)
+        res = self.request_to_get_raw([req])[0]
+        return self.parse_route_b_id(res.edt)
+
+    def get_one_minute_measured_cumulative_energy(self) -> dict[str, datetime.datetime |
+                                                                     dict[str, int | float | None]]:
+        req = EchonetProperty(EchonetPropertyCode.one_minute_measured_cumulative_energy)
+        res = self.request_to_get_raw([req])[0]
+        return self.parse_one_minute_measured_cumulative_energy(res.edt)
 
     def get_coefficient_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
