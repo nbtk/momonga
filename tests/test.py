@@ -8,7 +8,6 @@ import momonga
 
 from pprint import pprint
 from momonga import EchonetPropertyCode as EPC
-from momonga import EchonetProperty, EchonetPropertyWithData
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
