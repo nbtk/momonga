@@ -535,6 +535,7 @@ class Momonga:
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
         self.__edata_parser = self.__init_edata_parser()
+        self.is_initialized = True
         logger.info('Momonga is open.')
         return self
 
@@ -543,6 +544,7 @@ class Momonga:
         self.is_open = False
         self.session_manager.close()
         self.__edata_parser = None
+        self.is_initialized = False
         logger.info('Momonga is closed.')
 
     def __get_transaction_id(self) -> int:
