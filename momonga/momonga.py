@@ -532,9 +532,8 @@ class Momonga:
         self.session_manager.open()
         logger.debug('Session manager opened. Waiting for internal transmit interval.')
         time.sleep(self.internal_xmit_interval)
-        self.__edata_parser = self.__init_edata_parser()
         self.is_open = True
-        logger.debug('Momonga is now open: is_open=%s', self.is_open)
+        self.__edata_parser = self.__init_edata_parser()
         logger.info('Momonga is open.')
         return self
 
