@@ -505,6 +505,7 @@ class Momonga:
         self.internal_xmit_interval: int | float = 5
         self.transaction_id: int = 0
         self.is_open: bool = False
+        self.is_initialized: bool = False
         self.__edata_parser: EchonetDataParser | None = None # will be set when the session is open.
         self.__edata_builder: EchonetDataBuilder = EchonetDataBuilder()
         self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev)
@@ -534,6 +535,7 @@ class Momonga:
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
         self.__edata_parser = self.__init_edata_parser()
+        self.is_initialized = True
         logger.info('Momonga is open.')
         return self
 
@@ -541,6 +543,8 @@ class Momonga:
         logger.info('Closing Momonga.')
         self.is_open = False
         self.session_manager.close()
+        self.is_initialized = False
+        self.__edata_parser = None
         logger.info('Momonga is closed.')
 
     def __get_transaction_id(self) -> int:
