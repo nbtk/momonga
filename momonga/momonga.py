@@ -492,7 +492,6 @@ class EchonetDataBuilder:
         return year + month + day + hour + minute + num_of_data_points
 
 
-
 class Momonga:
     def __init__(self,
                  rbid: str,
@@ -646,7 +645,7 @@ class Momonga:
                   esv: EchonetServiceCode,
                   req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                   ) -> list[EchonetPropertyWithData]:
-        if not self.is_open:
+        if self.is_open is False:
             raise RuntimeError('Momonga is not open.')
 
         tid = self.__get_transaction_id()
