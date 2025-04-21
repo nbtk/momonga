@@ -72,11 +72,10 @@ class EchonetPropertyWithData:
 
 
 class EchonetDataParser:
-    def __init__(self,
-                 energy_coefficient: int,
-                 energy_unit: int | float) -> None:
-        self.energy_coefficient: int = energy_coefficient
-        self.energy_unit: int | float = energy_unit
+    def __init__(self) -> None:
+        self.energy_coefficient: int | None = None
+        self.energy_unit: int | float | None = None
+        self.is_initialized: bool = False
         self.parser_map: dict[EchonetPropertyCode, callable] = {
             EchonetPropertyCode.operation_status: self.parse_operation_status,
             EchonetPropertyCode.installation_location: self.parse_installation_location,
@@ -109,11 +108,12 @@ class EchonetDataParser:
             EchonetPropertyCode.time_for_historical_data_3: self.parse_time_for_historical_data_3,
         }
 
-    def reset_energy_coefficient_and_unit(self,
+    def init_energy_coefficient_and_unit(self,
                                         energy_coefficient: int,
                                         energy_unit: int | float) -> None:
         self.energy_coefficient: int = energy_coefficient
         self.energy_unit: int | float = energy_unit
+        self.is_initialized = True
 
     @staticmethod
     def parse_operation_status(edt: bytes) -> bool | None:
@@ -510,7 +510,7 @@ class Momonga:
         self.__edata_builder: EchonetDataBuilder = EchonetDataBuilder()
         self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev)
 
-    def __init_edata_parser(self) -> EchonetDataParser:
+    def __init_edata_parser(self) -> None:
         try:
             energy_coefficient = self.get_coefficient_for_cumulative_energy()
             time.sleep(self.internal_xmit_interval)
@@ -520,7 +520,8 @@ class Momonga:
         energy_unit = self.get_unit_for_cumulative_energy()
         time.sleep(self.internal_xmit_interval)
 
-        return EchonetDataParser(energy_coefficient, energy_unit)
+        self.__edata_parser.init_energy_coefficient_and_unit(energy_coefficient,
+                                                             energy_unit)
 
     def __enter__(self) -> Self:
         return self.open()
@@ -534,7 +535,8 @@ class Momonga:
         logger.debug('Session manager opened. Waiting for internal transmit interval.')
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
-        self.__edata_parser = self.__init_edata_parser()
+        self.__edata_parser = EchonetDataParser()
+        self.__init_edata_parser()
         self.is_initialized = True
         logger.info('Momonga is open.')
         return self
@@ -543,8 +545,8 @@ class Momonga:
         logger.info('Closing Momonga.')
         self.is_open = False
         self.session_manager.close()
-        self.__edata_parser = None
         self.is_initialized = False
+        self.__edata_parser = None
         logger.info('Momonga is closed.')
 
     def __get_transaction_id(self) -> int:
