@@ -530,9 +530,11 @@ class Momonga:
     def open(self) -> Self:
         logger.info('Opening Momonga.')
         self.session_manager.open()
+        logger.debug('Session manager opened. Waiting for internal transmit interval.')
         time.sleep(self.internal_xmit_interval)
         self.__edata_parser = self.__init_edata_parser()
         self.is_open = True
+        logger.debug('Momonga is now open: is_open=%s', self.is_open)
         logger.info('Momonga is open.')
         return self
 
@@ -645,7 +647,8 @@ class Momonga:
                   esv: EchonetServiceCode,
                   req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                   ) -> list[EchonetPropertyWithData]:
-        if self.is_open is False:
+        logger.debug('Checking if Momonga is open: is_open=%s', self.is_open)
+        if self.is_open is not True:
             raise RuntimeError('Momonga is not open.')
 
         tid = self.__get_transaction_id()
