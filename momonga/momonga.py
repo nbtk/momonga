@@ -544,8 +544,8 @@ class Momonga:
         logger.info('Opening Momonga.')
         self.session_manager.open()
         time.sleep(self.internal_xmit_interval)
-        self.__init_energy_unit()
         self.is_open = True
+        self.__init_energy_unit()
         logger.info('Momonga is open.')
         return self
 
