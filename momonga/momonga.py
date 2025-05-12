@@ -991,6 +991,5 @@ class Momonga:
                 parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
             else:
                 parsed_results[r.epc] = parser(r.edt)
-            parsed_results[r.epc] = parser(r.edt)
 
         return parsed_results
