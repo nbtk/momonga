@@ -425,7 +425,7 @@ e.g.
 ```
 
 ## momonga.request_to_get()
-一括してリクエストするインタフェース
+複数のEchonetプロパティを一括送信するためのインタフェース
 ### Arguments
 - properties: EchonetPropertyCodeの集合
 ### Return Value
