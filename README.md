@@ -158,7 +158,110 @@ PANAセッションを終了する。
 ### Arguments
 - Void
 ### Return Value
-- bool | None: スマートメーターの状態 (True: オン False: オフ None: 不明)
+- bool | None: スマートメーターの状態 (True: オン, False: オフ, None: 不明)
+
+## momonga.get_installation_location()
+### Arguments
+- Void
+### Return Value
+- str: スマートメーターの設置場所
+ 
+e.g.
+```python3
+'garden/perimeter 1'
+```
+ 
+## momonga.get_standard_version()
+### Arguments
+- Void
+### Return Value
+- str: 規格バージョン
+
+e.g.
+```python3
+'F.0'
+```
+
+## momonga.get_fault_status()
+### Arguments
+- Void
+### Return Value
+- bool | None: スマートメーターの異常発生状態 (True: 異常有, False: 異常無, None: 不明)
+
+## momonga.get_manufacturer_code()
+### Arguments
+- Void
+### Return Value
+- bytes: 3バイトのメーカーコード
+
+## momonga.get_serial_number()
+### Arguments
+- Void
+### Return Value
+- str: 製造番号
+
+## momonga.get_current_time_setting()
+### Arguments
+- Void
+### Return Value
+- datetime.time: 現在時刻設定
+
+## momonga.get_current_date_setting()
+### Arguments
+- Void
+### Return Value
+- datetime.date: 現在年月日設定
+
+## momonga.get_properties_for_status_notification()
+### Arguments
+- Void
+### Return Value
+- set: 状変アナウンスプロパティマップ (monongaは状変アナウンスをサポートしていない)
+```python3
+{<EchonetPropertyCode.operation_status: 128>,
+ <EchonetPropertyCode.installation_location: 129>,
+ <EchonetPropertyCode.fault_status: 136>}
+```
+
+## momonga.get_properties_to_set()
+### Arguments
+- Void
+### Return Value
+- set: Setプロパティマップ
+```python3
+{<EchonetPropertyCode.installation_location: 129>,
+ <EchonetPropertyCode.day_for_historical_data_1: 229>,
+ <EchonetPropertyCode.time_for_historical_data_2: 237>}
+```
+
+## momonga.get_properties_to_get()
+### Arguments
+- Void
+### Return Value
+- set: Getプロパティマップ
+```python3
+{<EchonetPropertyCode.operation_status: 128>, <EchonetPropertyCode.installation_location: 129>,
+ <EchonetPropertyCode.standard_version_information: 130>, <EchonetPropertyCode.fault_status: 136>,
+ <EchonetPropertyCode.manufacturer_code: 138>, <EchonetPropertyCode.serial_number: 141>,
+ <EchonetPropertyCode.current_time_setting: 151>, <EchonetPropertyCode.current_date_setting: 152>,
+ <EchonetPropertyCode.properties_for_status_notification: 157>, <EchonetPropertyCode.properties_to_set_values: 158>,
+ <EchonetPropertyCode.properties_to_get_values: 159>, <EchonetPropertyCode.coefficient_for_cumulative_energy: 211>,
+ <EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy: 215>,
+ <EchonetPropertyCode.measured_cumulative_energy: 224>, <EchonetPropertyCode.unit_for_cumulative_energy: 225>,
+ <EchonetPropertyCode.historical_cumulative_energy_1: 226>, <EchonetPropertyCode.measured_cumulative_energy_reversed: 227>,
+ <EchonetPropertyCode.historical_cumulative_energy_1_reversed: 228>, <EchonetPropertyCode.day_for_historical_data_1: 229>,
+ <EchonetPropertyCode.instantaneous_power: 231>, <EchonetPropertyCode.instantaneous_current: 232>,
+ <EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: 234>,
+ <EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed: 235>,
+ <EchonetPropertyCode.historical_cumulative_energy_2: 236>, <EchonetPropertyCode.time_for_historical_data_2: 237>}
+```
+
+## momonga.get_route_b_id()
+Bルート識別番号を取得する。 
+### Arguments
+- Void
+### Return Value
+- dict: {'manufacturer code': manufacturer_code, 'authentication id': authentication_id}
 
 ## momonga.get_coefficient_for_cumulative_energy()
 積算電力量計測値、履歴を実使用量に換算する係数を取得する。Momongaが出力する結果には適宜この値が乗じられている。
@@ -283,6 +386,67 @@ e.g.
 ```python3
 {'timestamp': datetime.datetime | None,
  'number of data points': int}
+```
+
+## momonga.get_historical_cumulative_energy_3(timestamp: datetime.datetime = None, num_of_data_points: int = 10)
+積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 1 分毎のデータで過去最大6時間分取得する。
+### Arguments
+- timestamp: 収集日時 (Noneのときは現時刻)
+- num_of_data_points: 収集コマ数 1~10
+### Return Value
+- list: 収集日時と正方向および逆方向の積算電力量(kWh)
+
+e.g.
+```python3
+[{'timestamp': datetime.datetime,
+  'cumulative energy': {'normal direction': int | float | None,
+                        'reverse direction': int | float | None}}]
+```
+
+## momonga.set_time_for_historical_data_3(timestamp: datetime.datetime, num_of_data_points: int = 10)
+積算履歴収集日時ならびに収集コマ数を設定する。
+### Arguments
+- timestamp: 収集日時 (Noneのときは現時刻)
+- num_of_data_points: 収集コマ数
+### Return Value
+- None
+
+## momonga.get_time_for_historical_data_3()
+積算履歴収集日時ならびに収集コマ数を取得する。
+### Arguments
+- Void
+### Return Value
+- dict: 収集日時と収集コマ数
+
+e.g.
+```python3
+{'timestamp': datetime.datetime | None,
+ 'number of data points': int}
+```
+
+## momonga.request_to_get()
+一括してリクエストするインタフェース
+### Arguments
+- properties: EchonetPropertyCodeの集合
+### Return Value
+- dict: EchonetPropertyCodeと結果
+
+e.g.
+```python3
+from momonga import EchonetPropertyCode as EPC
+
+with momonga.Momonga(rbid, pwd, dev) as mo:
+    while True:
+        res = mo.request_to_get({
+            EPC.instantaneous_power,
+            EPC.instantaneous_current,
+            EPC.measured_cumulative_energy,
+        })
+
+        for epc, r in res.items():
+            print(f'epc: {epc.name}, result: {r}')
+
+        time.sleep(60)
 ```
 
 ## Feedback

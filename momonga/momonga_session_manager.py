@@ -78,7 +78,7 @@ class MomongaSessionManager:
             # scanning a PAN from here.
             # to set a route b id.
             self.skw.sksetrbid(self.rbid)
-            # to set a pasword.
+            # to set a password.
             self.skw.sksetpwd(self.pwd)
             logger.info('The Route-B ID and the password were registered.')
             try:
@@ -117,9 +117,7 @@ class MomongaSessionManager:
                 self.xmit_q.get()
 
             self.receiver_th = threading.Thread(target=self.receiver, daemon=True)
-
             self.skw.subscribers.update({'pkt_sbsc_q': self.pkt_sbsc_q})
-
             self.receiver_th.start()
 
             logger.info('A Momonga session is open.')
