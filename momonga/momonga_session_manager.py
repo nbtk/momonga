@@ -3,6 +3,8 @@ import threading
 import queue
 import time
 
+from typing import Self
+
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
@@ -10,13 +12,6 @@ from .momonga_exception import (MomongaSkScanFailure,
 )
 from .momonga_sk_wrapper import MomongaSkWrapper
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
-
-
-try:
-    from typing import Self
-except ImportError:
-    Self = object
-
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +51,13 @@ class MomongaSessionManager:
         self.recv_q = queue.Queue()
         self.xmit_q = queue.Queue()
 
-    # def __enter__(self) -> Self:
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    # def open(self) -> Self:
-    def open(self):
+    def open(self) -> Self:
         logger.info('Opening a Momonga session...')
         try:
             self.skw.open()
@@ -82,7 +75,7 @@ class MomongaSessionManager:
             # scanning a PAN from here.
             # to set a route b id.
             self.skw.sksetrbid(self.rbid)
-            # to set a pasword.
+            # to set a password.
             self.skw.sksetpwd(self.pwd)
             logger.info('The Route-B ID and the password were registered.')
             try:
@@ -121,9 +114,7 @@ class MomongaSessionManager:
                 self.xmit_q.get()
 
             self.receiver_th = threading.Thread(target=self.receiver, daemon=True)
-
             self.skw.subscribers.update({'pkt_sbsc_q': self.pkt_sbsc_q})
-
             self.receiver_th.start()
 
             logger.info('A Momonga session is open.')
@@ -177,7 +168,7 @@ class MomongaSessionManager:
                     break
 
                 if not (res.startswith('EVENT') or res.startswith('ERXUDP')):
-                    # droping the command responses.
+                    # messages that do not need to be handled will be discarded.
                     continue
 
                 if res.startswith('EVENT 29'):
@@ -218,6 +209,9 @@ class MomongaSessionManager:
                         self.recv_q.put(res)
                 elif res.startswith("ERXUDP"):
                     self.recv_q.put(res)
+                else:
+                    # other events that do not need to be handled will be discarded.
+                    continue
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
             self.receiver_exception = e
@@ -232,9 +226,10 @@ class MomongaSessionManager:
         xmitted = False
         for _ in range(retry_to_xmit):
             logger.debug('Trying to acquire "xmit_lock".')
+            locked = False
             for r in range(retry_to_acquire_xmit_lock):
-                unlocked = self.xmit_lock.acquire(timeout=60)
-                if unlocked is False:
+                locked = self.xmit_lock.acquire(timeout=60)
+                if locked is False:
                     logger.warning('Could not acquire "xmit_lock". (%d/%d)' % (r + 1, retry_to_acquire_xmit_lock))
                     if self.receiver_exception is not None:
                         logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
@@ -242,7 +237,7 @@ class MomongaSessionManager:
                 else:
                     break
 
-            if unlocked is False:
+            if locked is False:
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
             else:

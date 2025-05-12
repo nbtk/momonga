@@ -1,12 +1,13 @@
-
 import logging
 import os
 import sys
 import time
+import datetime
+import traceback
 import momonga
 
 from pprint import pprint
-
+from momonga import EchonetPropertyCode as EPC
 
 log_fmt = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s - %(message)s')
 log_hnd = logging.StreamHandler()
@@ -55,6 +56,70 @@ while True:
             print('----')
             time.sleep(5)
 
+            print('---- installation location ----')
+            res = mo.get_installation_location()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- standard version information ----')
+            res = mo.get_standard_version()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- fault status ----')
+            res = mo.get_fault_status()
+            if res is True:
+                print('fault occurred')
+            elif res is False:
+                print('no fault occurred')
+            else:
+                print('unknown')
+            print('----')
+
+            print('---- manufacturer code ----')
+            res = mo.get_manufacturer_code()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- serial number ----')
+            res = mo.get_serial_number()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- current time setting ----')
+            res = mo.get_current_time_setting()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- current date setting ----')
+            res = mo.get_current_date_setting()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties for status notification ----')
+            res = mo.get_properties_for_status_notification()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties to set values ----')
+            res = mo.get_properties_to_set_values()
+            print(res)
+            print('----')
+            time.sleep(5)
+
+            print('---- properties to get values ----')
+            res = mo.get_properties_to_get_values()
+            print(res)
+            print('----')
+            time.sleep(5)
+
             print('---- number of effective digits for cumulative energy ----')
             res = mo.get_number_of_effective_digits_for_cumulative_energy()
             print(res)
@@ -93,7 +158,7 @@ while True:
 
             print('---- instantaneous current [A] ----')
             res = mo.get_instantaneous_current()
-            pprint(res)
+            print(res, 'A')
             print('----')
             time.sleep(5)
 
@@ -115,16 +180,49 @@ while True:
             print('----')
             time.sleep(5)
 
+            print('---- setting parameters with request_to_set() ----')
+            now = datetime.datetime.now()
+            mo.request_to_set(
+                day_for_historical_data_1={'day': 0},
+                time_for_historical_data_2={'timestamp': now, 'num_of_data_points': 12},
+            )
+            print('----')
+            time.sleep(5)
+
+            print('---- testing all EchonetPropertyCode using request_to_get() one by one ----')
+            all_codes = [e for e in momonga.EchonetPropertyCode]
+            for epc_req in all_codes:
+                try:
+                    epc, r = mo.request_to_get({epc_req}).popitem()
+                    print(f'epc: {epc.name}, result: {r}')
+                except momonga.MomongaResponseNotPossible:
+                    print(f'epc: {epc_req.name} not possible')
+            print('----')
+            time.sleep(5)
+
+            print('---- requesting with 4 EPCs using request_to_get() at once ----')
+            res = mo.request_to_get({
+                EPC.instantaneous_power,
+                EPC.instantaneous_current,
+                EPC.measured_cumulative_energy,
+                EPC.measured_cumulative_energy_reversed,
+            })
+            for epc, r in res.items():
+                print(f'epc: {epc.name}, result: {r}')
+            print('----')
+            time.sleep(5)
+
+            print('---- closing the session ----')
             exit_code = 0
             break
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaNeedToReopen,
-           ):
+            ):
         time.sleep(60)
         continue
     except Exception as e:
-        print('%s: %s' % (type(e).__name__, str(e)), file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         break
 
 exit(exit_code)

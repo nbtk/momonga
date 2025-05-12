@@ -3,6 +3,8 @@ import threading
 import queue
 import serial
 
+from typing import Self
+
 from .momonga_exception import (MomongaError,
                                 MomongaTimeoutError,
                                 MomongaSkCommandUnknownError,
@@ -19,11 +21,6 @@ from .momonga_response import (SkVerResponse,
                                SkScanResponse,
                                SkLl64Response)
 
-try:
-    from typing import Self
-except ImportError:
-    Self = object
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,18 +34,17 @@ class MomongaSkWrapper:
 
         # the following value will be set a pyserial object.
         self.ser = None
+        self.publisher_th_breaker = False
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
 
-    #def __enter__(self) -> Self:
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    #def open(self) -> Self:
-    def open(self):
+    def open(self) -> Self:
         self.ser = serial.Serial(self.dev, self.baudrate)
 
         # to drop garbage data in the buffer.
@@ -196,6 +192,8 @@ class MomongaSkWrapper:
                 elif error_code == 10:
                     raise MomongaSkCommandFailedToExecute(
                         'The specified command was accepted but failed to execute: %s' % (command))
+                else:
+                    raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
             else:
                 res.append(r)
                 matched = False
