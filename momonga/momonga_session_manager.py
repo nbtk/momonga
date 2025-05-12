@@ -13,9 +13,6 @@ from .momonga_exception import (MomongaSkScanFailure,
 from .momonga_sk_wrapper import MomongaSkWrapper
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
-
-
-
 logger = logging.getLogger(__name__)
 
 
