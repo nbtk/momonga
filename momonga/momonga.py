@@ -2,6 +2,7 @@ import datetime
 import enum
 import time
 import queue
+import inspect
 import logging
 
 from typing import TypedDict, Any, Self
@@ -422,37 +423,38 @@ class EchonetDataParser:
         return {'timestamp': timestamp,
                 'number of data points': num_of_data_points}
 
-    parser_map: dict[EchonetPropertyCode, callable] = {
-            EchonetPropertyCode.operation_status: parse_operation_status,
-            EchonetPropertyCode.installation_location: parse_installation_location,
-            EchonetPropertyCode.standard_version_information: parse_standard_version_information,
-            EchonetPropertyCode.fault_status: parse_fault_status,
-            EchonetPropertyCode.manufacturer_code: parse_manufacturer_code,
-            EchonetPropertyCode.serial_number: parse_serial_number,
-            EchonetPropertyCode.current_time_setting: parse_current_time_setting,
-            EchonetPropertyCode.current_date_setting: parse_current_date_setting,
-            EchonetPropertyCode.properties_for_status_notification: parse_property_map,
-            EchonetPropertyCode.properties_to_set_values: parse_property_map,
-            EchonetPropertyCode.properties_to_get_values: parse_property_map,
-            EchonetPropertyCode.route_b_id: parse_route_b_id,
-            EchonetPropertyCode.one_minute_measured_cumulative_energy: parse_one_minute_measured_cumulative_energy,
-            EchonetPropertyCode.coefficient_for_cumulative_energy: parse_coefficient_for_cumulative_energy,
-            EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy: parse_number_of_effective_digits_for_cumulative_energy,
-            EchonetPropertyCode.measured_cumulative_energy: parse_measured_cumulative_energy,
-            EchonetPropertyCode.measured_cumulative_energy_reversed: parse_measured_cumulative_energy,
-            EchonetPropertyCode.unit_for_cumulative_energy: parse_unit_for_cumulative_energy,
-            EchonetPropertyCode.historical_cumulative_energy_1: parse_historical_cumulative_energy_1,
-            EchonetPropertyCode.historical_cumulative_energy_1_reversed: parse_historical_cumulative_energy_1,
-            EchonetPropertyCode.day_for_historical_data_1: parse_day_for_historical_data_1,
-            EchonetPropertyCode.instantaneous_power: parse_instantaneous_power,
-            EchonetPropertyCode.instantaneous_current: parse_instantaneous_current,
-            EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: parse_cumulative_energy_measured_at_fixed_time,
-            EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed: parse_cumulative_energy_measured_at_fixed_time,
-            EchonetPropertyCode.historical_cumulative_energy_2: parse_historical_cumulative_energy_2,
-            EchonetPropertyCode.time_for_historical_data_2: parse_time_for_historical_data_2,
-            EchonetPropertyCode.historical_cumulative_energy_3: parse_historical_cumulative_energy_3,
-            EchonetPropertyCode.time_for_historical_data_3: parse_time_for_historical_data_3,
-        }
+
+parser_map: dict[EchonetPropertyCode, callable] = {
+    EchonetPropertyCode.operation_status: EchonetDataParser.parse_operation_status,
+    EchonetPropertyCode.installation_location: EchonetDataParser.parse_installation_location,
+    EchonetPropertyCode.standard_version_information: EchonetDataParser.parse_standard_version_information,
+    EchonetPropertyCode.fault_status: EchonetDataParser.parse_fault_status,
+    EchonetPropertyCode.manufacturer_code: EchonetDataParser.parse_manufacturer_code,
+    EchonetPropertyCode.serial_number: EchonetDataParser.parse_serial_number,
+    EchonetPropertyCode.current_time_setting: EchonetDataParser.parse_current_time_setting,
+    EchonetPropertyCode.current_date_setting: EchonetDataParser.parse_current_date_setting,
+    EchonetPropertyCode.properties_for_status_notification: EchonetDataParser.parse_property_map,
+    EchonetPropertyCode.properties_to_set_values: EchonetDataParser.parse_property_map,
+    EchonetPropertyCode.properties_to_get_values: EchonetDataParser.parse_property_map,
+    EchonetPropertyCode.route_b_id: EchonetDataParser.parse_route_b_id,
+    EchonetPropertyCode.one_minute_measured_cumulative_energy: EchonetDataParser.parse_one_minute_measured_cumulative_energy,
+    EchonetPropertyCode.coefficient_for_cumulative_energy: EchonetDataParser.parse_coefficient_for_cumulative_energy,
+    EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy: EchonetDataParser.parse_number_of_effective_digits_for_cumulative_energy,
+    EchonetPropertyCode.measured_cumulative_energy: EchonetDataParser.parse_measured_cumulative_energy,
+    EchonetPropertyCode.measured_cumulative_energy_reversed: EchonetDataParser.parse_measured_cumulative_energy,
+    EchonetPropertyCode.unit_for_cumulative_energy: EchonetDataParser.parse_unit_for_cumulative_energy,
+    EchonetPropertyCode.historical_cumulative_energy_1: EchonetDataParser.parse_historical_cumulative_energy_1,
+    EchonetPropertyCode.historical_cumulative_energy_1_reversed: EchonetDataParser.parse_historical_cumulative_energy_1,
+    EchonetPropertyCode.day_for_historical_data_1: EchonetDataParser.parse_day_for_historical_data_1,
+    EchonetPropertyCode.instantaneous_power: EchonetDataParser.parse_instantaneous_power,
+    EchonetPropertyCode.instantaneous_current: EchonetDataParser.parse_instantaneous_current,
+    EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time,
+    EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed: EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time,
+    EchonetPropertyCode.historical_cumulative_energy_2: EchonetDataParser.parse_historical_cumulative_energy_2,
+    EchonetPropertyCode.time_for_historical_data_2: EchonetDataParser.parse_time_for_historical_data_2,
+    EchonetPropertyCode.historical_cumulative_energy_3: EchonetDataParser.parse_historical_cumulative_energy_3,
+    EchonetPropertyCode.time_for_historical_data_3: EchonetDataParser.parse_time_for_historical_data_3,
+}
 
 
 class EchonetDataBuilder:
@@ -799,8 +801,8 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.one_minute_measured_cumulative_energy)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_one_minute_measured_cumulative_energy(res.edt,
-                                                                             self.energy_coefficient,
-                                                                             self.energy_unit)
+                                                                             self.energy_unit,
+                                                                             self.energy_coefficient)
 
     def get_coefficient_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
@@ -823,8 +825,8 @@ class Momonga:
         req = EchonetProperty(epc)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_measured_cumulative_energy(res.edt,
-                                                                  self.energy_coefficient,
-                                                                  self.energy_unit)
+                                                                  self.energy_unit,
+                                                                  self.energy_coefficient)
 
     def get_unit_for_cumulative_energy(self) -> int | float:
         req = EchonetProperty(EchonetPropertyCode.unit_for_cumulative_energy)
@@ -845,8 +847,8 @@ class Momonga:
         req = EchonetProperty(epc)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_1(res.edt,
-                                                                      self.energy_coefficient,
-                                                                      self.energy_unit)
+                                                                      self.energy_unit,
+                                                                      self.energy_coefficient)
 
     def set_day_for_historical_data_1(self,
                                       day: int = 0,
@@ -881,8 +883,8 @@ class Momonga:
         req = EchonetProperty(epc)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time(res.edt,
-                                                                                self.energy_coefficient,
-                                                                                self.energy_unit)
+                                                                                self.energy_unit,
+                                                                                self.energy_coefficient)
 
     def get_historical_cumulative_energy_2(self,
                                            timestamp: datetime.datetime = None,
@@ -897,8 +899,8 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.historical_cumulative_energy_2)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_2(res.edt,
-                                                                      self.energy_coefficient,
-                                                                      self.energy_unit)
+                                                                      self.energy_unit,
+                                                                      self.energy_coefficient)
 
     def set_time_for_historical_data_2(self,
                                        timestamp: datetime.datetime,
@@ -928,8 +930,8 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.historical_cumulative_energy_3)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_3(res.edt,
-                                                                      self.energy_coefficient,
-                                                                      self.energy_unit)
+                                                                      self.energy_unit,
+                                                                      self.energy_coefficient)
 
     def set_time_for_historical_data_3(self,
                                        timestamp: datetime.datetime,
@@ -979,8 +981,16 @@ class Momonga:
         parsed_results = {}
         for r in results:
             try:
-                parsed_results[r.epc] = EchonetDataParser.parser_map[r.epc](r.edt)
+                parser = parser_map[r.epc]
             except KeyError:
                 raise MomongaRuntimeError(f"No parser found for EPC: %X" % r.epc)
+
+            sig = inspect.signature(parser)
+            args = sig.parameters.keys()
+            if "energy_unit" in args and "energy_coefficient" in args:
+                parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
+            else:
+                parsed_results[r.epc] = parser(r.edt)
+            parsed_results[r.epc] = parser(r.edt)
 
         return parsed_results
