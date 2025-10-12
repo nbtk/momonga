@@ -47,16 +47,22 @@ class MomongaSkWrapper:
     def open(self) -> Self:
         self.ser = serial.Serial(self.dev, self.baudrate)
 
-        # to drop garbage data in the buffer.
-        self.__clear_buf()
+        try:
+            # to drop garbage data in the buffer.
+            self.__clear_buf()
 
-        # to check udp payloads returned from the wi-sun module are in ascii format.
-        if self.__exec_ropt() != 1:
-            logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
-                           "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
-                           "This configuration is saved in the Wi-SUN module, so this log message should "
-                           "no longer appear.")
-            self.__exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
+            # to check udp payloads returned from the wi-sun module are in ascii format.
+            if self.__exec_ropt() != 1:
+                logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
+                                "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
+                                "This configuration is saved in the Wi-SUN module, so this log message should "
+                                "no longer appear.")
+                self.__exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
+        except MomongaSkCommandUnsupported:
+            logger.info('ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
+        except Exception:
+            self.close()
+            raise
 
         for q in self.subscribers.values():
             while not q.empty():
@@ -90,10 +96,17 @@ class MomongaSkWrapper:
         self.ser.flush()
         res = b''
         ok = b'OK '
+        fail = b'FAIL'
         while True:
             res += self.ser.read()
             if ok in res and res.endswith(b'\r'):
                 break
+            elif fail in res and res.endswith(b'\r'):
+                decoded = res.decode(errors='replace')
+                for line in decoded.splitlines():
+                    if line.startswith('FAIL'):
+                        self.__raise_fail_response('ROPT', line)
+                raise MomongaError('Unexpected ROPT response: %s' % decoded)
         return int(res[res.index(ok) + len(ok):-1].decode())
 
     def __exec_wopt(self,
@@ -176,24 +189,7 @@ class MomongaSkWrapper:
             if r == '':
                 raise MomongaTimeoutError('The command timed out: %s' % (command))
             elif r[:4] == 'FAIL':
-                error_code = int(r[7:10])
-                if 1 <= error_code <= 3:
-                    raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
-                elif error_code == 4:
-                    raise MomongaSkCommandUnsupported('Unsupported command: %s' % (command))
-                elif error_code == 5:
-                    raise MomongaSkCommandInvalidArgument('Invalid argument: %s' % (command))
-                elif error_code == 6:
-                    raise MomongaSkCommandInvalidSyntax('Invalid syntax: %s' % (command))
-                elif 7 <= error_code <= 8:
-                    raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
-                elif error_code == 9:
-                    raise MomongaSkCommandSerialInputError('Serial input error: %s' % (command))
-                elif error_code == 10:
-                    raise MomongaSkCommandFailedToExecute(
-                        'The specified command was accepted but failed to execute: %s' % (command))
-                else:
-                    raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
+                self.__raise_fail_response(command, r)
             else:
                 res.append(r)
                 matched = False
@@ -204,6 +200,26 @@ class MomongaSkWrapper:
                 if matched is True:
                     break
         return res
+
+    def __raise_fail_response(self, command: str, r: str) -> None:
+        error_code = int(r[7:10])
+        if 1 <= error_code <= 3:
+            raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
+        elif error_code == 4:
+            raise MomongaSkCommandUnsupported('Unsupported command: %s' % (command))
+        elif error_code == 5:
+            raise MomongaSkCommandInvalidArgument('Invalid argument: %s' % (command))
+        elif error_code == 6:
+            raise MomongaSkCommandInvalidSyntax('Invalid syntax: %s' % (command))
+        elif 7 <= error_code <= 8:
+            raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
+        elif error_code == 9:
+            raise MomongaSkCommandSerialInputError('Serial input error: %s' % (command))
+        elif error_code == 10:
+            raise MomongaSkCommandFailedToExecute(
+                'The specified command was accepted but failed to execute: %s' % (command))
+        else:
+            raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
 
     def skver(self) -> SkVerResponse:
         res = self.exec_command(['SKVER'])
