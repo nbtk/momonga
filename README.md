@@ -455,6 +455,8 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 ```
 
 ## Feedback
-イシュー報告、プルリクエスト、コメント等、なんでもよいのでフィードバックお待ちしています。星をもらうと開発が活発になります。
-
+イシュー報告、プルリクエスト、コメント等、なんでもよいのでフィードバックお待ちしています。星をもらうと開発が活発になります。<br>
 If you have any problems, questions, suggestions or comments, please let me know. It can be in English. All feedback is welcome.
+
+## Credits
+This project was originally developed during my time at BitMeister Inc., with support and resources generously provided by the company. I'm really thankful for the people and the environment that helped make it happen.  It's now maintained independently.
