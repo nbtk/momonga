@@ -99,6 +99,9 @@ PANAセッションを確立できなかったときに送出される。Bルー
 ## momonga.MomongaNeedToReopen
 スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される。
 
+## momonga.MomongaResponsessible
+スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.set_properties_to_get()、momonga.get_properties_to_get()で取得できる。
+
 ## 例外を捕捉する例
 ```python3
 import momonga
@@ -228,7 +231,7 @@ e.g.
  <EchonetPropertyCode.fault_status: 136>}
 ```
 
-## momonga.get_properties_to_set()
+## momonga.get_properties_to_set_values()
 ### Arguments
 - Void
 ### Return Value
@@ -239,7 +242,7 @@ e.g.
  <EchonetPropertyCode.time_for_historical_data_2: 237>}
 ```
 
-## momonga.get_properties_to_get()
+## momonga.get_properties_to_get_values()
 ### Arguments
 - Void
 ### Return Value
