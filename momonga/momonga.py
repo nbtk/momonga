@@ -48,7 +48,6 @@ class EchonetPropertyCode(enum.IntEnum):
     day_for_historical_data_1: int = 0xE5
     instantaneous_power: int = 0xE7
     instantaneous_current: int = 0xE8
-    instantaneous_voltage: int = 0xE9
     cumulative_energy_measured_at_fixed_time: int = 0xEA
     cumulative_energy_measured_at_fixed_time_reversed: int = 0xEB
     historical_cumulative_energy_2: int = 0xEC
@@ -313,14 +312,6 @@ class EchonetDataParser:
         return {'r phase current': r_phase_current, 't phase current': t_phase_current}
 
     @classmethod
-    def parse_instantaneous_voltage(cls, edt: bytes) -> dict[str, float]:
-        r_phase_voltage = int.from_bytes(edt[0:2], 'big', signed=False)
-        t_phase_voltage = int.from_bytes(edt[2:4], 'big', signed=False)
-        r_phase_voltage *= 0.1  # to Volt
-        t_phase_voltage *= 0.1  # to Volt
-        return {'r phase voltage': r_phase_voltage, 't phase voltage': t_phase_voltage}
-
-    @classmethod
     def parse_cumulative_energy_measured_at_fixed_time(
             cls,
             edt: bytes,
@@ -457,7 +448,6 @@ parser_map: dict[EchonetPropertyCode, callable] = {
     EchonetPropertyCode.day_for_historical_data_1: EchonetDataParser.parse_day_for_historical_data_1,
     EchonetPropertyCode.instantaneous_power: EchonetDataParser.parse_instantaneous_power,
     EchonetPropertyCode.instantaneous_current: EchonetDataParser.parse_instantaneous_current,
-    EchonetPropertyCode.instantaneous_voltage: EchonetDataParser.parse_instantaneous_voltage,
     EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time,
     EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed: EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time,
     EchonetPropertyCode.historical_cumulative_energy_2: EchonetDataParser.parse_historical_cumulative_energy_2,
@@ -881,11 +871,6 @@ class Momonga:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_current)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_current(res.edt)
-
-    def get_instantaneous_voltage(self) -> dict[str, float]:
-        req = EchonetProperty(EchonetPropertyCode.instantaneous_voltage)
-        res = self.__request_to_get([req])[0]
-        return EchonetDataParser.parse_instantaneous_voltage(res.edt)
 
     def get_cumulative_energy_measured_at_fixed_time(self,
                                                      reverse: bool = False,
