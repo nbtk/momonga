@@ -5,11 +5,14 @@ import queue
 import inspect
 import logging
 
+from collections.abc import Iterable
 from typing import TypedDict, Any, Self
 
-from .momonga_exception import (MomongaResponseNotExpected,
+from .momonga_exception import (MomongaError,
+                                MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
                                 MomongaNeedToReopen,
+                                MomongaValueError,
                                 MomongaRuntimeError)
 from .momonga_response import SkEventRxUdp
 from .momonga_session_manager import MomongaSessionManager
@@ -516,9 +519,7 @@ class Momonga:
                  dev: str,
                  baudrate: int = 115200,
                  reset_dev: bool = True,
-                 auto_reopen: bool = False,
-                 max_reopen_attempts: int = 3,
-                 reopen_backoff: int | float = 10,
+                 reopen_delays: Iterable[float] | None = None,
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
@@ -527,9 +528,7 @@ class Momonga:
         self.energy_unit: int | float = 1
         self.energy_coefficient: int = 1
         self.is_open: bool = False
-        self.auto_reopen: bool = auto_reopen
-        self.max_reopen_attempts: int = max_reopen_attempts
-        self.reopen_backoff: int | float = reopen_backoff
+        self.reopen_delays: Iterable[float] | None = reopen_delays
         self._rbid: str = rbid
         self._pwd: str = pwd
         self._dev: str = dev
@@ -569,19 +568,19 @@ class Momonga:
         logger.info('Momonga is closed.')
 
     def reopen(self) -> None:
-        """Close and reopen the session to recover from connection failures."""
-        logger.info('Reopening Momonga session')
+        logger.info('Reopening Momonga session.')
         try:
             self.close()
         except MomongaError:
             logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
         except OSError:
             logger.debug('OS error closing Momonga during reopen (ignored)', exc_info=True)
+
         self.session_manager = MomongaSessionManager(
             self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
         )
         self.open()
-        logger.info('Momonga session reopened successfully')
+        logger.info('Momonga session reopened successfully.')
 
     def __get_transaction_id(self) -> int:
         self.transaction_id += 1
@@ -756,33 +755,33 @@ class Momonga:
                                 esv: EchonetServiceCode,
                                 req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                 ) -> list[EchonetPropertyWithData]:
-        """Request with automatic session recovery when auto_reopen is enabled."""
-        if not self.auto_reopen:
+        if self.reopen_delays is None:
             return self.__request(esv, req_properties)
 
         try:
             return self.__request(esv, req_properties)
         except MomongaNeedToReopen as initial_err:
             last_error: MomongaNeedToReopen = initial_err
-            logger.warning('Session needs reopen, attempting recovery (up to %d attempts)',
-                           self.max_reopen_attempts)
+            logger.warning('Session needs reopen, attempting recovery.')
 
-        for attempt in range(1, self.max_reopen_attempts + 1):
-            time.sleep(self.reopen_backoff)
+        for delay in self.reopen_delays:
+            delay = float(delay)
+            if delay < 0:
+                raise MomongaValueError('reopen_delays must not contain negative values.')
+
+            time.sleep(delay)
             try:
                 self.reopen()
                 return self.__request(esv, req_properties)
             except MomongaNeedToReopen as err:
                 last_error = err
-                logger.warning('Reopen attempt %d/%d failed: %s',
-                               attempt, self.max_reopen_attempts, err)
+                logger.warning('Reopen attempt failed after waiting %s seconds: %s', delay, err)
             except (MomongaError, OSError) as err:
-                logger.warning('Reopen attempt %d/%d failed: %s: %s',
-                               attempt, self.max_reopen_attempts,
-                               type(err).__name__, err)
+                logger.warning('Reopen attempt failed after waiting %s seconds: %s: %s',
+                               delay, type(err).__name__, err)
                 last_error = MomongaNeedToReopen(str(err))
 
-        logger.error('All %d reopen attempts exhausted', self.max_reopen_attempts)
+        logger.error('All reopen attempts exhausted.')
         raise last_error
 
     def __request_to_set(self,

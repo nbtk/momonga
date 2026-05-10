@@ -42,6 +42,10 @@ class MomongaRuntimeError(RuntimeError):
     pass
 
 
+class MomongaValueError(ValueError):
+    pass
+
+
 class MomongaTimeoutError(TimeoutError):
     pass
 
