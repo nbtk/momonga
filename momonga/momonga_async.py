@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, Iterable
 from typing import Any, Self
 
 from .momonga import Momonga
-from .momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
+from .momonga_echonet_enum import EchonetPropertyCode
 
 
 class AsyncMomonga:

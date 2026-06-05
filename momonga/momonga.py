@@ -1,9 +1,9 @@
 import datetime
-import threading
-import time
-import queue
 import inspect
 import logging
+import queue
+import threading
+import time
 
 from collections.abc import Iterable
 from typing import TypedDict, Any, Self
@@ -21,7 +21,6 @@ from .momonga_session_manager import logger as session_manager_logger
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
-
 
 
 class EchonetProperty:
@@ -424,6 +423,11 @@ parser_map: dict[EchonetPropertyCode, callable] = {
     EchonetPropertyCode.time_for_historical_data_3: EchonetDataParser.parse_time_for_historical_data_3,
 }
 
+energy_parsers: frozenset = frozenset(
+    fn for fn in parser_map.values()
+    if 'energy_unit' in inspect.signature(fn).parameters
+)
+
 
 class EchonetDataBuilder:
     @classmethod
@@ -586,9 +590,7 @@ class Momonga:
             if edt is not None:
                 try:
                     parser = parser_map[epc]
-                    sig = inspect.signature(parser)
-                    args = sig.parameters.keys()
-                    if 'energy_unit' in args and 'energy_coefficient' in args:
+                    if parser in energy_parsers:
                         properties[epc] = parser(edt, self.energy_unit, self.energy_coefficient)
                     else:
                         properties[epc] = parser(edt)
@@ -1011,8 +1013,7 @@ class Momonga:
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_2, edt)
         self.__request_to_set([req])
 
-    def get_time_for_historical_data_2(self) -> dict[str: datetime.datetime | None,
-                                                     str: int]:
+    def get_time_for_historical_data_2(self) -> dict[str, datetime.datetime | None | int]:
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_2)
         res = self.__request_to_get([req])[0]
         return EchonetDataParser.parse_time_for_historical_data_2(res.edt)
@@ -1085,9 +1086,7 @@ class Momonga:
             except KeyError:
                 raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc)
 
-            sig = inspect.signature(parser)
-            args = sig.parameters.keys()
-            if "energy_unit" in args and "energy_coefficient" in args:
+            if parser in energy_parsers:
                 parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
             else:
                 parsed_results[r.epc] = parser(r.edt)
