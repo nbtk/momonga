@@ -15,7 +15,7 @@ Configure via environment variables:
 
 Run:
   MOMONGA_ROUTEB_ID=... MOMONGA_ROUTEB_PASSWORD=... MOMONGA_DEV_PATH=... \
-    python -m unittest tests/test_realdevice_async.py -v
+    python -m unittest tests/test_async.py -v
 """
 import asyncio
 import os

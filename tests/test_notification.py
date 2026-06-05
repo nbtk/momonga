@@ -11,7 +11,7 @@ Configure via environment variables:
 
 Run:
   MOMONGA_ROUTEB_ID=... MOMONGA_ROUTEB_PASSWORD=... MOMONGA_DEV_PATH=... \
-    python -m unittest tests/test_realdevice_notification.py -v
+    python -m unittest tests/test_notification.py -v
 """
 import os
 import unittest
