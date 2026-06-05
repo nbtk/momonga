@@ -126,7 +126,7 @@ class MomongaSessionManager:
         except Exception as e:
             logger.error('Could not open a Momonga session. %s: %s' % (type(e).__name__, e))
             self.close()
-            raise e
+            raise
 
     def close(self) -> None:
         logger.info('Closing the Momonga session...')

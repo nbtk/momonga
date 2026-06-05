@@ -433,7 +433,7 @@ class EchonetDataBuilder:
     @classmethod
     def build_edata_to_set_day_for_historical_data_1(cls, day: int = 0) -> bytes:
         if day < 0 or day > 99:
-            raise ValueError('The parameter "day" must be between 0 and 99.')
+            raise MomongaValueError('The parameter "day" must be between 0 and 99.')
 
         return day.to_bytes(1, 'big')
 
@@ -443,10 +443,10 @@ class EchonetDataBuilder:
                                                       num_of_data_points: int = 12,
                                                       ) -> bytes:
         if num_of_data_points < 1 or num_of_data_points > 12:
-            raise ValueError('The parameter "num_of_data_points" must be between 1 and 12.')
+            raise MomongaValueError('The parameter "num_of_data_points" must be between 1 and 12.')
 
         if timestamp.year < 1 or timestamp.year > 9999:
-            raise ValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
+            raise MomongaValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
 
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
@@ -467,10 +467,10 @@ class EchonetDataBuilder:
                                                       num_of_data_points: int = 10,
                                                       ) -> bytes:
         if num_of_data_points < 1 or num_of_data_points > 10:
-            raise ValueError('The parameter "num_of_data_points" must be between 1 and 10.')
+            raise MomongaValueError('The parameter "num_of_data_points" must be between 1 and 10.')
 
         if timestamp.year < 1 or timestamp.year > 9999:
-            raise ValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
+            raise MomongaValueError('The year specified by the parameter "timestamp" must be between 1 and 9999.')
 
         year = timestamp.year.to_bytes(2, 'big')
         month = timestamp.month.to_bytes(1, 'big')
@@ -559,7 +559,7 @@ class Momonga:
 
     def get_notification(self, timeout: int | float | None = None) -> dict | None:
         if self.is_open is not True:
-            raise RuntimeError('Momonga is not open.')
+            raise MomongaRuntimeError('Momonga is not open.')
 
         try:
             raw = self.session_manager.notif_q.get(timeout=timeout)
@@ -724,7 +724,7 @@ class Momonga:
                   ) -> list[EchonetPropertyWithData]:
         logger.debug('Checking if Momonga is open: is_open=%s', self.is_open)
         if self.is_open is not True:
-            raise RuntimeError('Momonga is not open.')
+            raise MomongaRuntimeError('Momonga is not open.')
 
         with self._request_lock:
             return self.__request_locked(esv, req_properties)
