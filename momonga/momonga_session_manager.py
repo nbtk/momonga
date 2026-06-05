@@ -260,14 +260,17 @@ class MomongaSessionManager:
             else:
                 logger.debug('Acquired "xmit_lock".')
 
-            assert self.session_established is not False, 'Tried to transmit a packet, but no PANA session was established.'
-
             try:
+                if self.session_established is False:
+                    logger.error('Tried to transmit a packet, but no PANA session was established.')
+                    raise MomongaNeedToReopen('No PANA session established. Close Momonga and open it again.')
                 self.skw.sksendto(self.smart_meter_addr, data)
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:
                 logger.warning('Failed to transmit a packet: %s' % (e))
+            except MomongaNeedToReopen:
+                raise
             except Exception as e:
                 logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
             finally:
