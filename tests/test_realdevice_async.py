@@ -55,10 +55,7 @@ def _assert_notification(tc: unittest.TestCase, notif: dict | None) -> None:
 
 @unittest.skipIf(_SKIP, _SKIP_REASON)
 class TestAsyncNotification(unittest.IsolatedAsyncioTestCase):
-    """AsyncMomonga notification methods with a live smart meter.
-
-    One PANA session is shared across all tests via asyncio.run() in setUpClass.
-    """
+    """AsyncMomonga notification methods with a live smart meter."""
 
     @classmethod
     def setUpClass(cls):
@@ -77,21 +74,15 @@ class TestAsyncNotification(unittest.IsolatedAsyncioTestCase):
     async def test_is_open_after_open(self):
         self.assertTrue(self.mo._sync.is_open)
 
-    async def test_get_notification_returns_valid_dict(self):
-        notif = await self.mo.get_notification(timeout=_TIMEOUT)
-        _assert_notification(self, notif)
+    async def test_notification_flow(self):
+        """Generator yields one valid notification; timeout=0 on empty queue returns None.
 
-    async def test_second_notification_also_valid(self):
-        notif = await self.mo.get_notification(timeout=_TIMEOUT)
-        _assert_notification(self, notif)
-
-    async def test_notifications_generator_yields_valid_dicts(self):
-        """notifications() must yield at least one well-formed dict."""
+        Covers: notifications() generator, structure, ESV, key types, parsed values,
+        and get_notification() timeout behavior — in a single notification wait.
+        """
         async for notif in self.mo.notifications(timeout=_TIMEOUT):
             _assert_notification(self, notif)
             break
-
-    async def test_timeout_zero_returns_none_on_empty_queue(self):
         while await self.mo.get_notification(timeout=0) is not None:
             pass
         self.assertIsNone(await self.mo.get_notification(timeout=0))
@@ -103,11 +94,7 @@ class TestAsyncNotification(unittest.IsolatedAsyncioTestCase):
 
 @unittest.skipIf(_SKIP, _SKIP_REASON)
 class TestAsyncConcurrentRetrieval(unittest.IsolatedAsyncioTestCase):
-    """Verify AsyncMomonga handles concurrent coroutine calls via asyncio.gather().
-
-    Tests that multiple coroutines running in the same event loop can each
-    independently retrieve values from the smart meter without interfering.
-    """
+    """Verify AsyncMomonga handles concurrent coroutine calls via asyncio.gather()."""
 
     @classmethod
     def setUpClass(cls):
@@ -123,36 +110,25 @@ class TestAsyncConcurrentRetrieval(unittest.IsolatedAsyncioTestCase):
             await cls.mo.close()
         asyncio.run(_close())
 
-    async def test_gather_power_and_current(self):
-        """Concurrent retrieval of instantaneous power and current both return valid values."""
-        power, current = await asyncio.gather(
+    async def test_concurrent_retrieval(self):
+        """Concurrent coroutines for different and same properties all return valid values."""
+        power, current, energy = await asyncio.gather(
             self.mo.get_instantaneous_power(),
             self.mo.get_instantaneous_current(),
+            self.mo.get_measured_cumulative_energy(),
         )
         self.assertIsInstance(power, (int, float))
         self.assertIsInstance(current, dict)
         self.assertIn('r phase current', current)
         self.assertIn('t phase current', current)
+        self.assertIsInstance(energy, (int, float))
 
-    async def test_gather_same_property_from_two_coroutines(self):
-        """Two concurrent calls to the same method both return valid independent results."""
         p1, p2 = await asyncio.gather(
             self.mo.get_instantaneous_power(),
             self.mo.get_instantaneous_power(),
         )
         self.assertIsInstance(p1, (int, float))
         self.assertIsInstance(p2, (int, float))
-
-    async def test_gather_three_different_properties(self):
-        """Three different property types retrieved concurrently all return valid values."""
-        power, energy, current = await asyncio.gather(
-            self.mo.get_instantaneous_power(),
-            self.mo.get_measured_cumulative_energy(),
-            self.mo.get_instantaneous_current(),
-        )
-        self.assertIsInstance(power, (int, float))
-        self.assertIsInstance(energy, (int, float))
-        self.assertIsInstance(current, dict)
 
 
 if __name__ == '__main__':

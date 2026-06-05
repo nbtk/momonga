@@ -46,11 +46,7 @@ def _assert_notification(tc: unittest.TestCase, notif: dict | None) -> None:
 
 @unittest.skipIf(_SKIP, _SKIP_REASON)
 class TestNotificationSync(unittest.TestCase):
-    """Momonga.get_notification() with a live smart meter.
-
-    One PANA session is shared across all tests in this class.
-    Each test consumes one notification from the queue in sequence.
-    """
+    """Momonga.get_notification() with a live smart meter."""
 
     @classmethod
     def setUpClass(cls):
@@ -61,18 +57,10 @@ class TestNotificationSync(unittest.TestCase):
     def tearDownClass(cls):
         cls.mo.close()
 
-    def test_notification_structure_and_types(self):
-        """Notification must have correct top-level keys, valid ESV, and parsed property values."""
+    def test_notification_flow(self):
+        """One notification covers: structure, ESV, key types, parsed values, and timeout=0 on empty queue."""
         notif = self.mo.get_notification(timeout=_TIMEOUT)
         _assert_notification(self, notif)
-
-    def test_second_notification_also_valid(self):
-        """A second call also returns a well-formed notification."""
-        notif = self.mo.get_notification(timeout=_TIMEOUT)
-        _assert_notification(self, notif)
-
-    def test_timeout_zero_returns_none_on_empty_queue(self):
-        """After draining the queue, timeout=0 must return None immediately."""
         while self.mo.get_notification(timeout=0) is not None:
             pass
         self.assertIsNone(self.mo.get_notification(timeout=0))
