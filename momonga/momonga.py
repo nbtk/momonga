@@ -5,11 +5,14 @@ import queue
 import inspect
 import logging
 
+from collections.abc import Iterable
 from typing import TypedDict, Any, Self
 
-from .momonga_exception import (MomongaResponseNotExpected,
+from .momonga_exception import (MomongaError,
+                                MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
                                 MomongaNeedToReopen,
+                                MomongaValueError,
                                 MomongaRuntimeError)
 from .momonga_response import SkEventRxUdp
 from .momonga_session_manager import MomongaSessionManager
@@ -516,6 +519,7 @@ class Momonga:
                  dev: str,
                  baudrate: int = 115200,
                  reset_dev: bool = True,
+                 reopen_delays: Iterable[float] | None = None,
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
@@ -524,6 +528,12 @@ class Momonga:
         self.energy_unit: int | float = 1
         self.energy_coefficient: int = 1
         self.is_open: bool = False
+        self.reopen_delays: Iterable[float] | None = reopen_delays
+        self._rbid: str = rbid
+        self._pwd: str = pwd
+        self._dev: str = dev
+        self._baudrate: int = baudrate
+        self._reset_dev: bool = reset_dev
         self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev)
 
     def __init_energy_unit(self) -> None:
@@ -556,6 +566,19 @@ class Momonga:
         self.is_open = False
         self.session_manager.close()
         logger.info('Momonga is closed.')
+
+    def reopen(self) -> None:
+        logger.info('Reopening Momonga session.')
+        try:
+            self.close()
+        except Exception:
+            logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
+
+        self.session_manager = MomongaSessionManager(
+            self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
+        )
+        self.open()
+        logger.info('Momonga session reopened successfully.')
 
     def __get_transaction_id(self) -> int:
         self.transaction_id += 1
@@ -726,15 +749,48 @@ class Momonga:
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 
+    def __request_with_recovery(self,
+                                esv: EchonetServiceCode,
+                                req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                                ) -> list[EchonetPropertyWithData]:
+        if self.reopen_delays is None:
+            return self.__request(esv, req_properties)
+
+        try:
+            return self.__request(esv, req_properties)
+        except MomongaNeedToReopen as initial_err:
+            last_error: MomongaNeedToReopen = initial_err
+            logger.warning('Session needs reopen, attempting recovery.')
+
+        for delay in self.reopen_delays:
+            delay = float(delay)
+            if delay < 0:
+                raise MomongaValueError('reopen_delays must not contain negative values.')
+
+            time.sleep(delay)
+            try:
+                self.reopen()
+                return self.__request(esv, req_properties)
+            except MomongaNeedToReopen as err:
+                last_error = err
+                logger.warning('Reopen attempt failed after waiting %s seconds: %s', delay, err)
+            except (MomongaError, OSError) as err:
+                logger.warning('Reopen attempt failed after waiting %s seconds: %s: %s',
+                               delay, type(err).__name__, err)
+                last_error = MomongaNeedToReopen(str(err))
+
+        logger.error('All reopen attempts exhausted.')
+        raise last_error
+
     def __request_to_set(self,
                          properties_with_data: list[EchonetPropertyWithData]
                          ) -> None:
-        self.__request(EchonetServiceCode.set_c, properties_with_data)
+        self.__request_with_recovery(EchonetServiceCode.set_c, properties_with_data)
 
     def __request_to_get(self,
                          properties: list[EchonetProperty],
                          ) -> list[EchonetPropertyWithData]:
-        return self.__request(EchonetServiceCode.get, properties)
+        return self.__request_with_recovery(EchonetServiceCode.get, properties)
 
     def get_operation_status(self) -> bool | None:
         req = EchonetProperty(EchonetPropertyCode.operation_status)

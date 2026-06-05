@@ -139,7 +139,7 @@ while True:
 - 送信がブロッキングされるなど諸条件により関数呼び出しのあと応答が即座に返らないことがあるため、`momonga.get_historical_cumulative_energy_1()`は呼び出したときに期待した履歴の日付と結果の日付に齟齬が生じる可能性があることに注意してください。特にこの関数は日を跨ぐタイミングで実行すべきではありません。
 
 # API
-## momonga.Momonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True)
+## momonga.Momonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
 Momongaクラスのインスタンス化。
 ### Arguments
 - rbid: BルートID
@@ -147,6 +147,18 @@ Momongaクラスのインスタンス化。
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
+- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。
+
+e.g.
+```python3
+from itertools import repeat
+
+# 3回まで10分おきに再接続する
+momonga.Momonga(rbid, pwd, dev, reopen_delays=[600.0, 600.0, 600.0])
+
+# 10分おきに無期限で再接続する
+momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
+```
 
 ## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　

@@ -153,8 +153,10 @@ class MomongaSessionManager:
 
         self.unrestrict_to_xmit(force=True)
 
-        assert self.xmit_lock.locked() is False, '"xmit_lock" is unexpectedly locked.'
-        assert self.rejoin_lock.locked() is False, '"rejoin_lock" is unexpectedly locked.'
+        if self.xmit_lock.locked():
+            logger.error('"xmit_lock" is unexpectedly locked.')
+        if self.rejoin_lock.locked():
+            logger.error('"rejoin_lock" is unexpectedly locked.')
 
         self.skw.close()
         logger.info('The Momonga session is closed.')
