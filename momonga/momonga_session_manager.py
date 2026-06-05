@@ -5,6 +5,7 @@ import time
 
 from typing import Self
 
+from .momonga_echonet_enum import EchonetServiceCode
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
@@ -49,6 +50,7 @@ class MomongaSessionManager:
 
         self.pkt_sbsc_q = queue.Queue()
         self.recv_q = queue.Queue()
+        self.notif_q = queue.Queue()
         self.xmit_q = queue.Queue()
 
     def __enter__(self) -> Self:
@@ -110,6 +112,8 @@ class MomongaSessionManager:
                 self.pkt_sbsc_q.get()
             while not self.recv_q.empty():
                 self.recv_q.get()
+            while not self.notif_q.empty():
+                self.notif_q.get()
             while not self.xmit_q.empty():
                 self.xmit_q.get()
 
@@ -213,7 +217,15 @@ class MomongaSessionManager:
                     if self.is_restricted_to_xmit() is False:
                         self.recv_q.put(res)
                 elif res.startswith("ERXUDP"):
-                    self.recv_q.put(res)
+                    try:
+                        data_hex = res.split()[-1]
+                        esv = int(data_hex[20:22], 16) if len(data_hex) >= 22 else -1
+                    except (ValueError, IndexError):
+                        esv = -1
+                    if esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
+                        self.notif_q.put(res)
+                    else:
+                        self.recv_q.put(res)
                 else:
                     # other events that do not need to be handled will be discarded.
                     continue

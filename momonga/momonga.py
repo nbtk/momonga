@@ -1,5 +1,5 @@
 import datetime
-import enum
+import threading
 import time
 import queue
 import inspect
@@ -8,6 +8,7 @@ import logging
 from collections.abc import Iterable
 from typing import TypedDict, Any, Self
 
+from .momonga_echonet_enum import EchonetServiceCode, EchonetPropertyCode
 from .momonga_exception import (MomongaError,
                                 MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
@@ -21,42 +22,6 @@ from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
-
-class EchonetServiceCode(enum.IntEnum):
-    set_c: int = 0x61
-    get: int = 0x62
-
-
-class EchonetPropertyCode(enum.IntEnum):
-    operation_status: int = 0x80
-    installation_location: int = 0x81
-    standard_version_information: int = 0x82
-    fault_status: int = 0x88
-    manufacturer_code: int = 0x8A
-    serial_number: int = 0x8D
-    current_time_setting: int = 0x97
-    current_date_setting: int = 0x98
-    properties_for_status_notification: int = 0x9D
-    properties_to_set_values: int = 0x9E
-    properties_to_get_values: int = 0x9F
-    route_b_id: int = 0xC0
-    one_minute_measured_cumulative_energy: int = 0xD0
-    coefficient_for_cumulative_energy: int = 0xD3
-    number_of_effective_digits_for_cumulative_energy: int = 0xD7
-    measured_cumulative_energy: int = 0xE0
-    measured_cumulative_energy_reversed: int = 0xE3
-    unit_for_cumulative_energy: int = 0xE1
-    historical_cumulative_energy_1: int = 0xE2
-    historical_cumulative_energy_1_reversed: int = 0xE4
-    day_for_historical_data_1: int = 0xE5
-    instantaneous_power: int = 0xE7
-    instantaneous_current: int = 0xE8
-    cumulative_energy_measured_at_fixed_time: int = 0xEA
-    cumulative_energy_measured_at_fixed_time_reversed: int = 0xEB
-    historical_cumulative_energy_2: int = 0xEC
-    time_for_historical_data_2: int = 0xED
-    historical_cumulative_energy_3: int = 0xEE
-    time_for_historical_data_3: int = 0xEF
 
 
 class EchonetProperty:
@@ -529,6 +494,7 @@ class Momonga:
         self.energy_coefficient: int = 1
         self.is_open: bool = False
         self.reopen_delays: Iterable[float] | None = reopen_delays
+        self._request_lock: threading.Lock = threading.Lock()
         self._rbid: str = rbid
         self._pwd: str = pwd
         self._dev: str = dev
@@ -586,6 +552,70 @@ class Momonga:
         )
         self.open()
         logger.info('Momonga session reopened successfully.')
+
+    def get_notification(self, timeout: int | float | None = None) -> dict | None:
+        if self.is_open is not True:
+            raise RuntimeError('Momonga is not open.')
+
+        try:
+            raw = self.session_manager.notif_q.get(timeout=timeout)
+        except queue.Empty:
+            return None
+
+        pkt = SkEventRxUdp([raw], self.session_manager.skw.device_type)
+        data = pkt.data
+        esv = data[10]
+        opc = data[11]
+
+        if esv == EchonetServiceCode.infc:
+            self.__send_infc_res(data)
+
+        properties = {}
+        cur = 12
+        for _ in range(opc):
+            try:
+                epc = EchonetPropertyCode(data[cur])
+            except ValueError:
+                epc = data[cur]
+            cur += 1
+            pdc = data[cur]
+            cur += 1
+            edt = data[cur:cur + pdc] if pdc > 0 else None
+            cur += pdc
+
+            if edt is not None:
+                try:
+                    parser = parser_map[epc]
+                    sig = inspect.signature(parser)
+                    args = sig.parameters.keys()
+                    if 'energy_unit' in args and 'energy_coefficient' in args:
+                        properties[epc] = parser(edt, self.energy_unit, self.energy_coefficient)
+                    else:
+                        properties[epc] = parser(edt)
+                except KeyError:
+                    properties[epc] = edt
+            else:
+                properties[epc] = None
+
+        return {'esv': EchonetServiceCode(esv), 'properties': properties}
+
+    def __send_infc_res(self, infc_data: bytes) -> None:
+        tid_int = int.from_bytes(infc_data[2:4], 'big')
+        header = self.__build_request_header(tid_int, EchonetServiceCode.infc_res)
+        opc = infc_data[11]
+        props = b''
+        cur = 12
+        for _ in range(opc):
+            props += infc_data[cur:cur + 1]  # EPC
+            cur += 1
+            pdc = infc_data[cur]
+            cur += 1 + pdc
+            props += b'\x00'               # PDC = 0, no EDT in response
+        payload = header + opc.to_bytes(1, 'big') + props
+        try:
+            self.session_manager.xmitter(payload)
+        except Exception:
+            logger.warning('Failed to send INFC_Res.', exc_info=True)
 
     def __get_transaction_id(self) -> int:
         self.transaction_id += 1
@@ -694,6 +724,13 @@ class Momonga:
         if self.is_open is not True:
             raise RuntimeError('Momonga is not open.')
 
+        with self._request_lock:
+            return self.__request_locked(esv, req_properties)
+
+    def __request_locked(self,
+                         esv: EchonetServiceCode,
+                         req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                         ) -> list[EchonetPropertyWithData]:
         tid = self.__get_transaction_id()
         if esv == EchonetServiceCode.set_c:
             tx_payload = self.__build_request_payload_with_data(tid, esv, req_properties)
