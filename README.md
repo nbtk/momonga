@@ -135,6 +135,48 @@ while True:
 
 したがって開発者はデータ設定または取得関数を呼び出したあと即座に応答が返ってこない可能性を考慮してください。
 
+# Notification
+スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を30分ごとに自動通知します（INF/INFC）。
+Momongaはこれらの通知を`get_notification()`または`notifications()`で受け取れます。
+
+INFCを受信した場合、Momongaは自動的にINFC_Resを送信します。
+
+## Notification Example
+```python3
+import momonga
+
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
+dev  = '/dev/ttyUSB0'
+
+with momonga.Momonga(rbid, pwd, dev) as mo:
+    while True:
+        notif = mo.get_notification(timeout=1800)
+        if notif is None:
+            continue  # タイムアウト
+        esv = notif['esv']
+        for epc, value in notif['properties'].items():
+            print(f'ESV: {esv.name}, EPC: {epc}, value: {value}')
+```
+
+## Async Notification Example
+```python3
+import asyncio
+import momonga
+
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
+dev  = '/dev/ttyUSB0'
+
+async def main():
+    async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
+        async for notif in mo.notifications(timeout=1800):
+            for epc, value in notif['properties'].items():
+                print(f'EPC: {epc}, value: {value}')
+
+asyncio.run(main())
+```
+
 # Consideration
 - 送信がブロッキングされるなど諸条件により関数呼び出しのあと応答が即座に返らないことがあるため、`momonga.get_historical_cumulative_energy_1()`は呼び出したときに期待した履歴の日付と結果の日付に齟齬が生じる可能性があることに注意してください。特にこの関数は日を跨ぐタイミングで実行すべきではありません。
 
@@ -469,6 +511,54 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
         time.sleep(60)
 ```
+
+## momonga.get_notification(timeout: int | float | None = None)
+スマートメーターからの通知（INF/INFC）を受け取る。INFCを受信した場合はINFC_Resを自動送信する。
+### Arguments
+- timeout: 待機秒数。Noneのとき通知が届くまでブロッキングする
+### Return Value
+- dict | None: 通知データ。タイムアウト時はNone
+
+```python3
+{'esv': momonga.EchonetServiceCode.inf,
+ 'properties': {momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: ...}}
+```
+
+# AsyncMomonga
+`AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。内部的に`asyncio.to_thread()`を使用しており、`Momonga`のブロッキング処理をイベントループをブロックせずに実行できます。
+
+## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
+AsyncMomongaクラスのインスタンス化。引数は`Momonga`と同じ。
+
+`async with`文による使用を推奨します。
+
+```python3
+import asyncio
+import momonga
+
+async def main():
+    async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
+        power = await mo.get_instantaneous_power()
+        print(f'{power}W')
+
+asyncio.run(main())
+```
+
+## async AsyncMomonga.notifications(timeout: int | float = 60)
+通知を非同期ジェネレータとして受け取る。`timeout`秒待って通知がない場合は次の待機に入る（`None`は返さない）。
+
+```python3
+async def main():
+    async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
+        async for notif in mo.notifications(timeout=1800):
+            print(notif)
+```
+
+## async AsyncMomonga.get_notification(timeout: int | float | None = None)
+同期版`get_notification()`と同じ動作。タイムアウト時は`None`を返す。
+
+## その他のメソッド
+`Momonga`の全メソッドに対応する`async`版が定義されています。`await mo.メソッド名()`の形式で呼び出せます。
 
 ## Feedback
 イシュー報告、プルリクエスト、コメント等、なんでもよいのでフィードバックお待ちしています。星をもらうと開発が活発になります。<br>
