@@ -279,7 +279,7 @@ e.g.
 ### Arguments
 - Void
 ### Return Value
-- set: 状変アナウンスプロパティマップ (monongaは状変アナウンスをサポートしていない)
+- set: 状変アナウンスプロパティマップ。このセットに含まれるEPCの値変化をスマートメーターが自動通知する。通知の受け取りには`get_notification()`または`notifications()`を使用する
 ```python3
 {<EchonetPropertyCode.operation_status: 128>,
  <EchonetPropertyCode.installation_location: 129>,
