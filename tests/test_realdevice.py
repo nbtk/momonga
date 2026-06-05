@@ -5,7 +5,7 @@ Configure via environment variables:
   MOMONGA_RBID     Route-B ID
   MOMONGA_PWD      Password
   MOMONGA_DEV      Serial device  (e.g. /dev/ttyUSB0, /dev/tty.usbserial-..., COM3)
-  MOMONGA_TIMEOUT  Seconds to wait per notification call (default: 120)
+  MOMONGA_TIMEOUT  Seconds to wait per notification call (default: 2400)
 
 Run:
   MOMONGA_RBID=... MOMONGA_PWD=... MOMONGA_DEV=... python -m unittest tests/test_realdevice.py -v
@@ -20,7 +20,7 @@ from momonga.momonga_echonet_enum import EchonetPropertyCode
 _RBID    = os.environ.get('MOMONGA_RBID', '')
 _PWD     = os.environ.get('MOMONGA_PWD', '')
 _DEV     = os.environ.get('MOMONGA_DEV', '')
-_TIMEOUT = int(os.environ.get('MOMONGA_TIMEOUT', '120'))
+_TIMEOUT = int(os.environ.get('MOMONGA_TIMEOUT', '2400'))
 
 _SKIP        = not all([_RBID, _PWD, _DEV])
 _SKIP_REASON = 'Set MOMONGA_RBID, MOMONGA_PWD, MOMONGA_DEV to run hardware integration tests.'

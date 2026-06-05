@@ -136,7 +136,7 @@ while True:
 したがって開発者はデータ設定または取得関数を呼び出したあと即座に応答が返ってこない可能性を考慮してください。
 
 # Notification
-スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を30分ごとに自動通知します（INF/INFC）。
+スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知します（INF/INFC）。
 Momongaはこれらの通知を`get_notification()`または`notifications()`で受け取れます。
 
 INFCを受信した場合、Momongaは自動的にINFC_Resを送信します。
@@ -151,7 +151,7 @@ dev  = '/dev/ttyUSB0'
 
 with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
-        notif = mo.get_notification(timeout=1800)
+        notif = mo.get_notification(timeout=2400)
         if notif is None:
             continue  # タイムアウト
         esv = notif['esv']
@@ -170,7 +170,7 @@ dev  = '/dev/ttyUSB0'
 
 async def main():
     async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
-        async for notif in mo.notifications(timeout=1800):
+        async for notif in mo.notifications(timeout=2400):
             for epc, value in notif['properties'].items():
                 print(f'EPC: {epc}, value: {value}')
 
@@ -550,7 +550,7 @@ asyncio.run(main())
 ```python3
 async def main():
     async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
-        async for notif in mo.notifications(timeout=1800):
+        async for notif in mo.notifications(timeout=2400):
             print(notif)
 ```
 
