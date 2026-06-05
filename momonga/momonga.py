@@ -536,7 +536,7 @@ class Momonga:
                                                                                 self.energy_coefficient)
 
     def get_historical_cumulative_energy_2(self,
-                                           timestamp: datetime.datetime = None,
+                                           timestamp: datetime.datetime | None = None,
                                            num_of_data_points: int = 12,
                                            ) -> list[dict[str, datetime.datetime |
                                                                dict[str, int | float | None]]]:
@@ -566,7 +566,7 @@ class Momonga:
         return EchonetDataParser.parse_time_for_historical_data_2(res.edt)
 
     def get_historical_cumulative_energy_3(self,
-                                           timestamp: datetime.datetime = None,
+                                           timestamp: datetime.datetime | None = None,
                                            num_of_data_points: int = 10,
                                            ) -> list[dict[str, datetime.datetime |
                                                                dict[str, int | float | None]]]:
@@ -611,6 +611,8 @@ class Momonga:
                        time_for_historical_data_2: TimeForHistoricalData2 | None = None,
                        time_for_historical_data_3: TimeForHistoricalData3 | None = None) -> None:
         properties_with_data = []
+        if day_for_historical_data_1 is None and time_for_historical_data_2 is None and time_for_historical_data_3 is None:
+            return
         if day_for_historical_data_1 is not None:
             edt = EchonetDataBuilder.build_edata_to_set_day_for_historical_data_1(**day_for_historical_data_1)
             properties_with_data.append(EchonetPropertyWithData(EchonetPropertyCode.day_for_historical_data_1, edt))

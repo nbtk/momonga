@@ -84,9 +84,9 @@ class MomongaSessionManager:
                 logger.info('Scanning PAN channels...')
                 scan_res = self.skw.skscan()
                 logger.info('A PAN was found.')
-            except MomongaSkScanFailure:
+            except MomongaSkScanFailure as e:
                 logger.error('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.')
-                raise MomongaSkScanFailure('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.')
+                raise MomongaSkScanFailure('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.') from e
             self.smart_meter_mac = scan_res.mac_addr
             self.channel = scan_res.channel
             self.pan_id = scan_res.pan_id
@@ -104,9 +104,9 @@ class MomongaSessionManager:
                 self.skw.skjoin(self.smart_meter_addr)
                 self.session_established = True
                 logger.info('A PANA session has been established.')
-            except MomongaSkJoinFailure:
+            except MomongaSkJoinFailure as e:
                 logger.error('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
-                raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
+                raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.') from e
 
             while not self.pkt_sbsc_q.empty():
                 self.pkt_sbsc_q.get()

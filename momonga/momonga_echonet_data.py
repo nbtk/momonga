@@ -83,7 +83,7 @@ class EchonetDataParser:
         return version + chr(edt[2]) + '.' + str(edt[3])
 
     @classmethod
-    def parse_fault_status(cls, edt: bytes) -> bool:
+    def parse_fault_status(cls, edt: bytes) -> bool | None:
         status_code = int.from_bytes(edt, 'big')
         if status_code == 0x41:
             status = True  # fault occurred
@@ -133,7 +133,7 @@ class EchonetDataParser:
                 b = property_map[i]
                 for j in range(8):
                     if b & 1 << j:
-                        prop_code = (j + 0x08 << 4) + i
+                        prop_code = ((j + 0x08) << 4) + i
                         try:
                             prop_code = EchonetPropertyCode(prop_code)
                         except ValueError:

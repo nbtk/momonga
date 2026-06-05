@@ -76,6 +76,7 @@ class MomongaSkWrapper:
 
         # Detects device type
         self.detect_device()
+        return self
 
     def close(self) -> None:
         if self.publisher_th is not None:
@@ -103,7 +104,10 @@ class MomongaSkWrapper:
         ok = b'OK '
         fail = b'FAIL'
         while True:
-            res += self.ser.read()
+            b = self.ser.read()
+            if not b:
+                raise MomongaTimeoutError('ROPT command timed out.')
+            res += b
             if ok in res and res.endswith(b'\r'):
                 break
             elif fail in res and res.endswith(b'\r'):
@@ -127,7 +131,10 @@ class MomongaSkWrapper:
         self.ser.flush()
         res = b''
         while True:
-            res += self.ser.read()
+            b = self.ser.read()
+            if not b:
+                raise MomongaTimeoutError('WOPT command timed out.')
+            res += b
             if b'OK\r' in res:
                 break
         return

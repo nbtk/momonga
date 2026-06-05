@@ -84,6 +84,18 @@ class TestEchonetDataParser(unittest.TestCase):
         self.assertIn(EchonetPropertyCode.operation_status, result)
         self.assertIn(EchonetPropertyCode.fault_status, result)
 
+    def test_parse_property_map_bitmap(self):
+        # num_of_properties=16 triggers bitmap format (16 bytes follow)
+        # Set bit 0 of byte 0 → EPC = ((0 + 8) << 4) | 0 = 0x80 (operation_status)
+        # Set bit 0 of byte 8 → EPC = ((0 + 8) << 4) | 8 = 0x88 (fault_status)
+        bitmap = bytearray(16)
+        bitmap[0] = 0x01   # bit 0 set → EPC 0x80
+        bitmap[8] = 0x01   # bit 0 set → EPC 0x88
+        edt = bytes([16]) + bytes(bitmap)
+        result = EchonetDataParser.parse_property_map(edt)
+        self.assertIn(EchonetPropertyCode.operation_status, result)
+        self.assertIn(EchonetPropertyCode.fault_status, result)
+
 
 # ---------------------------------------------------------------------------
 # EchonetDataBuilder
