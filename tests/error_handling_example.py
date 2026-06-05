@@ -2,6 +2,7 @@ import momonga
 import time
 import os
 import sys
+from itertools import repeat
 
 
 rbid = os.environ.get('MOMONGA_ROUTEB_ID')
@@ -22,12 +23,12 @@ while True:
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         continue
 
-# Example 2: Automatic recovery using auto_reopen
-# When auto_reopen is enabled, Momonga will automatically attempt to
+# Example 2: Automatic recovery using reopen_delays
+# When reopen_delays is set, Momonga will automatically attempt to
 # reopen the session when MomongaNeedToReopen is raised during requests.
 while True:
     try:
-        with momonga.Momonga(rbid, pwd, dev, auto_reopen=True) as mo:
+        with momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0)) as mo:
             while True:
                 res = mo.get_instantaneous_power()
                 print('%0.1fW' % res)

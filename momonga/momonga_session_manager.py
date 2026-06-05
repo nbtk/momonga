@@ -127,7 +127,8 @@ class MomongaSessionManager:
     def close(self) -> None:
         logger.info('Closing the Momonga session...')
 
-        if self.rejoin_lock.acquire(timeout=120) is False:
+        rejoin_lock_acquired = self.rejoin_lock.acquire(timeout=120)
+        if not rejoin_lock_acquired:
             logger.warning('Failed to acquire "rejoin_lock".')
 
         if self.session_established is True:
@@ -138,9 +139,11 @@ class MomongaSessionManager:
             except Exception as e:
                 logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
             finally:
-                self.rejoin_lock.release()
+                if rejoin_lock_acquired:
+                    self.rejoin_lock.release()
         else:
-            self.rejoin_lock.release()
+            if rejoin_lock_acquired:
+                self.rejoin_lock.release()
 
         if self.receiver_th is not None:
             if self.receiver_th.is_alive():
@@ -266,7 +269,8 @@ class MomongaSessionManager:
         self.xmit_restriction_cnt += 1
         logger.debug('The counter for the restriction was incremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt <= 2, 'The critical section counter for data transmission is inconsistent: Too big than expected.'
+        if self.xmit_restriction_cnt > 2:
+            logger.error('The critical section counter for data transmission is inconsistent: Too big than expected.')
 
         if self.xmit_restriction_cnt == 1:
             logger.debug('Trying to restrict data transmission.')
@@ -283,7 +287,8 @@ class MomongaSessionManager:
             self.xmit_restriction_cnt -= 1
             logger.debug('The counter for the restriction was decremented: %d' % (self.xmit_restriction_cnt))
 
-        assert self.xmit_restriction_cnt >= 0, 'The critical section counter for data transmit is inconsistent: Too small than expected.'
+        if self.xmit_restriction_cnt < 0:
+            logger.error('The critical section counter for data transmit is inconsistent: Too small than expected.')
 
         if self.xmit_restriction_cnt == 0:
             try:
