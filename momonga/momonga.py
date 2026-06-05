@@ -560,7 +560,10 @@ class Momonga:
         try:
             self.__init_energy_unit()
         except Exception:
-            self.close()
+            try:
+                self.close()
+            except Exception:
+                pass
             raise
         logger.info('Momonga is open.')
         return self
