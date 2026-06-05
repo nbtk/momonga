@@ -557,7 +557,11 @@ class Momonga:
         self.session_manager.open()
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
-        self.__init_energy_unit()
+        try:
+            self.__init_energy_unit()
+        except Exception:
+            self.close()
+            raise
         logger.info('Momonga is open.')
         return self
 
@@ -1039,7 +1043,7 @@ class Momonga:
             try:
                 parser = parser_map[r.epc]
             except KeyError:
-                raise MomongaRuntimeError(f"No parser found for EPC: %X" % r.epc)
+                raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc)
 
             sig = inspect.signature(parser)
             args = sig.parameters.keys()
