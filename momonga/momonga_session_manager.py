@@ -219,10 +219,14 @@ class MomongaSessionManager:
                 elif res.startswith("ERXUDP"):
                     try:
                         data_hex = res.split()[-1]
+                        seoj = data_hex[8:14].upper() if len(data_hex) >= 14 else ''
                         esv = int(data_hex[20:22], 16) if len(data_hex) >= 22 else -1
                     except (ValueError, IndexError):
+                        seoj = ''
                         esv = -1
-                    if esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
+                    if seoj != '028801':
+                        pass  # discard: SEOJ 0x028801 = low-voltage smart electric energy meter (ECHONET Lite class 0x0288, instance 0x01)
+                    elif esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
                         self.notif_q.put(res)
                     else:
                         self.recv_q.put(res)

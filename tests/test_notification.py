@@ -1,5 +1,6 @@
 import datetime
 import queue
+import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -342,6 +343,63 @@ class TestAsyncMomonga(unittest.IsolatedAsyncioTestCase):
         result = await self.async_mo.request_to_get(epcs)
         self.assertEqual(result, expected)
         self.mock_sync.request_to_get.assert_called_once_with(epcs)
+
+
+# ---------------------------------------------------------------------------
+# Receiver ERXUDP routing (SEOJ filter)
+# ---------------------------------------------------------------------------
+
+class TestReceiverRouting(unittest.TestCase):
+
+    def _make_session_manager(self):
+        from momonga.momonga_session_manager import MomongaSessionManager
+        sm = object.__new__(MomongaSessionManager)
+        sm.pkt_sbsc_q = queue.Queue()
+        sm.recv_q = queue.Queue()
+        sm.notif_q = queue.Queue()
+        sm.xmit_lock = threading.Lock()
+        sm.xmit_restriction_cnt = 0
+        sm.session_established = True
+        sm.receiver_exception = None
+        sm.skw = MagicMock()
+        return sm
+
+    @staticmethod
+    def _erxudp(seoj: str, esv: int) -> str:
+        # EHD(4) + TID(4) + SEOJ(6) + DEOJ(6) + ESV(2) + OPC+EPC+PDC+EDT
+        payload = '1081' + '0001' + seoj + '05FF01' + ('%02X' % esv) + '01E70400000000'
+        return 'ERXUDP x x x x x x x x ' + payload
+
+    def _route(self, sm, packet):
+        th = threading.Thread(target=sm.receiver, daemon=True)
+        th.start()
+        sm.pkt_sbsc_q.put(packet)
+        sm.pkt_sbsc_q.put('__CLOSE__')
+        th.join(timeout=2)
+
+    def test_non_smart_meter_inf_discarded(self):
+        sm = self._make_session_manager()
+        self._route(sm, self._erxudp('0EF001', 0x73))  # node profile INF
+        self.assertTrue(sm.notif_q.empty())
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_smart_meter_inf_to_notif_q(self):
+        sm = self._make_session_manager()
+        self._route(sm, self._erxudp('028801', 0x73))
+        self.assertFalse(sm.notif_q.empty())
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_smart_meter_infc_to_notif_q(self):
+        sm = self._make_session_manager()
+        self._route(sm, self._erxudp('028801', 0x74))
+        self.assertFalse(sm.notif_q.empty())
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_smart_meter_get_response_to_recv_q(self):
+        sm = self._make_session_manager()
+        self._route(sm, self._erxudp('028801', 0x72))  # GET_RES
+        self.assertTrue(sm.notif_q.empty())
+        self.assertFalse(sm.recv_q.empty())
 
 
 if __name__ == '__main__':
