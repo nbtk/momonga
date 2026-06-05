@@ -19,6 +19,7 @@ import os
 import unittest
 
 from momonga import AsyncMomonga
+from momonga.momonga_echonet_enum import EchonetPropertyCode
 
 _RBID    = os.environ.get('MOMONGA_ROUTEB_ID', '')
 _PWD     = os.environ.get('MOMONGA_ROUTEB_PASSWORD', '')
@@ -48,37 +49,33 @@ class TestAllGettersInParallel(unittest.IsolatedAsyncioTestCase):
         asyncio.run(_close())
 
     async def test_all_getters_in_parallel(self):
-        getters = [
-            ('operation_status',                    self.mo.get_operation_status()),
-            ('installation_location',               self.mo.get_installation_location()),
-            ('standard_version',                    self.mo.get_standard_version()),
-            ('fault_status',                        self.mo.get_fault_status()),
-            ('manufacturer_code',                   self.mo.get_manufacturer_code()),
-            ('serial_number',                       self.mo.get_serial_number()),
-            ('current_time_setting',                self.mo.get_current_time_setting()),
-            ('current_date_setting',                self.mo.get_current_date_setting()),
-            ('properties_for_status_notification',  self.mo.get_properties_for_status_notification()),
-            ('properties_to_set_values',            self.mo.get_properties_to_set_values()),
-            ('properties_to_get_values',            self.mo.get_properties_to_get_values()),
-            ('route_b_id',                          self.mo.get_route_b_id()),
-            ('coefficient_for_cumulative_energy',   self.mo.get_coefficient_for_cumulative_energy()),
-            ('number_of_effective_digits',          self.mo.get_number_of_effective_digits_for_cumulative_energy()),
-            ('measured_cumulative_energy',          self.mo.get_measured_cumulative_energy()),
-            ('measured_cumulative_energy_reversed', self.mo.get_measured_cumulative_energy(reverse=True)),
-            ('unit_for_cumulative_energy',          self.mo.get_unit_for_cumulative_energy()),
-            ('day_for_historical_data_1',           self.mo.get_day_for_historical_data_1()),
-            ('instantaneous_power',                 self.mo.get_instantaneous_power()),
-            ('instantaneous_current',               self.mo.get_instantaneous_current()),
-            ('time_for_historical_data_2',          self.mo.get_time_for_historical_data_2()),
-            ('time_for_historical_data_3',          self.mo.get_time_for_historical_data_3()),
+        EPC = EchonetPropertyCode
+
+        # (EPC, label, getter function)
+        all_getters = [
+            (EPC.operation_status,                          'operation_status',                    self.mo.get_operation_status),
+            (EPC.installation_location,                     'installation_location',               self.mo.get_installation_location),
+            (EPC.standard_version_information,              'standard_version',                    self.mo.get_standard_version),
+            (EPC.fault_status,                              'fault_status',                        self.mo.get_fault_status),
+            (EPC.manufacturer_code,                         'manufacturer_code',                   self.mo.get_manufacturer_code),
+            (EPC.serial_number,                             'serial_number',                       self.mo.get_serial_number),
+            (EPC.current_time_setting,                      'current_time_setting',                self.mo.get_current_time_setting),
+            (EPC.current_date_setting,                      'current_date_setting',                self.mo.get_current_date_setting),
+            (EPC.properties_for_status_notification,        'properties_for_status_notification',  self.mo.get_properties_for_status_notification),
+            (EPC.properties_to_set_values,                  'properties_to_set_values',            self.mo.get_properties_to_set_values),
+            (EPC.properties_to_get_values,                  'properties_to_get_values',            self.mo.get_properties_to_get_values),
+            (EPC.route_b_id,                                'route_b_id',                          self.mo.get_route_b_id),
+            (EPC.coefficient_for_cumulative_energy,         'coefficient_for_cumulative_energy',   self.mo.get_coefficient_for_cumulative_energy),
+            (EPC.number_of_effective_digits_for_cumulative_energy, 'number_of_effective_digits',   self.mo.get_number_of_effective_digits_for_cumulative_energy),
+            (EPC.measured_cumulative_energy,                'measured_cumulative_energy',          self.mo.get_measured_cumulative_energy),
+            (EPC.measured_cumulative_energy_reversed,       'measured_cumulative_energy_reversed', lambda: self.mo.get_measured_cumulative_energy(reverse=True)),
+            (EPC.unit_for_cumulative_energy,                'unit_for_cumulative_energy',          self.mo.get_unit_for_cumulative_energy),
+            (EPC.day_for_historical_data_1,                 'day_for_historical_data_1',           self.mo.get_day_for_historical_data_1),
+            (EPC.instantaneous_power,                       'instantaneous_power',                 self.mo.get_instantaneous_power),
+            (EPC.instantaneous_current,                     'instantaneous_current',               self.mo.get_instantaneous_current),
+            (EPC.time_for_historical_data_2,                'time_for_historical_data_2',          self.mo.get_time_for_historical_data_2),
+            (EPC.time_for_historical_data_3,                'time_for_historical_data_3',          self.mo.get_time_for_historical_data_3),
         ]
-
-        names, coros = zip(*getters)
-        results = await asyncio.gather(*coros)
-
-        print()
-        for name, val in zip(names, results):
-            print('  %-45s %s' % (name + ':', val))
 
         expected_types = {
             'operation_status':                    (bool, type(None)),
@@ -104,6 +101,21 @@ class TestAllGettersInParallel(unittest.IsolatedAsyncioTestCase):
             'time_for_historical_data_2':          dict,
             'time_for_historical_data_3':          dict,
         }
+
+        supported = await self.mo.get_properties_to_get_values()
+
+        getters = [(name, fn) for epc, name, fn in all_getters if epc in supported]
+
+        print()
+        skipped = [name for epc, name, _ in all_getters if epc not in supported]
+        for name in skipped:
+            print('  %-45s (not supported)' % (name + ':'))
+
+        names, fns = zip(*getters)
+        results = await asyncio.gather(*(fn() for fn in fns))
+
+        for name, val in zip(names, results):
+            print('  %-45s %s' % (name + ':', val))
 
         for name, val in zip(names, results):
             self.assertIsInstance(val, expected_types[name],
