@@ -61,6 +61,11 @@ class TestNotificationSync(unittest.TestCase):
         """One notification covers: structure, ESV, key types, parsed values, and timeout=0 on empty queue."""
         notif = self.mo.get_notification(timeout=_TIMEOUT)
         _assert_notification(self, notif)
+        print()
+        print('  ESV:', notif['esv'].name)
+        for epc, val in notif['properties'].items():
+            name = epc.name if hasattr(epc, 'name') else ('0x%02X' % epc)
+            print('  EPC: %-50s value: %s' % (name, val))
         while self.mo.get_notification(timeout=0) is not None:
             pass
         self.assertIsNone(self.mo.get_notification(timeout=0))

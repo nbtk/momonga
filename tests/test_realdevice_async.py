@@ -82,6 +82,11 @@ class TestAsyncNotification(unittest.IsolatedAsyncioTestCase):
         """
         async for notif in self.mo.notifications(timeout=_TIMEOUT):
             _assert_notification(self, notif)
+            print()
+            print('  ESV:', notif['esv'].name)
+            for epc, val in notif['properties'].items():
+                name = epc.name if hasattr(epc, 'name') else ('0x%02X' % epc)
+                print('  EPC: %-50s value: %s' % (name, val))
             break
         while await self.mo.get_notification(timeout=0) is not None:
             pass
