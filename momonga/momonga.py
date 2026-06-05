@@ -13,7 +13,7 @@ from .momonga_echonet_data import (EchonetProperty,
                                    EchonetDataBuilder,
                                    parser_map,
                                    energy_parsers)
-from .momonga_echonet_enum import EchonetServiceCode, EchonetPropertyCode
+from .momonga_echonet_enum import EchonetServiceCode, EchonetPropertyCode, SMART_METER_EOJ, CONTROLLER_EOJ
 from .momonga_exception import (MomongaError,
                                 MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
@@ -174,8 +174,8 @@ class Momonga:
     def __build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
         ehd = b'\x10\x81'  # echonet lite edata format 1
         tid = tid.to_bytes(4, 'big')[-2:]
-        seoj = b'\x05\xFF\x01'  # controller class
-        deoj = b'\x02\x88\x01'  # low-voltage smart electric energy meter class
+        seoj = CONTROLLER_EOJ
+        deoj = SMART_METER_EOJ
         esv = esv.to_bytes(1, 'big')
         return ehd + tid + seoj + deoj + esv
 
@@ -223,11 +223,11 @@ class Momonga:
             raise MomongaResponseNotExpected('The transaction ID does not match.')
 
         seoj = data[4:7]
-        if seoj != b'\x02\x88\x01':  # low-voltage smart electric energy meter class
+        if seoj != SMART_METER_EOJ:
             raise MomongaResponseNotExpected('The source is not a smart meter.')
 
         deoj = data[7:10]
-        if deoj != b'\x05\xFF\x01':  # controller class
+        if deoj != CONTROLLER_EOJ:
             raise MomongaResponseNotExpected('The destination is not a controller.')
 
         esv = data[10]

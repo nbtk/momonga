@@ -5,7 +5,7 @@ import time
 
 from typing import Self
 
-from .momonga_echonet_enum import EchonetServiceCode
+from .momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
@@ -224,8 +224,8 @@ class MomongaSessionManager:
                     except (ValueError, IndexError):
                         seoj = ''
                         esv = -1
-                    if seoj != '028801':
-                        pass  # discard: SEOJ 0x028801 = low-voltage smart electric energy meter (ECHONET Lite class 0x0288, instance 0x01)
+                    if seoj != SMART_METER_EOJ.hex().upper():
+                        pass  # discard packets from non-smart-meter ECHONET objects
                     elif esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
                         self.notif_q.put(res)
                     else:

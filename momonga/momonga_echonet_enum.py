@@ -1,5 +1,9 @@
 import enum
 
+# ECHONET Lite Object Identifiers used in B-route communication
+SMART_METER_EOJ = b'\x02\x88\x01'  # Low-voltage smart electric energy meter (class 0x0288, instance 0x01)
+CONTROLLER_EOJ  = b'\x05\xFF\x01'  # Controller (home energy management system)
+
 
 class EchonetServiceCode(enum.IntEnum):
     set_c = 0x61
