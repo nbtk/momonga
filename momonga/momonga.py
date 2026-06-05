@@ -13,7 +13,9 @@ from .momonga_echonet_data import (EchonetProperty,
                                    EchonetDataBuilder,
                                    parser_map,
                                    energy_parsers)
-from .momonga_echonet_enum import EchonetServiceCode, EchonetPropertyCode, SMART_METER_EOJ, CONTROLLER_EOJ
+from .momonga_echonet_enum import (EchonetServiceCode, EchonetPropertyCode,
+                                   ECHONET_LITE_EHD, ECHONET_LITE_PORT,
+                                   SMART_METER_EOJ, CONTROLLER_EOJ)
 from .momonga_exception import (MomongaError,
                                 MomongaResponseNotExpected,
                                 MomongaResponseNotPossible,
@@ -172,7 +174,7 @@ class Momonga:
 
     @staticmethod
     def __build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
-        ehd = b'\x10\x81'  # echonet lite edata format 1
+        ehd = ECHONET_LITE_EHD
         tid = tid.to_bytes(4, 'big')[-2:]
         seoj = CONTROLLER_EOJ
         deoj = SMART_METER_EOJ
@@ -216,7 +218,7 @@ class Momonga:
                                    req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                    ) -> list[EchonetPropertyWithData]:
         ehd = data[0:2]
-        if ehd != b'\x10\x81':  # echonet lite edata format 1
+        if ehd != ECHONET_LITE_EHD:
             raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1')
 
         if data[2:4] != tid.to_bytes(4, 'big')[-2:]:
@@ -321,7 +323,7 @@ class Momonga:
                     continue
                 elif res.startswith('ERXUDP'):
                     udp_pkt = SkEventRxUdp([res], self.session_manager.skw.device_type)
-                    if not (udp_pkt.src_port == udp_pkt.dst_port == 0x0E1A):
+                    if not (udp_pkt.src_port == udp_pkt.dst_port == ECHONET_LITE_PORT):
                         continue
                     elif udp_pkt.side:
                         continue

@@ -21,6 +21,7 @@ from .momonga_response import (SkVerResponse,
                                SkScanResponse,
                                SkLl64Response)
 from .momonga_device_enum import DeviceType
+from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +322,7 @@ class MomongaSkWrapper:
                  ip6_addr: str,
                  data: bytes,
                  handle: int = 1,
-                 port: int = 0x0E1A,
+                 port: int = ECHONET_LITE_PORT,
                  sec: int = 2,
                  side: int = 0,
                  ) -> None:

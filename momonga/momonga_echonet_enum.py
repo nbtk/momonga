@@ -1,5 +1,9 @@
 import enum
 
+# ECHONET Lite protocol constants
+ECHONET_LITE_EHD  = b'\x10\x81'    # Frame header: EHD1=0x10 (ECHONET Lite), EHD2=0x81 (EDATA format 1)
+ECHONET_LITE_PORT = 0x0E1A         # Standard UDP port (3610)
+
 # ECHONET Lite Object Identifiers used in B-route communication
 SMART_METER_EOJ = b'\x02\x88\x01'  # Low-voltage smart electric energy meter (class 0x0288, instance 0x01)
 CONTROLLER_EOJ  = b'\x05\xFF\x01'  # Controller (home energy management system)
