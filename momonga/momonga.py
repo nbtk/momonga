@@ -571,10 +571,8 @@ class Momonga:
         logger.info('Reopening Momonga session.')
         try:
             self.close()
-        except MomongaError:
+        except Exception:
             logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
-        except OSError:
-            logger.debug('OS error closing Momonga during reopen (ignored)', exc_info=True)
 
         self.session_manager = MomongaSessionManager(
             self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
