@@ -44,7 +44,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 - rbid: BルートID
 - pwd: Bルートパスワード
 - dev: Wi-SUNモジュールのデバイスファイルへのパス
-- baudrate: シリアル通信のボーレート(デフォルト: 11520)
+- baudrate: シリアル通信のボーレート(デフォルト: 115200)
 
 ### Return Value
 - mo: Momongaクラスのインスタンス
@@ -326,6 +326,20 @@ Bルート識別番号を取得する。
 ### Return Value
 - dict: {'manufacturer code': manufacturer_code, 'authentication id': authentication_id}
 
+## momonga.get_one_minute_measured_cumulative_energy()
+1分毎の積算電力量計測値を取得する。
+### Arguments
+- Void
+### Return Value
+- dict: 収集日時と正方向および逆方向の積算電力量(kWh)
+
+e.g.
+```python3
+{'timestamp': datetime.datetime,
+ 'cumulative energy': {'normal direction': int | float | None,
+                       'reverse direction': int | float | None}}
+```
+
 ## momonga.get_coefficient_for_cumulative_energy()
 積算電力量計測値、履歴を実使用量に換算する係数を取得する。Momongaが出力する結果には適宜この値が乗じられている。
 ### Arguments
@@ -376,7 +390,7 @@ e.g.
 - None
 
 ## momonga.get_day_for_historical_data_1()
-積算履歴収集日1を設定する。
+積算履歴収集日1を取得する。
 ### Arguments
 - Void
 ### Return Value
@@ -415,7 +429,7 @@ e.g.
  'cumulative energy': int | float}
 ```
 
-## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime = None, num_of_data_points: int = 12)
+## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime | None = None, num_of_data_points: int = 12)
 積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 30 分毎のデータで過去最大6時間分取得する。
 ### Arguments
 - timestamp: 収集日時 (Noneのときは現時刻)
@@ -433,7 +447,7 @@ e.g.
 ## momonga.set_time_for_historical_data_2(timestamp: datetime.datetime, num_of_data_points: int = 12)
 積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
-- timestamp: 収集日時 (Noneのときは現時刻)
+- timestamp: 収集日時
 - num_of_data_points: 収集コマ数
 ### Return Value
 - None
@@ -451,7 +465,7 @@ e.g.
  'number of data points': int}
 ```
 
-## momonga.get_historical_cumulative_energy_3(timestamp: datetime.datetime = None, num_of_data_points: int = 10)
+## momonga.get_historical_cumulative_energy_3(timestamp: datetime.datetime | None = None, num_of_data_points: int = 10)
 積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 1 分毎のデータで過去最大6時間分取得する。
 ### Arguments
 - timestamp: 収集日時 (Noneのときは現時刻)
@@ -469,7 +483,7 @@ e.g.
 ## momonga.set_time_for_historical_data_3(timestamp: datetime.datetime, num_of_data_points: int = 10)
 積算履歴収集日時ならびに収集コマ数を設定する。
 ### Arguments
-- timestamp: 収集日時 (Noneのときは現時刻)
+- timestamp: 収集日時
 - num_of_data_points: 収集コマ数
 ### Return Value
 - None
