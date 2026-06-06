@@ -18,7 +18,7 @@ import datetime
 import os
 import unittest
 
-from momonga import AsyncMomonga
+from momonga import AsyncMomonga, MomongaResponseNotPossible
 from momonga.momonga_echonet_enum import EchonetPropertyCode
 
 _RBID    = os.environ.get('MOMONGA_ROUTEB_ID', '')
@@ -104,22 +104,25 @@ class TestAllGettersInParallel(unittest.IsolatedAsyncioTestCase):
 
         supported = await self.mo.get_properties_to_get_values()
 
-        getters = [(name, fn) for epc, name, fn in all_getters if epc in supported]
+        epcs, names, fns = zip(*all_getters)
+        results = await asyncio.gather(*(fn() for fn in fns), return_exceptions=True)
 
         print()
-        skipped = [name for epc, name, _ in all_getters if epc not in supported]
-        for name in skipped:
-            print('  %-45s (not supported)' % (name + ':'))
+        for epc, name, val in zip(epcs, names, results):
+            if isinstance(val, Exception):
+                print('  %-45s %s: %s' % (name + ':', type(val).__name__, val))
+            else:
+                print('  %-45s %s' % (name + ':', val))
 
-        names, fns = zip(*getters)
-        results = await asyncio.gather(*(fn() for fn in fns))
-
-        for name, val in zip(names, results):
-            print('  %-45s %s' % (name + ':', val))
-
-        for name, val in zip(names, results):
-            self.assertIsInstance(val, expected_types[name],
-                                  'Unexpected type for %s: %r' % (name, val))
+        for epc, name, val in zip(epcs, names, results):
+            if epc in supported:
+                if isinstance(val, Exception):
+                    raise val
+                self.assertIsInstance(val, expected_types[name],
+                                      'Unexpected type for %s: %r' % (name, val))
+            else:
+                self.assertIsInstance(val, MomongaResponseNotPossible,
+                                      '%s should raise MomongaResponseNotPossible but got: %r' % (name, val))
 
 
 if __name__ == '__main__':
