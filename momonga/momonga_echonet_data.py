@@ -1,8 +1,11 @@
 import datetime
 import inspect
+from collections.abc import Callable
 
 from .momonga_echonet_enum import EchonetPropertyCode
 from .momonga_exception import MomongaRuntimeError, MomongaValueError
+
+_CUMULATIVE_ENERGY_MISSING = 0xFFFFFFFE
 
 
 class EchonetProperty:
@@ -160,14 +163,14 @@ class EchonetDataParser:
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
 
         normal_direction_energy = int.from_bytes(edt[7:11], 'big')
-        if normal_direction_energy == 0xFFFFFFFE:
+        if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
             normal_direction_energy = None
         else:
             normal_direction_energy *= energy_unit
             normal_direction_energy *= energy_coefficient
 
         reverse_direction_energy = int.from_bytes(edt[11:15], 'big')
-        if reverse_direction_energy == 0xFFFFFFFE:
+        if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
             reverse_direction_energy = None
         else:
             reverse_direction_energy *= energy_unit
@@ -232,7 +235,7 @@ class EchonetDataParser:
         for i in range(48):
             j = i * 4
             cumulative_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if cumulative_energy == 0xFFFFFFFE:
+            if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
                 cumulative_energy = None
             else:
                 cumulative_energy *= energy_unit
@@ -290,14 +293,14 @@ class EchonetDataParser:
         for i in range(num_of_data_points):
             j = i * 8
             normal_direction_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if normal_direction_energy == 0xFFFFFFFE:
+            if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
                 normal_direction_energy = None
             else:
                 normal_direction_energy *= energy_unit
                 normal_direction_energy *= energy_coefficient
 
             reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
-            if reverse_direction_energy == 0xFFFFFFFE:
+            if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
                 reverse_direction_energy = None
             else:
                 reverse_direction_energy *= energy_unit
@@ -339,14 +342,14 @@ class EchonetDataParser:
         for i in range(num_of_data_points):
             j = i * 8
             normal_direction_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if normal_direction_energy == 0xFFFFFFFE:
+            if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
                 normal_direction_energy = None
             else:
                 normal_direction_energy *= energy_unit
                 normal_direction_energy *= energy_coefficient
 
             reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
-            if reverse_direction_energy == 0xFFFFFFFE:
+            if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
                 reverse_direction_energy = None
             else:
                 reverse_direction_energy *= energy_unit
@@ -373,7 +376,7 @@ class EchonetDataParser:
                 'number of data points': num_of_data_points}
 
 
-parser_map: dict[EchonetPropertyCode, callable] = {
+parser_map: dict[EchonetPropertyCode, Callable] = {
     EchonetPropertyCode.operation_status: EchonetDataParser.parse_operation_status,
     EchonetPropertyCode.installation_location: EchonetDataParser.parse_installation_location,
     EchonetPropertyCode.standard_version_information: EchonetDataParser.parse_standard_version_information,

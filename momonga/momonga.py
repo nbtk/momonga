@@ -118,7 +118,7 @@ class Momonga:
         logger.info('Momonga session reopened successfully.')
 
     def get_notification(self, timeout: int | float | None = None) -> dict | None:
-        if self.is_open is not True:
+        if not self.is_open:
             raise MomongaRuntimeError('Momonga is not open.')
 
         try:
@@ -127,6 +127,9 @@ class Momonga:
             return None
 
         data = frame.data
+        if len(data) < 12:
+            logger.warning('Received a malformed notification frame (too short: %d bytes). Discarding.' % len(data))
+            return None
         esv = data[10]
         opc = data[11]
 
@@ -282,7 +285,7 @@ class Momonga:
                   req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                   ) -> list[EchonetPropertyWithData]:
         logger.debug('Checking if Momonga is open: is_open=%s', self.is_open)
-        if self.is_open is not True:
+        if not self.is_open:
             raise MomongaRuntimeError('Momonga is not open.')
 
         with self._request_lock:

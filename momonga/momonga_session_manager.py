@@ -3,6 +3,7 @@ import threading
 import queue
 import time
 
+from collections.abc import Callable
 from typing import Self
 
 from .momonga_exception import (MomongaSkScanFailure,
@@ -48,7 +49,7 @@ class MomongaSessionManager:
         self.xmit_lock = threading.Lock()
         self.rejoin_lock = threading.Lock()
 
-        self.on_meter_frame: callable | None = None
+        self.on_meter_frame: Callable[[SkParsedRxUdp], None] | None = None
 
         self.pkt_sbsc_q = queue.Queue()
         self.recv_q = queue.Queue()
@@ -137,7 +138,7 @@ class MomongaSessionManager:
         if not rejoin_lock_acquired:
             logger.warning('Failed to acquire "rejoin_lock".')
 
-        if self.session_established is True:
+        if self.session_established:
             try:
                 self.session_established = False
                 logger.info('Terminating the PANA session...')
@@ -188,7 +189,7 @@ class MomongaSessionManager:
                     elif num == SkEventNum.rejoin_failed:
                         logger.warning('Could not rejoin the PAN.')
                         self.rejoin_lock.acquire()
-                        if self.session_established is True:
+                        if self.session_established:
                             self.session_established = False
                             try:
                                 self.skw.skjoin(self.smart_meter_addr)
@@ -216,12 +217,15 @@ class MomongaSessionManager:
                         self.restrict_to_xmit()
                         logger.warning('There was no PANA session to close.')
                     elif num in (SkEventNum.tx_done, SkEventNum.neighbor_discovery):
-                        if self.is_restricted_to_xmit() is False:
+                        if not self.is_restricted_to_xmit():
                             self.recv_q.put(parsed)
 
                 elif isinstance(parsed, SkParsedRxUdp):
                     if parsed.src_addr == self.smart_meter_addr and self.on_meter_frame is not None:
-                        self.on_meter_frame(parsed)
+                        try:
+                            self.on_meter_frame(parsed)
+                        except Exception as e:
+                            logger.error('on_meter_frame raised an exception. %s: %s' % (type(e).__name__, e))
 
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
@@ -240,7 +244,7 @@ class MomongaSessionManager:
             locked = False
             for r in range(retry_to_acquire_xmit_lock):
                 locked = self.xmit_lock.acquire(timeout=60)
-                if locked is False:
+                if not locked:
                     logger.warning('Could not acquire "xmit_lock". (%d/%d)' % (r + 1, retry_to_acquire_xmit_lock))
                     if self.receiver_exception is not None:
                         logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
@@ -248,14 +252,14 @@ class MomongaSessionManager:
                 else:
                     break
 
-            if locked is False:
+            if not locked:
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
             else:
                 logger.debug('Acquired "xmit_lock".')
 
             try:
-                if self.session_established is False:
+                if not self.session_established:
                     logger.error('Tried to transmit a packet, but no PANA session was established.')
                     raise MomongaNeedToReopen('No PANA session established. Close Momonga and open it again.')
                 self.skw.sksendto(self.smart_meter_addr, data)
@@ -270,7 +274,7 @@ class MomongaSessionManager:
             finally:
                 self.xmit_lock.release()
             time.sleep(3)
-        if xmitted is False:
+        if not xmitted:
             logger.error('Could not transmit a packet. Close Momonga and open it again.')
             raise MomongaNeedToReopen('Could not transmit a packet. Close Momonga and open it again.')
 
@@ -289,7 +293,7 @@ class MomongaSessionManager:
     def unrestrict_to_xmit(self,
                            force=False,
                           ) -> None:
-        if force is True:
+        if force:
             self.xmit_restriction_cnt = 0
             logger.debug('The counter for the restriction was forcibly set to zero.')
         else:
