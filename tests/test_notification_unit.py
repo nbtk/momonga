@@ -2,13 +2,14 @@ import datetime
 import queue
 import threading
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import momonga
 from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
 from momonga.momonga_echonet_data import EchonetDataBuilder, EchonetDataParser
 from momonga.momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
+from momonga.momonga_response import SkParsedRxUdp
 
 
 # ---------------------------------------------------------------------------
@@ -184,16 +185,16 @@ class TestGetNotification(unittest.TestCase):
         mo.session_manager.notif_q.get.side_effect = queue.Empty
         self.assertIsNone(mo.get_notification(timeout=0))
 
+    @staticmethod
+    def _make_frame(data: bytes) -> SkParsedRxUdp:
+        return SkParsedRxUdp(src_addr='', dst_addr='', src_port=0, dst_port=0,
+                              src_mac=b'', side=0, sec=0, data=data)
+
     def test_inf_notification_parsed(self):
         mo = self._make_momonga()
         data = _make_echonet_frame(0x73, 0xE7, b'\x00\x00\x03\xe8')  # INF, instantaneous_power=1000
-        mo.session_manager.notif_q.get.return_value = 'ERXUDP dummy'
-        fake_pkt = MagicMock()
-        fake_pkt.data = data
-
-        with patch('momonga.momonga.SkEventRxUdp', return_value=fake_pkt):
-            result = mo.get_notification(timeout=1)
-
+        mo.session_manager.notif_q.get.return_value = self._make_frame(data)
+        result = mo.get_notification(timeout=1)
         self.assertEqual(result['esv'], EchonetServiceCode.inf)
         self.assertIn(EchonetPropertyCode.instantaneous_power, result['properties'])
         self.assertEqual(result['properties'][EchonetPropertyCode.instantaneous_power], 1000)
@@ -201,40 +202,25 @@ class TestGetNotification(unittest.TestCase):
     def test_infc_triggers_infc_res(self):
         mo = self._make_momonga()
         data = _make_echonet_frame(0x74, 0xE7, b'\x00\x00\x03\xe8')  # INFC
-        mo.session_manager.notif_q.get.return_value = 'ERXUDP dummy'
+        mo.session_manager.notif_q.get.return_value = self._make_frame(data)
         mo.session_manager.xmitter.return_value = None
-        fake_pkt = MagicMock()
-        fake_pkt.data = data
-
-        with patch('momonga.momonga.SkEventRxUdp', return_value=fake_pkt):
-            result = mo.get_notification(timeout=1)
-
+        result = mo.get_notification(timeout=1)
         mo.session_manager.xmitter.assert_called_once()
         self.assertEqual(result['esv'], EchonetServiceCode.infc)
 
     def test_infc_res_xmit_failure_does_not_raise(self):
         mo = self._make_momonga()
         data = _make_echonet_frame(0x74, 0xE7, b'\x00\x00\x03\xe8')
-        mo.session_manager.notif_q.get.return_value = 'ERXUDP dummy'
+        mo.session_manager.notif_q.get.return_value = self._make_frame(data)
         mo.session_manager.xmitter.side_effect = Exception('xmit failed')
-        fake_pkt = MagicMock()
-        fake_pkt.data = data
-
-        with patch('momonga.momonga.SkEventRxUdp', return_value=fake_pkt):
-            result = mo.get_notification(timeout=1)  # must not raise
-
+        result = mo.get_notification(timeout=1)  # must not raise
         self.assertEqual(result['esv'], EchonetServiceCode.infc)
 
     def test_unknown_epc_stored_as_raw_bytes(self):
         mo = self._make_momonga()
         data = _make_echonet_frame(0x73, 0x01, b'\xAB\xCD')  # EPC 0x01 not in enum
-        mo.session_manager.notif_q.get.return_value = 'ERXUDP dummy'
-        fake_pkt = MagicMock()
-        fake_pkt.data = data
-
-        with patch('momonga.momonga.SkEventRxUdp', return_value=fake_pkt):
-            result = mo.get_notification(timeout=1)
-
+        mo.session_manager.notif_q.get.return_value = self._make_frame(data)
+        result = mo.get_notification(timeout=1)
         self.assertEqual(result['properties'][0x01], b'\xAB\xCD')
 
     def test_energy_epc_uses_energy_unit_and_coefficient(self):
@@ -246,13 +232,8 @@ class TestGetNotification(unittest.TestCase):
         energy_bytes = b'\x00\x00\x00\x64'           # 100 raw → 100 * 0.1 * 2 = 20.0
         edt = ts_bytes + energy_bytes
         data = _make_echonet_frame(0x73, 0xEA, edt)
-        mo.session_manager.notif_q.get.return_value = 'ERXUDP dummy'
-        fake_pkt = MagicMock()
-        fake_pkt.data = data
-
-        with patch('momonga.momonga.SkEventRxUdp', return_value=fake_pkt):
-            result = mo.get_notification(timeout=1)
-
+        mo.session_manager.notif_q.get.return_value = self._make_frame(data)
+        result = mo.get_notification(timeout=1)
         parsed = result['properties'][EchonetPropertyCode.cumulative_energy_measured_at_fixed_time]
         self.assertAlmostEqual(parsed['cumulative energy'], 20.0)
 
@@ -353,6 +334,8 @@ class TestReceiverRouting(unittest.TestCase):
 
     def _make_session_manager(self):
         from momonga.momonga_session_manager import MomongaSessionManager
+        from momonga.momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
+        from momonga.momonga_device_enum import DeviceType
         sm = object.__new__(MomongaSessionManager)
         sm.pkt_sbsc_q = queue.Queue()
         sm.recv_q = queue.Queue()
@@ -361,14 +344,29 @@ class TestReceiverRouting(unittest.TestCase):
         sm.xmit_restriction_cnt = 0
         sm.session_established = True
         sm.receiver_exception = None
+        sm.smart_meter_addr = 'FE80::1'
         sm.skw = MagicMock()
+        sm.skw.device_type = DeviceType.BP35C2
+
+        def route(frame):
+            seoj = frame.data[4:7] if len(frame.data) >= 7 else b''
+            if seoj != SMART_METER_EOJ:
+                return
+            esv = frame.data[10] if len(frame.data) > 10 else -1
+            if esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
+                sm.notif_q.put(frame)
+            else:
+                sm.recv_q.put(frame)
+        sm.on_meter_frame = route
         return sm
 
     @staticmethod
     def _erxudp(seoj: str, esv: int) -> str:
         # EHD(4) + TID(4) + SEOJ(6) + DEOJ(6) + ESV(2) + OPC+EPC+PDC+EDT
         payload = '1081' + '0001' + seoj + '05FF01' + ('%02X' % esv) + '01E70400000000'
-        return 'ERXUDP x x x x x x x x ' + payload
+        # BP35C2 format: ERXUDP src dst sport dport mac lqi sec side data_len data
+        return ('ERXUDP FE80::1 FE80::2 0E1A 0E1A AABBCCDDEEFF '
+                '50 00 00 %04X %s' % (len(payload) // 2, payload))
 
     def _route(self, sm, packet):
         th = threading.Thread(target=sm.receiver, daemon=True)

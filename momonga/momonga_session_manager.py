@@ -5,12 +5,12 @@ import time
 
 from typing import Self
 
-from .momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
                                 MomongaSkCommandExecutionFailure,
 )
+from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
 from .momonga_sk_wrapper import MomongaSkWrapper
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
@@ -47,6 +47,8 @@ class MomongaSessionManager:
         self.xmit_restriction_cnt = 0
         self.xmit_lock = threading.Lock()
         self.rejoin_lock = threading.Lock()
+
+        self.on_meter_frame: callable | None = None
 
         self.pkt_sbsc_q = queue.Queue()
         self.recv_q = queue.Queue()
@@ -172,67 +174,55 @@ class MomongaSessionManager:
         logger.debug('A packet receiver has been started.')
         try:
             while True:
-                res = self.pkt_sbsc_q.get()
-                if res == '__CLOSE__':
+                raw = self.pkt_sbsc_q.get()
+                if raw == '__CLOSE__':
                     break
 
-                if not (res.startswith('EVENT') or res.startswith('ERXUDP')):
-                    # messages that do not need to be handled will be discarded.
-                    continue
+                parsed = parse_sk_line(raw, self.skw.device_type)
 
-                if res.startswith('EVENT 29'):
-                    logger.debug('The PANA session lifetime has been expired.')
-                    self.restrict_to_xmit()
-                elif res.startswith('EVENT 24'):
-                    logger.warning('Could not rejoin the PAN.')
-                    self.rejoin_lock.acquire()
-                    if self.session_established is True:
-                        self.session_established = False
-                        try:
-                            self.skw.skjoin(self.smart_meter_addr)
-                        except MomongaSkJoinFailure as e:
-                            logger.error('%s Close Momonga and open it again.' % (e))
-                            raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
-                        finally:
+                if isinstance(parsed, SkParsedEvent):
+                    num = parsed.num
+                    if num == SkEventNum.session_lifetime:
+                        logger.debug('The PANA session lifetime has been expired.')
+                        self.restrict_to_xmit()
+                    elif num == SkEventNum.rejoin_failed:
+                        logger.warning('Could not rejoin the PAN.')
+                        self.rejoin_lock.acquire()
+                        if self.session_established is True:
+                            self.session_established = False
+                            try:
+                                self.skw.skjoin(self.smart_meter_addr)
+                            except MomongaSkJoinFailure as e:
+                                logger.error('%s Close Momonga and open it again.' % (e))
+                                raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
+                            finally:
+                                self.rejoin_lock.release()
+                        else:
                             self.rejoin_lock.release()
-                    else:
-                        self.rejoin_lock.release()
-                elif res.startswith('EVENT 25'):
-                    logger.debug('Successfully rejoined the PAN.')
-                    self.session_established = True
-                    self.unrestrict_to_xmit()
-                elif res.startswith('EVENT 32'):
-                    logger.warning('The transmission rate limit has been exceeded.')
-                    self.restrict_to_xmit()
-                elif res.startswith('EVENT 33'):
-                    logger.debug('The transmission rate limit has been released.')
-                    self.unrestrict_to_xmit()
-                elif res.startswith('EVENT 27'):
-                    self.restrict_to_xmit()
-                    logger.debug('The PANA session has been closed successfully.')
-                elif res.startswith('EVENT 28'):  # there was no session to close.
-                    self.restrict_to_xmit()
-                    logger.warning('There was no PANA session to close.')
-                elif res.startswith("EVENT 21") or res.startswith("EVENT 02"):
-                    if self.is_restricted_to_xmit() is False:
-                        self.recv_q.put(res)
-                elif res.startswith("ERXUDP"):
-                    try:
-                        data_hex = res.split()[-1]
-                        seoj = data_hex[8:14].upper() if len(data_hex) >= 14 else ''
-                        esv = int(data_hex[20:22], 16) if len(data_hex) >= 22 else -1
-                    except (ValueError, IndexError):
-                        seoj = ''
-                        esv = -1
-                    if seoj != SMART_METER_EOJ.hex().upper():
-                        pass  # discard packets from non-smart-meter ECHONET objects
-                    elif esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
-                        self.notif_q.put(res)
-                    else:
-                        self.recv_q.put(res)
-                else:
-                    # other events that do not need to be handled will be discarded.
-                    continue
+                    elif num == SkEventNum.rejoined:
+                        logger.debug('Successfully rejoined the PAN.')
+                        self.session_established = True
+                        self.unrestrict_to_xmit()
+                    elif num == SkEventNum.rate_limit_exceeded:
+                        logger.warning('The transmission rate limit has been exceeded.')
+                        self.restrict_to_xmit()
+                    elif num == SkEventNum.rate_limit_released:
+                        logger.debug('The transmission rate limit has been released.')
+                        self.unrestrict_to_xmit()
+                    elif num == SkEventNum.session_closed:
+                        self.restrict_to_xmit()
+                        logger.debug('The PANA session has been closed successfully.')
+                    elif num == SkEventNum.no_session:
+                        self.restrict_to_xmit()
+                        logger.warning('There was no PANA session to close.')
+                    elif num in (SkEventNum.tx_done, SkEventNum.neighbor_discovery):
+                        if self.is_restricted_to_xmit() is False:
+                            self.recv_q.put(parsed)
+
+                elif isinstance(parsed, SkParsedRxUdp):
+                    if parsed.src_addr == self.smart_meter_addr and self.on_meter_frame is not None:
+                        self.on_meter_frame(parsed)
+
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
             self.receiver_exception = e

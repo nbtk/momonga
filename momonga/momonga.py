@@ -22,7 +22,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaNeedToReopen,
                                 MomongaValueError,
                                 MomongaRuntimeError)
-from .momonga_response import SkEventRxUdp
+from .momonga_response import SkEventNum, SkTxResult, SkParsedEvent, SkParsedRxUdp
 from .momonga_session_manager import MomongaSessionManager
 from .momonga_session_manager import logger as session_manager_logger
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
@@ -71,8 +71,19 @@ class Momonga:
     def __exit__(self, type, value, traceback) -> None:
         self.close()
 
+    def _route_meter_frame(self, frame: SkParsedRxUdp) -> None:
+        seoj = frame.data[4:7] if len(frame.data) >= 7 else b''
+        if seoj != SMART_METER_EOJ:
+            return
+        esv = frame.data[10] if len(frame.data) > 10 else -1
+        if esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
+            self.session_manager.notif_q.put(frame)
+        else:
+            self.session_manager.recv_q.put(frame)
+
     def open(self) -> Self:
         logger.info('Opening Momonga.')
+        self.session_manager.on_meter_frame = self._route_meter_frame
         self.session_manager.open()
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
@@ -111,12 +122,11 @@ class Momonga:
             raise MomongaRuntimeError('Momonga is not open.')
 
         try:
-            raw = self.session_manager.notif_q.get(timeout=timeout)
+            frame = self.session_manager.notif_q.get(timeout=timeout)
         except queue.Empty:
             return None
 
-        pkt = SkEventRxUdp([raw], self.session_manager.skw.device_type)
-        data = pkt.data
+        data = frame.data
         esv = data[10]
         opc = data[11]
 
@@ -302,43 +312,43 @@ class Momonga:
                     logger.warning('The request for transaction id "%04X" timed out.' % tid)
                     break  # to rexmit the request.
 
-                # messages of event types 21, 02, and received udp payloads will only be delivered.
-                if res.startswith('EVENT 21'):
-                    param = res.split()[-1]
-                    if param == '00':
-                        logger.info('Successfully transmitted a request packet for transaction id "%04X".' % tid)
-                        continue
-                    elif param == '01':
-                        logger.info('Retransmitting the request packet for transaction id "%04X".' % tid)
-                        time.sleep(self.internal_xmit_interval)
-                        break  # to rexmit the request.
-                    elif param == '02':
-                        logger.info('Transmitting neighbor solicitation packets.')
+                if isinstance(res, SkParsedEvent):
+                    if res.num == SkEventNum.tx_done:
+                        param = res.param
+                        if param == SkTxResult.success:
+                            logger.info('Successfully transmitted a request packet for transaction id "%04X".' % tid)
+                            continue
+                        elif param == SkTxResult.failure:
+                            logger.info('Retransmitting the request packet for transaction id "%04X".' % tid)
+                            time.sleep(self.internal_xmit_interval)
+                            break  # to rexmit the request.
+                        elif param == SkTxResult.neighbor_solicitation:
+                            logger.info('Transmitting neighbor solicitation packets.')
+                            continue
+                        else:
+                            logger.debug('A message for event 21 with an unknown parameter "%s" will be ignored.' % param)
+                            continue
+                    elif res.num == SkEventNum.neighbor_discovery:
+                        logger.info('Received a neighbor advertisement packet.')
                         continue
                     else:
-                        logger.debug('A message for event 21 with an unknown parameter "%s" will be ignored.' % param)
                         continue
-                elif res.startswith('EVENT 02'):
-                    logger.info('Received a neighbor advertisement packet.')
-                    continue
-                elif res.startswith('ERXUDP'):
-                    udp_pkt = SkEventRxUdp([res], self.session_manager.skw.device_type)
-                    if not (udp_pkt.src_port == udp_pkt.dst_port == ECHONET_LITE_PORT):
+                elif isinstance(res, SkParsedRxUdp):
+                    if not (res.src_port == res.dst_port == ECHONET_LITE_PORT):
                         continue
-                    elif udp_pkt.side:
+                    elif res.side:
                         continue
-                    elif udp_pkt.src_addr != self.session_manager.smart_meter_addr:
+                    elif res.src_addr != self.session_manager.smart_meter_addr:
                         continue
 
                     try:
-                        res_properties = self.__extract_response_payload(udp_pkt.data, tid, req_properties)
+                        res_properties = self.__extract_response_payload(res.data, tid, req_properties)
                     except MomongaResponseNotExpected:
                         continue
 
                     logger.info('Successfully received a response packet for transaction id "%04X".' % tid)
                     return res_properties
                 else:
-                    # this line should never be reached.
                     continue
         logger.error('Gave up to obtain a response for transaction id "%04X". Close Momonga and open it again.' % tid)
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'

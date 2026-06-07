@@ -1,7 +1,108 @@
 import logging
+from dataclasses import dataclass
+from enum import IntEnum
 
 from .momonga_exception import MomongaKeyError
 from .momonga_device_enum import DeviceType
+
+
+class SkEventNum(IntEnum):
+    """Wi-SUN module event numbers (parsed from hex strings, e.g. 'EVENT 21' → 0x21)."""
+    neighbor_discovery  = 0x02
+    tx_done             = 0x21
+    rejoin_failed       = 0x24
+    rejoined            = 0x25
+    session_closed      = 0x27
+    no_session          = 0x28
+    session_lifetime    = 0x29
+    rate_limit_exceeded = 0x32
+    rate_limit_released = 0x33
+
+
+class SkTxResult(IntEnum):
+    """Param values for EVENT tx_done (0x21)."""
+    success              = 0x00
+    failure              = 0x01
+    neighbor_solicitation = 0x02
+
+
+@dataclass(frozen=True)
+class SkParsedEvent:
+    """Typed representation of an EVENT line from the Wi-SUN module."""
+    num: int           # event number parsed as hex (e.g. 'EVENT 21' → int('21',16) = 33)
+    src_addr: str
+    side: int | None
+    param: int | None  # present only for EVENT 21 (tx result)
+
+
+@dataclass(frozen=True)
+class SkParsedRxUdp:
+    """Typed representation of an ERXUDP line from the Wi-SUN module."""
+    src_addr: str
+    dst_addr: str
+    src_port: int
+    dst_port: int
+    src_mac: bytes
+    side: int | None
+    sec: int
+    data: bytes
+    lqi: int | None = None
+    rssi: float | None = None
+
+
+def parse_sk_line(line: str, device_type: DeviceType) -> SkParsedEvent | SkParsedRxUdp | None:
+    """Parse a raw Wi-SUN serial line into a typed event object.
+
+    Returns None for lines that are not EVENT or ERXUDP (e.g. OK, EPANDESC).
+    """
+    parts = line.split()
+    if not parts:
+        return None
+
+    if parts[0] == 'EVENT' and len(parts) >= 3:
+        try:
+            num = int(parts[1], 16)
+            src_addr = parts[2]
+            match device_type:
+                case DeviceType.BP35A1:
+                    side = None
+                    param = int(parts[3], 16) if len(parts) > 3 else None
+                case _:
+                    side = int(parts[3], 16) if len(parts) > 3 else None
+                    param = int(parts[4], 16) if len(parts) > 4 else None
+            return SkParsedEvent(num=num, src_addr=src_addr, side=side, param=param)
+        except (ValueError, IndexError):
+            return None
+
+    if parts[0] == 'ERXUDP':
+        try:
+            match device_type:
+                case DeviceType.BP35A1:
+                    if len(parts) < 9:
+                        return None
+                    return SkParsedRxUdp(
+                        src_addr=parts[1], dst_addr=parts[2],
+                        src_port=int(parts[3], 16), dst_port=int(parts[4], 16),
+                        src_mac=bytes.fromhex(parts[5]),
+                        sec=int(parts[6], 16), side=None,
+                        data=bytes.fromhex(parts[8]),
+                    )
+                case _:  # BP35C2
+                    if len(parts) < 11:
+                        return None
+                    lqi = int(parts[6], 16)
+                    return SkParsedRxUdp(
+                        src_addr=parts[1], dst_addr=parts[2],
+                        src_port=int(parts[3], 16), dst_port=int(parts[4], 16),
+                        src_mac=bytes.fromhex(parts[5]),
+                        lqi=lqi, rssi=0.275 * lqi - 104.27,
+                        sec=int(parts[7], 16), side=int(parts[8], 16),
+                        data=bytes.fromhex(parts[10]),
+                    )
+        except (ValueError, IndexError):
+            return None
+
+    return None
 
 logger = logging.getLogger(__name__)
 
