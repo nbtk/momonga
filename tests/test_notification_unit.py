@@ -98,6 +98,77 @@ class TestEchonetDataParser(unittest.TestCase):
         self.assertIn(EchonetPropertyCode.operation_status, result)
         self.assertIn(EchonetPropertyCode.fault_status, result)
 
+    def test_parse_installation_location_not_set(self):
+        self.assertEqual(EchonetDataParser.parse_installation_location(b'\x00'), 'location not set')
+
+    def test_parse_installation_location_room(self):
+        # 0x0F: code>>3=1 (living room), code&0x07=7 → 'living room 7'
+        self.assertEqual(EchonetDataParser.parse_installation_location(b'\x0F'), 'living room 7')
+
+    def test_parse_installation_location_not_fixed(self):
+        self.assertEqual(EchonetDataParser.parse_installation_location(b'\xFF'), 'location not fixed')
+
+    def test_parse_standard_version_information(self):
+        # edt[0]=0 (skip), edt[1]=0 (skip), edt[2]=0x46='F', edt[3]=1 → 'F.1'
+        self.assertEqual(EchonetDataParser.parse_standard_version_information(b'\x00\x00\x46\x01'), 'F.1')
+
+    def test_parse_route_b_id(self):
+        edt = b'\x00\x11\x22\x33\xAA\xBB\xCC'
+        result = EchonetDataParser.parse_route_b_id(edt)
+        self.assertEqual(result['manufacturer code'], b'\x11\x22\x33')
+        self.assertEqual(result['authentication id'], b'\xAA\xBB\xCC')
+
+    def test_parse_day_for_historical_data_1(self):
+        self.assertEqual(EchonetDataParser.parse_day_for_historical_data_1(b'\x05'), 5)
+
+    def test_parse_cumulative_energy_measured_at_fixed_time(self):
+        ts = b'\x07\xe8\x06\x05\x0c\x00\x00'   # 2024-06-05 12:00:00
+        energy = b'\x00\x00\x00\x64'             # 100 raw
+        result = EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time(
+            ts + energy, energy_unit=1, energy_coefficient=1)
+        self.assertEqual(result['timestamp'], datetime.datetime(2024, 6, 5, 12, 0, 0))
+        self.assertAlmostEqual(result['cumulative energy'], 100.0)
+
+    def test_parse_time_for_historical_data_2(self):
+        edt = b'\x07\xe8\x06\x05\x0c\x1e\x06'  # 2024-06-05 12:30, 6 points
+        result = EchonetDataParser.parse_time_for_historical_data_2(edt)
+        self.assertEqual(result['timestamp'], datetime.datetime(2024, 6, 5, 12, 30))
+        self.assertEqual(result['number of data points'], 6)
+
+    def test_parse_time_for_historical_data_2_missing_year(self):
+        edt = b'\xFF\xFF\x01\x01\x00\x00\x06'   # year=0xFFFF → None
+        result = EchonetDataParser.parse_time_for_historical_data_2(edt)
+        self.assertIsNone(result['timestamp'])
+
+    def test_parse_time_for_historical_data_3(self):
+        edt = b'\x07\xe8\x06\x05\x0c\x1e\x0A'  # 2024-06-05 12:30, 10 points
+        result = EchonetDataParser.parse_time_for_historical_data_3(edt)
+        self.assertEqual(result['timestamp'], datetime.datetime(2024, 6, 5, 12, 30))
+        self.assertEqual(result['number of data points'], 10)
+
+    def test_parse_time_for_historical_data_3_missing_year(self):
+        edt = b'\xFF\xFF\x01\x01\x00\x00\x0A'
+        result = EchonetDataParser.parse_time_for_historical_data_3(edt)
+        self.assertIsNone(result['timestamp'])
+
+    def test_parse_one_minute_measured_cumulative_energy_missing_values(self):
+        # 0xFFFFFFFE sentinel → None for both directions
+        ts = b'\x07\xe8\x06\x05\x0c\x00\x00'
+        missing = b'\xFF\xFF\xFF\xFE'
+        result = EchonetDataParser.parse_one_minute_measured_cumulative_energy(
+            ts + missing + missing, energy_unit=1, energy_coefficient=1)
+        self.assertIsNone(result['cumulative energy']['normal direction'])
+        self.assertIsNone(result['cumulative energy']['reverse direction'])
+
+    def test_parse_one_minute_measured_cumulative_energy_values(self):
+        ts = b'\x07\xe8\x06\x05\x0c\x00\x00'
+        normal = b'\x00\x00\x00\x64'   # 100
+        reverse = b'\x00\x00\x00\xC8'  # 200
+        result = EchonetDataParser.parse_one_minute_measured_cumulative_energy(
+            ts + normal + reverse, energy_unit=0.1, energy_coefficient=2)
+        self.assertAlmostEqual(result['cumulative energy']['normal direction'], 20.0)
+        self.assertAlmostEqual(result['cumulative energy']['reverse direction'], 40.0)
+
 
 # ---------------------------------------------------------------------------
 # EchonetDataBuilder
@@ -236,6 +307,11 @@ class TestGetNotification(unittest.TestCase):
         result = mo.get_notification(timeout=1)
         parsed = result['properties'][EchonetPropertyCode.cumulative_energy_measured_at_fixed_time]
         self.assertAlmostEqual(parsed['cumulative energy'], 20.0)
+
+    def test_malformed_frame_too_short_returns_none(self):
+        mo = self._make_momonga()
+        mo.session_manager.notif_q.get.return_value = self._make_frame(b'\x10\x81\x00\x01')
+        self.assertIsNone(mo.get_notification(timeout=1))
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +474,52 @@ class TestReceiverRouting(unittest.TestCase):
         self._route(sm, self._erxudp('028801', 0x72))  # GET_RES
         self.assertTrue(sm.notif_q.empty())
         self.assertFalse(sm.recv_q.empty())
+
+    def test_erxudp_wrong_ip_discarded(self):
+        sm = self._make_session_manager()
+        payload = '1081000102880105FF017301E70400000000'
+        data_len = '%04X' % (len(payload) // 2)
+        wrong_ip = ('ERXUDP FE80::FFFF FE80::2 0E1A 0E1A AABBCCDDEEFF '
+                    '50 00 00 %s %s' % (data_len, payload))
+        self._route(sm, wrong_ip)
+        self.assertTrue(sm.notif_q.empty())
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_event_tx_done_to_recv_q(self):
+        from momonga.momonga_response import SkParsedEvent, SkEventNum
+        sm = self._make_session_manager()
+        self._route(sm, 'EVENT 21 FE80::1 0 00')
+        self.assertTrue(sm.notif_q.empty())
+        self.assertFalse(sm.recv_q.empty())
+        item = sm.recv_q.get_nowait()
+        self.assertIsInstance(item, SkParsedEvent)
+        self.assertEqual(item.num, SkEventNum.tx_done)
+
+    def test_event_neighbor_discovery_to_recv_q(self):
+        from momonga.momonga_response import SkParsedEvent, SkEventNum
+        sm = self._make_session_manager()
+        self._route(sm, 'EVENT 02 FE80::1 0')
+        self.assertTrue(sm.notif_q.empty())
+        self.assertFalse(sm.recv_q.empty())
+        item = sm.recv_q.get_nowait()
+        self.assertIsInstance(item, SkParsedEvent)
+        self.assertEqual(item.num, SkEventNum.neighbor_discovery)
+
+    def test_unrecognized_line_ignored(self):
+        sm = self._make_session_manager()
+        self._route(sm, 'OK')
+        self.assertTrue(sm.notif_q.empty())
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_on_meter_frame_exception_does_not_kill_receiver(self):
+        sm = self._make_session_manager()
+
+        def bad_callback(frame):
+            raise RuntimeError('boom')
+        sm.on_meter_frame = bad_callback
+
+        self._route(sm, self._erxudp('028801', 0x73))
+        self.assertIsNone(sm.receiver_exception)
 
 
 if __name__ == '__main__':
