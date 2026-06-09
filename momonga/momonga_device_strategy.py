@@ -8,6 +8,8 @@ class BP35C2Strategy(DeviceStrategy):
     device_type = DeviceType.BP35C2
 
     def parse_event(self, parts: list[str]) -> SkParsedEvent | None:
+        # BP35C2 EVENT format includes SIDE: EVENT num addr side [param]
+        # Verified on hardware: b'EVENT 21 FE80:... 0 00\r\n'
         if len(parts) < 3:
             return None
         side = int(parts[3], 16) if len(parts) > 3 else None
