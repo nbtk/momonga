@@ -222,6 +222,7 @@ class MomongaSessionManager:
 
                 elif isinstance(parsed, SkParsedRxUdp):
                     if parsed.src_addr == self.smart_meter_addr and self.on_meter_frame is not None:
+                        # A slow callback delays all subsequent EVENT processing (e.g. EVENT 32/33).
                         try:
                             self.on_meter_frame(parsed)
                         except Exception as e:
