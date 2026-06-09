@@ -25,6 +25,9 @@ from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
 
+# BP35A1 returns this value for the SKINFO side field (not a real side index)
+_BP35A1_SIDE_SENTINEL = 0xFFFE
+
 
 class MomongaSkWrapper:
     def __init__(self,
@@ -155,7 +158,7 @@ class MomongaSkWrapper:
     def received_packet_publisher(self) -> None:
         logger.debug('A received packet publisher has been started.')
         while True:
-            if self.publisher_th_breaker is True:
+            if self.publisher_th_breaker:
                 break
             line = self.__readline(timeout=1)
             if line == '':
@@ -210,7 +213,7 @@ class MomongaSkWrapper:
                     if r.startswith(w):
                         matched = True
                         break
-                if matched is True:
+                if matched:
                     break
         return res
 
@@ -344,7 +347,7 @@ class MomongaSkWrapper:
     def detect_device(self):
         logger.debug('Trying to detect device...')
         dev_info = self.skinfo()
-        if dev_info.side == 65534:
+        if dev_info.side == _BP35A1_SIDE_SENTINEL:
             logger.debug('Device type is BP35A1.')
             self.device_type = DeviceType.BP35A1
         elif dev_info.side < 2:
