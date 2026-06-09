@@ -538,6 +538,25 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
  'properties': {momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: ...}}
 ```
 
+### 注意: timeout=None は推奨しない
+PANAセッションが切断された場合でも、スマートメーターやWi-SUNモジュールがEVENTを送出せずに沈黙する状態（電波途絶、スマートメーター電源断など）では、MomongaはPANAセッションの切断を検知できない。その場合`get_notification(timeout=None)`は無期限にブロッキングする。
+
+有限のtimeoutを設定し、`None`が一定回数連続した場合はスマートメーターにコマンドを送信してセッションの疎通を確認することを推奨する。セッションが切断されていれば`MomongaNeedToReopen`が送出される。
+
+```python3
+with momonga.Momonga(rbid, pwd, dev) as mo:
+    consecutive_timeouts = 0
+    while True:
+        notif = mo.get_notification(timeout=2400)  # 40分
+        if notif is None:
+            consecutive_timeouts += 1
+            if consecutive_timeouts >= 3:
+                mo.get_operation_status()  # セッション切断時はMomongaNeedToReopenが送出される
+            continue
+        consecutive_timeouts = 0
+        # 通知を処理する
+```
+
 # AsyncMomonga
 `AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。内部的に`asyncio.to_thread()`を使用しており、`Momonga`のブロッキング処理をイベントループをブロックせずに実行できます。
 
