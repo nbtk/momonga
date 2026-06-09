@@ -6,13 +6,13 @@ Run:
 """
 import unittest
 
-from momonga.momonga_device_enum import DeviceType
+from momonga.momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
 from momonga.momonga_response import (
     SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line,
 )
 
-C2 = DeviceType.BP35C2
-A1 = DeviceType.BP35A1
+C2 = BP35C2Strategy()
+A1 = BP35A1Strategy()
 
 
 def _c2_erxudp(data_hex: str, src_addr: str = 'FE80::1') -> str:

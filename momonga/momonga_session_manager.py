@@ -179,7 +179,7 @@ class MomongaSessionManager:
                 if raw == '__CLOSE__':
                     break
 
-                parsed = parse_sk_line(raw, self.skw.device_type)
+                parsed = parse_sk_line(raw, self.skw.device_strategy)
 
                 if isinstance(parsed, SkParsedEvent):
                     num = parsed.num

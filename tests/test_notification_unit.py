@@ -9,6 +9,7 @@ from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
 from momonga.momonga_echonet_data import EchonetDataBuilder, EchonetDataParser
 from momonga.momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
+from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_response import SkParsedRxUdp
 
 
@@ -411,7 +412,6 @@ class TestReceiverRouting(unittest.TestCase):
     def _make_session_manager(self):
         from momonga.momonga_session_manager import MomongaSessionManager
         from momonga.momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
-        from momonga.momonga_device_enum import DeviceType
         sm = object.__new__(MomongaSessionManager)
         sm.pkt_sbsc_q = queue.Queue()
         sm.recv_q = queue.Queue()
@@ -422,7 +422,7 @@ class TestReceiverRouting(unittest.TestCase):
         sm.receiver_exception = None
         sm.smart_meter_addr = 'FE80::1'
         sm.skw = MagicMock()
-        sm.skw.device_type = DeviceType.BP35C2
+        sm.skw.device_strategy = BP35C2Strategy()
 
         def route(frame):
             seoj = frame.data[4:7] if len(frame.data) >= 7 else b''

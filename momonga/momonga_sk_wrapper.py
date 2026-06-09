@@ -15,12 +15,14 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkCommandFailedToExecute,
                                 MomongaSkScanFailure,
                                 MomongaSkJoinFailure)
-from .momonga_response import (SkVerResponse,
+from .momonga_response import (DeviceStrategy,
+                               SkVerResponse,
                                SkAppVerResponse,
                                SkInfoResponse,
                                SkScanResponse,
                                SkLl64Response)
 from .momonga_device_enum import DeviceType
+from .momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
 from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,11 @@ class MomongaSkWrapper:
         self.publisher_th_breaker = False
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
-        self.device_type: DeviceType = DeviceType.BP35C2
+        self.device_strategy: DeviceStrategy = BP35C2Strategy()
+
+    @property
+    def device_type(self) -> DeviceType:
+        return self.device_strategy.device_type
 
     def __enter__(self) -> Self:
         return self.open()
@@ -278,21 +284,12 @@ class MomongaSkWrapper:
         duration = 6
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
-            cmd = []
-            match self.device_type:
-                case DeviceType.BP35A1:
-                    cmd = ['SKSCAN', '2', 'FFFFFFFF', str(duration)]
-                case DeviceType.BP35C2:
-                    cmd = ['SKSCAN', '2', 'FFFFFFFF', str(duration), '0']
-                case _:
-                    logger.warning('Unknown device type "%s" detected in skscan. Assuming BP35C2 behavior.', self.device_type)
-                    cmd = ['SKSCAN', '2', 'FFFFFFFF', str(duration), '0']
-            res = self.exec_command(cmd, 'EVENT 22')
+            res = self.exec_command(self.device_strategy.skscan_command(duration), 'EVENT 22')
             # estimated execution time: 0.0096s*(2^(DURATION=6)+1)*28 = 17.5s
             # estimated execution time: 0.0096s*(2^(DURATION=7)+1)*28 = 34.7s
             # estimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
             if 'EPANDESC' in res:
-                return SkScanResponse(res, self.device_type)
+                return SkScanResponse(res, self.device_strategy)
             duration += 1
         raise MomongaSkScanFailure('Could not find the specified PAN.')
 
@@ -329,30 +326,20 @@ class MomongaSkWrapper:
                  sec: int = 2,
                  side: int = 0,
                  ) -> None:
-        match self.device_type:
-            case DeviceType.BP35A1:
-                self.exec_command(['SKSENDTO', str(handle), ip6_addr, '%04X' % port,
-                                   str(sec), '%04X' % len(data)],
-                                  payload=data)
-            case DeviceType.BP35C2:
-                self.exec_command(['SKSENDTO', str(handle), ip6_addr, '%04X' % port,
-                                   str(sec), str(side), '%04X' % len(data)],
-                                  payload=data)
-            case _:
-                logger.warning('Unknown device type "%s" detected in sksendto. Assuming BP35C2 behavior.', self.device_type)
-                self.exec_command(['SKSENDTO', str(handle), ip6_addr, '%04X' % port,
-                                   str(sec), str(side), '%04X' % len(data)],
-                                  payload=data)
+        self.exec_command(
+            self.device_strategy.sksendto_args(handle, ip6_addr, port, sec, side, len(data)),
+            payload=data,
+        )
 
     def detect_device(self):
         logger.debug('Trying to detect device...')
         dev_info = self.skinfo()
         if dev_info.side == _BP35A1_SIDE_SENTINEL:
             logger.debug('Device type is BP35A1.')
-            self.device_type = DeviceType.BP35A1
+            self.device_strategy = BP35A1Strategy()
         elif dev_info.side < 2:
             logger.debug('Device type is BP35C2.')
-            self.device_type = DeviceType.BP35C2
+            self.device_strategy = BP35C2Strategy()
         else:
             logger.warning('Device type is UNKNOWN. Assuming BP35C2.')
-            self.device_type = DeviceType.BP35C2
+            self.device_strategy = BP35C2Strategy()
