@@ -416,8 +416,11 @@ class TestReceiverRouting(unittest.TestCase):
         sm.pkt_sbsc_q = queue.Queue()
         sm.recv_q = queue.Queue()
         sm.notif_q = queue.Queue()
-        sm.xmit_lock = threading.Lock()
-        sm.xmit_restriction_cnt = 0
+        sm.gate_lock = threading.Lock()
+        sm.session_available = True
+        sm.rate_ok = True
+        sm.xmit_allowed = threading.Event()
+        sm.xmit_allowed.set()
         sm.session_established = True
         sm.receiver_exception = None
         sm.smart_meter_addr = 'FE80::1'

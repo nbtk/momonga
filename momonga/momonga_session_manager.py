@@ -45,8 +45,11 @@ class MomongaSessionManager:
         self.session_established = False
         self.receiver_th = None
         self.receiver_exception = None
-        self.xmit_restriction_cnt = 0
-        self.xmit_lock = threading.Lock()
+        self.gate_lock = threading.Lock()
+        self.session_available = True
+        self.rate_ok = True
+        self.xmit_allowed = threading.Event()
+        self.xmit_allowed.set()
         self.rejoin_lock = threading.Lock()
 
         self.on_meter_frame: Callable[[SkParsedRxUdp], None] | None = None
@@ -161,10 +164,8 @@ class MomongaSessionManager:
         if self.skw.subscribers.get('pkt_sbsc_q') is not None:
             self.skw.subscribers.pop('pkt_sbsc_q')
 
-        self.unrestrict_to_xmit(force=True)
+        self.force_open_gates()
 
-        if self.xmit_lock.locked():
-            logger.error('"xmit_lock" is unexpectedly locked.')
         if self.rejoin_lock.locked():
             logger.error('"rejoin_lock" is unexpectedly locked.')
 
@@ -185,7 +186,7 @@ class MomongaSessionManager:
                     num = parsed.num
                     if num == SkEventNum.session_lifetime:
                         logger.debug('The PANA session lifetime has been expired.')
-                        self.restrict_to_xmit()
+                        self.close_session_gate()
                     elif num == SkEventNum.rejoin_failed:
                         logger.warning('Could not rejoin the PAN.')
                         self.rejoin_lock.acquire()
@@ -203,18 +204,18 @@ class MomongaSessionManager:
                     elif num == SkEventNum.rejoined:
                         logger.debug('Successfully rejoined the PAN.')
                         self.session_established = True
-                        self.unrestrict_to_xmit()
+                        self.open_session_gate()
                     elif num == SkEventNum.rate_limit_exceeded:
                         logger.warning('The transmission rate limit has been exceeded.')
-                        self.restrict_to_xmit()
+                        self.close_rate_gate()
                     elif num == SkEventNum.rate_limit_released:
                         logger.debug('The transmission rate limit has been released.')
-                        self.unrestrict_to_xmit()
+                        self.open_rate_gate()
                     elif num == SkEventNum.session_closed:
-                        self.restrict_to_xmit()
+                        self.close_session_gate()
                         logger.debug('The PANA session has been closed successfully.')
                     elif num == SkEventNum.no_session:
-                        self.restrict_to_xmit()
+                        self.close_session_gate()
                         logger.warning('There was no PANA session to close.')
                     elif num in (SkEventNum.tx_done, SkEventNum.neighbor_discovery):
                         if not self.is_restricted_to_xmit():
@@ -238,26 +239,26 @@ class MomongaSessionManager:
                 data: bytes,
                ) -> None:
         retry_to_xmit = 3
-        retry_to_acquire_xmit_lock = 60
+        retry_to_wait_xmit_allowed = 60
         xmitted = False
         for _ in range(retry_to_xmit):
-            logger.debug('Trying to acquire "xmit_lock".')
-            locked = False
-            for r in range(retry_to_acquire_xmit_lock):
-                locked = self.xmit_lock.acquire(timeout=60)
-                if not locked:
-                    logger.warning('Could not acquire "xmit_lock". (%d/%d)' % (r + 1, retry_to_acquire_xmit_lock))
+            logger.debug('Waiting for transmission gate to open.')
+            allowed = False
+            for r in range(retry_to_wait_xmit_allowed):
+                allowed = self.xmit_allowed.wait(timeout=60)
+                if not allowed:
+                    logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, retry_to_wait_xmit_allowed))
                     if self.receiver_exception is not None:
                         logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
                         raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
                 else:
                     break
 
-            if not locked:
+            if not allowed:
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
             else:
-                logger.debug('Acquired "xmit_lock".')
+                logger.debug('Transmission gate is open.')
 
             try:
                 if not self.session_established:
@@ -272,48 +273,47 @@ class MomongaSessionManager:
                 raise
             except Exception as e:
                 logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
-            finally:
-                self.xmit_lock.release()
             time.sleep(3)
         if not xmitted:
             logger.error('Could not transmit a packet. Close Momonga and open it again.')
             raise MomongaNeedToReopen('Could not transmit a packet. Close Momonga and open it again.')
 
-    def restrict_to_xmit(self) -> None:
-        self.xmit_restriction_cnt += 1
-        logger.debug('The counter for the restriction was incremented: %d' % (self.xmit_restriction_cnt))
+    def close_session_gate(self) -> None:
+        with self.gate_lock:
+            self.session_available = False
+            self.xmit_allowed.clear()
+        logger.debug('Session gate closed.')
 
-        if self.xmit_restriction_cnt > 2:
-            logger.error('The critical section counter for data transmission is inconsistent: Too big than expected.')
+    def open_session_gate(self) -> None:
+        with self.gate_lock:
+            self.session_available = True
+            if self.rate_ok:
+                self.xmit_allowed.set()
+                logger.debug('Both gates open; transmission allowed.')
+            else:
+                logger.debug('Session gate opened but rate gate still closed.')
 
-        if self.xmit_restriction_cnt == 1:
-            logger.debug('Trying to restrict data transmission.')
-            self.xmit_lock.acquire()
-            logger.debug('Data transmission is being restricted.')
+    def close_rate_gate(self) -> None:
+        with self.gate_lock:
+            self.rate_ok = False
+            self.xmit_allowed.clear()
+        logger.debug('Rate gate closed.')
 
-    def unrestrict_to_xmit(self,
-                           force=False,
-                          ) -> None:
-        if force:
-            self.xmit_restriction_cnt = 0
-            logger.debug('The counter for the restriction was forcibly set to zero.')
-        else:
-            self.xmit_restriction_cnt -= 1
-            logger.debug('The counter for the restriction was decremented: %d' % (self.xmit_restriction_cnt))
+    def open_rate_gate(self) -> None:
+        with self.gate_lock:
+            self.rate_ok = True
+            if self.session_available:
+                self.xmit_allowed.set()
+                logger.debug('Both gates open; transmission allowed.')
+            else:
+                logger.debug('Rate gate opened but session gate still closed.')
 
-        if self.xmit_restriction_cnt < 0:
-            logger.error('The critical section counter for data transmit is inconsistent: Too small than expected.')
-
-        if self.xmit_restriction_cnt == 0:
-            try:
-                self.xmit_lock.release()
-            except RuntimeError:
-                pass  # xmit_lock is likely already unlocked.
-
-            logger.debug('Data transmission is being unrestricted.')
+    def force_open_gates(self) -> None:
+        with self.gate_lock:
+            self.session_available = True
+            self.rate_ok = True
+            self.xmit_allowed.set()
+        logger.debug('All gates forcibly opened.')
 
     def is_restricted_to_xmit(self) -> bool:
-        if self.xmit_restriction_cnt == 0:
-            return False
-        else:
-            return True
+        return not self.xmit_allowed.is_set()
