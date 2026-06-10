@@ -235,6 +235,15 @@ class MomongaSessionManager:
 
         logger.debug('The packet receiver has been stopped.')
 
+    # Design note: the transmission gate is an optimization, not a correctness guarantee.
+    # There is an intentional check-then-act race window between xmit_allowed.wait() and
+    # sksendto(): the gate may close (e.g. EVENT 29 arrives) after the check but before
+    # the send.  Plugging this window with a send-hold lock is not feasible — PANA session
+    # state and rate limiting live in the SK module firmware and cannot be controlled
+    # atomically from Python.  Correctness is instead guaranteed by EVENT 21 result
+    # handling and the retry loop in __request_locked(): a failed or timed-out send is
+    # simply retried.  The gate's value is reducing unnecessary sends during known-bad
+    # states, not providing atomicity.
     def xmitter(self,
                 data: bytes,
                ) -> None:
