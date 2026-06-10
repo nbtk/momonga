@@ -15,6 +15,9 @@ from .momonga_echonet_data import (EchonetProperty,
                                    energy_parsers)
 from .momonga_echonet_enum import (EchonetServiceCode, EchonetPropertyCode,
                                    ECHONET_LITE_EHD, ECHONET_LITE_PORT,
+                                   ECHONET_EHD_SLICE, ECHONET_TID_SLICE,
+                                   ECHONET_SEOJ_SLICE, ECHONET_DEOJ_SLICE,
+                                   ECHONET_ESV_OFFSET, ECHONET_OPC_OFFSET,
                                    SMART_METER_EOJ, CONTROLLER_EOJ)
 from .momonga_exception import (MomongaError,
                                 MomongaResponseNotExpected,
@@ -72,10 +75,10 @@ class Momonga:
         self.close()
 
     def _route_meter_frame(self, frame: SkParsedRxUdp) -> None:
-        seoj = frame.data[4:7] if len(frame.data) >= 7 else b''
+        seoj = frame.data[ECHONET_SEOJ_SLICE] if len(frame.data) >= 7 else b''
         if seoj != SMART_METER_EOJ:
             return
-        esv = frame.data[10] if len(frame.data) > 10 else -1
+        esv = frame.data[ECHONET_ESV_OFFSET] if len(frame.data) > 10 else -1
         if esv in (EchonetServiceCode.inf, EchonetServiceCode.infc):
             self.session_manager.notif_q.put(frame)
         else:
@@ -130,8 +133,8 @@ class Momonga:
         if len(data) < 12:
             logger.warning('Received a malformed notification frame (too short: %d bytes). Discarding.' % len(data))
             return None
-        esv = data[10]
-        opc = data[11]
+        esv = data[ECHONET_ESV_OFFSET]
+        opc = data[ECHONET_OPC_OFFSET]
 
         if esv == EchonetServiceCode.infc:
             self.__send_infc_res(data)
@@ -164,9 +167,9 @@ class Momonga:
         return {'esv': EchonetServiceCode(esv), 'properties': properties}
 
     def __send_infc_res(self, infc_data: bytes) -> None:
-        tid_int = int.from_bytes(infc_data[2:4], 'big')
+        tid_int = int.from_bytes(infc_data[ECHONET_TID_SLICE], 'big')
         header = self.__build_request_header(tid_int, EchonetServiceCode.infc_res)
-        opc = infc_data[11]
+        opc = infc_data[ECHONET_OPC_OFFSET]
         props = b''
         cur = 12
         for _ in range(opc):
@@ -230,26 +233,26 @@ class Momonga:
                                    tid: int,
                                    req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                    ) -> list[EchonetPropertyWithData]:
-        ehd = data[0:2]
+        ehd = data[ECHONET_EHD_SLICE]
         if ehd != ECHONET_LITE_EHD:
             raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1')
 
-        if data[2:4] != tid.to_bytes(4, 'big')[-2:]:
+        if data[ECHONET_TID_SLICE] != tid.to_bytes(4, 'big')[-2:]:
             raise MomongaResponseNotExpected('The transaction ID does not match.')
 
-        seoj = data[4:7]
+        seoj = data[ECHONET_SEOJ_SLICE]
         if seoj != SMART_METER_EOJ:
             raise MomongaResponseNotExpected('The source is not a smart meter.')
 
-        deoj = data[7:10]
+        deoj = data[ECHONET_DEOJ_SLICE]
         if deoj != CONTROLLER_EOJ:
             raise MomongaResponseNotExpected('The destination is not a controller.')
 
-        esv = data[10]
+        esv = data[ECHONET_ESV_OFFSET]
         if 0x50 <= esv <= 0x5F:
             raise MomongaResponseNotPossible('The target smart meter could not respond. ESV: %X' % esv)
 
-        opc = data[11]
+        opc = data[ECHONET_OPC_OFFSET]
         req_opc = len(req_properties)
         if opc != req_opc:
             raise MomongaResponseNotExpected(

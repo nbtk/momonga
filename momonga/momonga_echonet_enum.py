@@ -4,6 +4,14 @@ import enum
 ECHONET_LITE_EHD  = b'\x10\x81'    # Frame header: EHD1=0x10 (ECHONET Lite), EHD2=0x81 (EDATA format 1)
 ECHONET_LITE_PORT = 0x0E1A         # Standard UDP port (3610)
 
+# ECHONET Lite frame field offsets (EDATA format 1)
+ECHONET_EHD_SLICE  = slice(0, 2)   # Frame header (2 bytes)
+ECHONET_TID_SLICE  = slice(2, 4)   # Transaction ID (2 bytes)
+ECHONET_SEOJ_SLICE = slice(4, 7)   # Source EOJ (3 bytes)
+ECHONET_DEOJ_SLICE = slice(7, 10)  # Destination EOJ (3 bytes)
+ECHONET_ESV_OFFSET = 10            # Service code (1 byte)
+ECHONET_OPC_OFFSET = 11            # Operation count (1 byte)
+
 # ECHONET Lite Object Identifiers used in B-route communication
 SMART_METER_EOJ = b'\x02\x88\x01'  # Low-voltage smart electric energy meter (class 0x0288, instance 0x01)
 CONTROLLER_EOJ  = b'\x05\xFF\x01'  # Controller (home energy management system)
