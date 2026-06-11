@@ -247,16 +247,17 @@ class MomongaSessionManager:
     def xmitter(self,
                 data: bytes,
                ) -> None:
-        retry_to_xmit = 3
-        retry_to_wait_xmit_allowed = 60
+        xmit_retry_limit      = 3
+        gate_wait_retry_limit = 60
+        gate_wait_timeout     = 60
         xmitted = False
-        for _ in range(retry_to_xmit):
+        for _ in range(xmit_retry_limit):
             logger.debug('Waiting for transmission gate to open.')
             allowed = False
-            for r in range(retry_to_wait_xmit_allowed):
-                allowed = self.xmit_allowed.wait(timeout=60)
+            for r in range(gate_wait_retry_limit):
+                allowed = self.xmit_allowed.wait(timeout=gate_wait_timeout)
                 if not allowed:
-                    logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, retry_to_wait_xmit_allowed))
+                    logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, gate_wait_retry_limit))
                     if self.receiver_exception is not None:
                         logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
                         raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
