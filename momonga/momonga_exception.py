@@ -38,19 +38,19 @@ class MomongaSkJoinFailure(MomongaError):
     pass
 
 
-class MomongaRuntimeError(RuntimeError):
+class MomongaRuntimeError(MomongaError, RuntimeError):
     pass
 
 
-class MomongaValueError(ValueError):
+class MomongaValueError(MomongaError, ValueError):
     pass
 
 
-class MomongaTimeoutError(TimeoutError):
+class MomongaTimeoutError(MomongaError, TimeoutError):
     pass
 
 
-class MomongaKeyError(KeyError):
+class MomongaKeyError(MomongaError, KeyError):
     pass
 
 
