@@ -17,6 +17,7 @@ MomongaはBルートサービスを利用してスマートメーターと通信
 - Momongaは`WOPT 01\r`コマンドを実行して、Wi-SUNモジュールがUDPパケットのペイロードをASCIIフォーマットで出力するように設定します。注意: WOPTコマンドは実行回数に制限があるので初回のみ実行し、その設定はWi-SUNモジュールに保存されます。
 - 一部のWi-SUNモジュールでは`ROPT`コマンドが`FAIL ER04`を返しサポートされません。その場合MomongaはASCII出力で動作していると仮定し、`WOPT`コマンドを実行せずに処理を継続します。
 - メソッドは物理量に即して命名しており、ECHONETの英語版ドキュメントの表記とは必ずしも一致しません。対応するEPCを調べる場合はメソッド名ではなくEPCコードで検索してください。
+- 送信ブロッキングなど諸条件により応答が遅延することがあるため、`get_historical_cumulative_energy_1()`は日を跨ぐタイミングで実行すべきではありません。
 
 # Installation
 ```shell
@@ -176,9 +177,6 @@ async def main():
 
 asyncio.run(main())
 ```
-
-# Consideration
-- 送信がブロッキングされるなど諸条件により関数呼び出しのあと応答が即座に返らないことがあるため、`momonga.get_historical_cumulative_energy_1()`は呼び出したときに期待した履歴の日付と結果の日付に齟齬が生じる可能性があることに注意してください。特にこの関数は日を跨ぐタイミングで実行すべきではありません。
 
 # API
 ## momonga.Momonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
