@@ -62,7 +62,7 @@ PANAセッション管理レイヤのログ
 ## momonga.sk_wrapper_logger
 Wi-SUNモジュールとの通信ログ
 
-## ログを有効にした例
+## Logging Example
 ```python3
 import momonga
 import time
@@ -102,9 +102,9 @@ PANAセッションを確立できなかったときに送出される。Bルー
 スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される。
 
 ## momonga.MomongaResponseNotPossible
-スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.set_properties_to_get_values()、momonga.get_properties_to_get_values()で取得できる。
+スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.get_properties_to_set_values()、momonga.get_properties_to_get_values()で取得できる。
 
-## 例外を捕捉する例
+## Exception Handling Example
 ```python3
 import momonga
 import time
@@ -132,7 +132,6 @@ while True:
 下記のイベントが発生したときMomongaはスマートメーターに対するコマンドの送信をブロッキングします。
 1. PANAセッションのライフタイムが近づきWi-SUNモジュールが自動再認証を試みているとき
 2. 送信データ量が規定値に達しWi-SUNモジュールが送信制限しているとき
-3. 何らかの理由でシリアルデバイスとの通信がブロッキングされたとき
 
 したがって開発者はデータ設定または取得関数を呼び出したあと即座に応答が返ってこない可能性を考慮してください。
 
@@ -154,7 +153,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
         notif = mo.get_notification(timeout=2400)
         if notif is None:
-            continue  # タイムアウト
+            continue  # timed out
         esv = notif['esv']
         for epc, value in notif['properties'].items():
             print(f'ESV: {esv.name}, EPC: {epc}, value: {value}')
@@ -196,10 +195,10 @@ e.g.
 ```python3
 from itertools import repeat
 
-# 3回まで10分おきに再接続する
+# reconnect up to 3 times, 10 minutes apart
 momonga.Momonga(rbid, pwd, dev, reopen_delays=[600.0, 600.0, 600.0])
 
-# 10分おきに無期限で再接続する
+# reconnect indefinitely, 10 minutes apart
 momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 ```
 
@@ -350,6 +349,7 @@ e.g.
 
 ## momonga.get_number_of_effective_digits_for_cumulative_energy()
 積算電力量計測値の有効桁数を取得する。
+### Arguments
 - Void
 ### Return Value
 - int: 有効桁数
@@ -539,7 +539,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
  'properties': {momonga.EchonetPropertyCode.cumulative_energy_measured_at_fixed_time: ...}}
 ```
 
-### 注意: timeout=None は推奨しない
+### Note: timeout=None is not recommended
 PANAセッションが切断された場合でも、スマートメーターやWi-SUNモジュールがEVENTを送出せずに沈黙する状態（電波途絶、スマートメーター電源断など）では、MomongaはPANAセッションの切断を検知できない。その場合`get_notification(timeout=None)`は無期限にブロッキングする。
 
 有限のtimeoutを設定し、`None`が一定回数連続した場合はスマートメーターにコマンドを送信してセッションの疎通を確認することを推奨する。セッションが切断されていれば`MomongaNeedToReopen`が送出される。
@@ -548,14 +548,14 @@ PANAセッションが切断された場合でも、スマートメーターやW
 with momonga.Momonga(rbid, pwd, dev) as mo:
     consecutive_timeouts = 0
     while True:
-        notif = mo.get_notification(timeout=2400)  # 40分
+        notif = mo.get_notification(timeout=2400)  # 40 minutes
         if notif is None:
             consecutive_timeouts += 1
             if consecutive_timeouts >= 3:
-                mo.get_operation_status()  # セッション切断時はMomongaNeedToReopenが送出される
+                mo.get_operation_status()  # raises MomongaNeedToReopen if session is lost
             continue
         consecutive_timeouts = 0
-        # 通知を処理する
+        # process notification
 ```
 
 # AsyncMomonga
@@ -591,7 +591,7 @@ async def main():
 ## async AsyncMomonga.get_notification(timeout: int | float | None = None)
 同期版`get_notification()`と同じ動作。タイムアウト時は`None`を返す。
 
-## その他のメソッド
+## Other Methods
 `Momonga`の全メソッドに対応する`async`版が定義されています。`await mo.メソッド名()`の形式で呼び出せます。
 
 ## Feedback
