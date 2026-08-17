@@ -120,6 +120,17 @@ class Momonga:
         self.open()
         logger.info('Momonga session reopened successfully.')
 
+    @staticmethod
+    def __property_block_is_complete(data: bytes, opc: int) -> bool:
+        cur = 12
+        for _ in range(opc):
+            if cur + 2 > len(data):
+                return False
+            cur += 2 + data[cur + 1]
+            if cur > len(data):
+                return False
+        return True
+
     def get_notification(self, timeout: int | float | None = None) -> dict | None:
         if not self.is_open:
             raise MomongaRuntimeError('Momonga is not open.')
@@ -135,6 +146,11 @@ class Momonga:
             return None
         esv = data[ECHONET_ESV_OFFSET]
         opc = data[ECHONET_OPC_OFFSET]
+
+        if not self.__property_block_is_complete(data, opc):
+            logger.warning('Received a truncated notification frame (%d bytes for OPC %d). Discarding.'
+                           % (len(data), opc))
+            return None
 
         if esv == EchonetServiceCode.infc:
             self.__send_infc_res(data)
@@ -233,6 +249,9 @@ class Momonga:
                                    tid: int,
                                    req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                    ) -> list[EchonetPropertyWithData]:
+        if len(data) < 12:
+            raise MomongaResponseNotExpected('The response is too short: %d bytes.' % len(data))
+
         ehd = data[ECHONET_EHD_SLICE]
         if ehd != ECHONET_LITE_EHD:
             raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1')
@@ -257,6 +276,9 @@ class Momonga:
         if opc != req_opc:
             raise MomongaResponseNotExpected(
                 'Unexpected packet format. OPC is expected %s but %d was set.' % (req_opc, opc))
+
+        if not Momonga.__property_block_is_complete(data, opc):
+            raise MomongaResponseNotExpected('The response is truncated: %d bytes for OPC %d.' % (len(data), opc))
 
         properties = []
         cur = 12
