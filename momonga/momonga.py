@@ -11,8 +11,8 @@ from .momonga_echonet_data import (EchonetProperty,
                                    EchonetPropertyWithData,
                                    EchonetDataParser,
                                    EchonetDataBuilder,
-                                   parser_map,
-                                   energy_parsers)
+                                   PARSER_MAP,
+                                   ENERGY_PARSERS)
 from .momonga_echonet_enum import (EchonetServiceCode, EchonetPropertyCode,
                                    ECHONET_LITE_EHD, ECHONET_LITE_PORT,
                                    ECHONET_EHD_SLICE, ECHONET_TID_SLICE,
@@ -196,8 +196,8 @@ class Momonga:
 
             if edt is not None:
                 try:
-                    parser = parser_map[epc]
-                    if parser in energy_parsers:
+                    parser = PARSER_MAP[epc]
+                    if parser in ENERGY_PARSERS:
                         properties[epc] = parser(edt, self.energy_unit, self.energy_coefficient)
                     else:
                         properties[epc] = parser(edt)
@@ -703,11 +703,11 @@ class Momonga:
         parsed_results = {}
         for r in results:
             try:
-                parser = parser_map[r.epc]
+                parser = PARSER_MAP[r.epc]
             except KeyError:
                 raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc)
 
-            if parser in energy_parsers:
+            if parser in ENERGY_PARSERS:
                 parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
             else:
                 parsed_results[r.epc] = parser(r.edt)

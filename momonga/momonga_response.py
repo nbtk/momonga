@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
@@ -85,9 +84,6 @@ def parse_sk_line(line: str, strategy: DeviceStrategy) -> SkParsedEvent | SkPars
             return None
 
     return None
-
-
-logger = logging.getLogger(__name__)
 
 
 class MomongaSkResponseBase:

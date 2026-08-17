@@ -376,7 +376,7 @@ class EchonetDataParser:
                 'number of data points': num_of_data_points}
 
 
-parser_map: dict[EchonetPropertyCode, Callable] = {
+PARSER_MAP: dict[EchonetPropertyCode, Callable] = {
     EchonetPropertyCode.operation_status: EchonetDataParser.parse_operation_status,
     EchonetPropertyCode.installation_location: EchonetDataParser.parse_installation_location,
     EchonetPropertyCode.standard_version_information: EchonetDataParser.parse_standard_version_information,
@@ -408,8 +408,8 @@ parser_map: dict[EchonetPropertyCode, Callable] = {
     EchonetPropertyCode.time_for_historical_data_3: EchonetDataParser.parse_time_for_historical_data_3,
 }
 
-energy_parsers: frozenset = frozenset(
-    fn for fn in parser_map.values()
+ENERGY_PARSERS: frozenset = frozenset(
+    fn for fn in PARSER_MAP.values()
     if 'energy_unit' in inspect.signature(fn).parameters
 )
 

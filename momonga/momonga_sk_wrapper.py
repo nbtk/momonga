@@ -29,12 +29,12 @@ from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
 
+PUBLISHER_STOPPED = object()
+
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
 
 _SK_COMMAND_LIMIT = 300
-
-PUBLISHER_STOPPED = object()
 
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
