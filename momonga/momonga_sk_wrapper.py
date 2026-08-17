@@ -94,7 +94,7 @@ class MomongaSkWrapper:
             self.close()
             raise
 
-        for q in self.subscribers.values():
+        for q in list(self.subscribers.values()):
             while not q.empty():
                 q.get()
 
@@ -189,12 +189,12 @@ class MomongaSkWrapper:
                 line = self.__readline(timeout=1)
                 if line == '':
                     continue
-                for q in self.subscribers.values():
+                for q in list(self.subscribers.values()):
                     q.put(line)  # will dispatch the line to each subscriber
         except Exception as e:
             logger.error('An exception was raised from the publisher thread. %s: %s' % (type(e).__name__, e))
             self.publisher_exception = e
-            for q in self.subscribers.values():
+            for q in list(self.subscribers.values()):
                 q.put(PUBLISHER_STOPPED)
 
         logger.debug('The received packet publisher has been stopped.')
