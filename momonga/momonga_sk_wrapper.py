@@ -35,6 +35,18 @@ _BP35A1_SIDE_SENTINEL = 0xFFFE
 # far above any legitimate command, so it only fires when the module is unresponsive
 _SK_COMMAND_LIMIT = 300
 
+# commands whose argument is a credential issued by the power company
+_SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
+
+
+def _mask_secrets(text: str) -> str:
+    # the Route-B id and password must reach neither a log nor an exception message.
+    for name in _SECRET_COMMANDS:
+        index = text.find(name)
+        if index >= 0:
+            return text[:index + len(name)] + ' ****'
+    return text
+
 
 class MomongaSkWrapper:
     def __init__(self,
@@ -166,7 +178,7 @@ class MomongaSkWrapper:
         data_bytes = self.ser.readline()
         self.ser.timeout = org_timeout
         if data_bytes != b'':
-            logger.debug('<<< %s' % data_bytes)
+            logger.debug('<<< %s' % _mask_secrets(str(data_bytes)))
         # a garbled byte must not take the publisher down with it.
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
         return line
@@ -197,7 +209,7 @@ class MomongaSkWrapper:
         else:
             data_bytes = (line + '\r\n').encode()
         self.ser.write(data_bytes)
-        logger.debug('>>> %s' % data_bytes)
+        logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
         self.ser.flush()
 
     def exec_command(self,
@@ -239,13 +251,13 @@ class MomongaSkWrapper:
                 self.__raise_if_publisher_died()
                 # a late response to an abandoned command would desync the next one.
                 raise MomongaNeedToReopen('The module did not respond to a command.'
-                                          ' Close Momonga and open it again: %s' % (command))
+                                          ' Close Momonga and open it again: %s' % (_mask_secrets(command)))
 
             if r.startswith('ERXUDP'):
                 continue
 
             if r[:4] == 'FAIL':
-                self.__raise_fail_response(command, r)
+                self.__raise_fail_response(_mask_secrets(command), r)
             else:
                 res.append(r)
                 matched = False
