@@ -79,15 +79,15 @@ class MomongaSkWrapper:
 
         try:
             # to drop garbage data in the buffer.
-            self.__clear_buf()
+            self._clear_buf()
 
             # to check udp payloads returned from the wi-sun module are in ascii format.
-            if self.__exec_ropt() != 1:
+            if self._exec_ropt() != 1:
                 logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
                                 "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
                                 "This configuration is saved in the Wi-SUN module, so this log message should "
                                 "no longer appear.")
-                self.__exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
+                self._exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
         except MomongaSkCommandUnsupported:
             logger.info('ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
         except Exception:
@@ -115,7 +115,7 @@ class MomongaSkWrapper:
         if self.ser is not None and not self.ser.closed:
             self.ser.close()
 
-    def __clear_buf(self) -> None:  # do not call this after open().
+    def _clear_buf(self) -> None:  # do not call this after open().
         self.ser.write(b'\r\n')
         self.ser.flush()
         timeout = self.ser.timeout
@@ -126,7 +126,7 @@ class MomongaSkWrapper:
         # to undo the timeout.
         self.ser.timeout = timeout
 
-    def __exec_ropt(self) -> int:  # do not call this after open().
+    def _exec_ropt(self) -> int:  # do not call this after open().
         self.ser.write(b'ROPT\r')
         self.ser.flush()
         res = b''
@@ -143,11 +143,11 @@ class MomongaSkWrapper:
                 decoded = res.decode(errors='replace')
                 for line in decoded.splitlines():
                     if line.startswith('FAIL'):
-                        self.__raise_fail_response('ROPT', line)
+                        self._raise_fail_response('ROPT', line)
                 raise MomongaError('Unexpected ROPT response: %s' % decoded)
         return int(res[res.index(ok) + len(ok):-1].decode())
 
-    def __exec_wopt(self,
+    def _exec_wopt(self,
                     opt: int,
                     ) -> None:  # do not call this after open().
         supported_opts = (0,  # binary mode
@@ -168,7 +168,7 @@ class MomongaSkWrapper:
                 break
         return
 
-    def __readline(self,
+    def _readline(self,
                    timeout: int | None = None,
                    ) -> str:
         org_timeout = self.ser.timeout
@@ -186,7 +186,7 @@ class MomongaSkWrapper:
             while True:
                 if self.publisher_th_breaker:
                     break
-                line = self.__readline(timeout=1)
+                line = self._readline(timeout=1)
                 if line == '':
                     continue
                 for q in list(self.subscribers.values()):
@@ -199,7 +199,7 @@ class MomongaSkWrapper:
 
         logger.debug('The received packet publisher has been stopped.')
 
-    def __writeline(self,
+    def _writeline(self,
                     line: str,
                     payload: bytes | None = None,
                     ) -> None:
@@ -218,9 +218,9 @@ class MomongaSkWrapper:
                      payload: bytes | None = None,
                      ) -> list[str]:
         with self._cmd_lock:
-            return self.__exec_command_locked(command, wait_until, timeout, payload)
+            return self._exec_command_locked(command, wait_until, timeout, payload)
 
-    def __exec_command_locked(self,
+    def _exec_command_locked(self,
                               command: list[str],
                               wait_until: str | list[str],
                               timeout: int | float | None,
@@ -231,13 +231,13 @@ class MomongaSkWrapper:
         if type(wait_until) is str:
             wait_until = [wait_until]
 
-        self.__raise_if_publisher_died()
+        self._raise_if_publisher_died()
 
         subscriber_q = self.subscribers['cmd_exec_q']
         while not subscriber_q.empty():
             subscriber_q.get()
 
-        self.__writeline(command, payload)
+        self._writeline(command, payload)
 
         deadline = None if timeout is None else time.monotonic() + timeout
 
@@ -247,9 +247,9 @@ class MomongaSkWrapper:
             try:
                 r = subscriber_q.get(timeout=remaining)
                 if r is PUBLISHER_STOPPED:
-                    self.__raise_if_publisher_died()
+                    self._raise_if_publisher_died()
             except queue.Empty:
-                self.__raise_if_publisher_died()
+                self._raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'
                                           ' Close Momonga and open it again: %s' % (_mask_secrets(command)))
 
@@ -257,7 +257,7 @@ class MomongaSkWrapper:
                 continue
 
             if r[:4] == 'FAIL':
-                self.__raise_fail_response(_mask_secrets(command), r)
+                self._raise_fail_response(_mask_secrets(command), r)
             else:
                 res.append(r)
                 matched = False
@@ -269,13 +269,13 @@ class MomongaSkWrapper:
                     break
         return res
 
-    def __raise_if_publisher_died(self) -> None:
+    def _raise_if_publisher_died(self) -> None:
         if self.publisher_exception is not None:
             raise MomongaNeedToReopen('The packet publisher has stopped.'
                                       ' Close Momonga and open it again. %s: %s'
                                       % (type(self.publisher_exception).__name__, self.publisher_exception))
 
-    def __raise_fail_response(self, command: str, r: str) -> None:
+    def _raise_fail_response(self, command: str, r: str) -> None:
         error_code = int(r[7:10])
         if 1 <= error_code <= 3:
             raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))

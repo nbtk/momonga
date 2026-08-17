@@ -19,7 +19,7 @@ from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
 RBID = '00112233445566778899AABBCCDDEEFF'
 PWD = 'mySecretPass'
-WRITELINE = '_MomongaSkWrapper__writeline'
+WRITELINE = '_writeline'
 
 
 def _make_skw():
@@ -65,7 +65,7 @@ class TestInboundLog(unittest.TestCase):
         skw.ser.readline.return_value = ('SKSETPWD %X %s\r\n' % (len(PWD), PWD)).encode()
 
         with self.assertLogs('momonga.momonga_sk_wrapper', level=logging.DEBUG) as captured:
-            skw._MomongaSkWrapper__readline(timeout=1)
+            skw._readline(timeout=1)
 
         log = '\n'.join(captured.output)
         self.assertNotIn(PWD, log)

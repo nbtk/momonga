@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 from momonga.momonga_exception import MomongaTimeoutError
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
-ROPT = '_MomongaSkWrapper__exec_ropt'
-WOPT = '_MomongaSkWrapper__exec_wopt'
+ROPT = '_exec_ropt'
+WOPT = '_exec_wopt'
 
 
 def _make_skw():
@@ -30,7 +30,7 @@ class TestSerialPortTimeout(unittest.TestCase):
 
         with patch('momonga.momonga_sk_wrapper.serial.Serial') as serial_cls:
             with patch.object(skw, ROPT, return_value=1), \
-                 patch.object(skw, '_MomongaSkWrapper__clear_buf'), \
+                 patch.object(skw, '_clear_buf'), \
                  patch.object(skw, 'received_packet_publisher'), \
                  patch.object(skw, 'detect_device'):
                 skw.open()
@@ -45,7 +45,7 @@ class TestSerialPortTimeout(unittest.TestCase):
         skw.ser.timeout = 300
         skw.ser.read.return_value = b''
 
-        skw._MomongaSkWrapper__clear_buf()
+        skw._clear_buf()
 
         self.assertEqual(skw.ser.timeout, 300)
 
@@ -57,14 +57,14 @@ class TestRawReadGuards(unittest.TestCase):
         skw.ser.read.return_value = b''  # what read() returns once the timeout expires
 
         with self.assertRaises(MomongaTimeoutError):
-            skw._MomongaSkWrapper__exec_ropt()
+            skw._exec_ropt()
 
     def test_wopt_reports_a_silent_module(self):
         skw = _make_skw()
         skw.ser.read.return_value = b''
 
         with self.assertRaises(MomongaTimeoutError):
-            skw._MomongaSkWrapper__exec_wopt(1)
+            skw._exec_wopt(1)
 
 
 if __name__ == '__main__':

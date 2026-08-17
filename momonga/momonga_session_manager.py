@@ -249,7 +249,7 @@ class MomongaSessionManager:
     # the send.  Plugging this window with a send-hold lock is not feasible — PANA session
     # state and rate limiting live in the SK module firmware and cannot be controlled
     # atomically from Python.  Correctness is instead guaranteed by EVENT 21 result
-    # handling and the retry loop in __request_locked(): a failed or timed-out send is
+    # handling and the retry loop in _request_locked(): a failed or timed-out send is
     # simply retried.  The gate's value is reducing unnecessary sends during known-bad
     # states, not providing atomicity.
     def xmitter(self,

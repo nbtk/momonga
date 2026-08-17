@@ -74,7 +74,7 @@ class Momonga:
         self._reset_dev: bool = reset_dev
         self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev)
 
-    def __init_energy_unit(self) -> None:
+    def _init_energy_unit(self) -> None:
         logger.debug('Initializing the energy unit and coefficient.')
         self.energy_unit = self.get_unit_for_cumulative_energy()
         time.sleep(self.internal_xmit_interval)
@@ -107,7 +107,7 @@ class Momonga:
         time.sleep(self.internal_xmit_interval)
         self.is_open = True
         try:
-            self.__init_energy_unit()
+            self._init_energy_unit()
         except Exception:
             try:
                 self.close()
@@ -141,7 +141,7 @@ class Momonga:
         logger.info('Momonga session reopened successfully.')
 
     @staticmethod
-    def __property_block_is_complete(data: bytes, opc: int) -> bool:
+    def _property_block_is_complete(data: bytes, opc: int) -> bool:
         cur = 12
         for _ in range(opc):
             if cur + 2 > len(data):
@@ -173,13 +173,13 @@ class Momonga:
         esv = data[ECHONET_ESV_OFFSET]
         opc = data[ECHONET_OPC_OFFSET]
 
-        if not self.__property_block_is_complete(data, opc):
+        if not self._property_block_is_complete(data, opc):
             logger.warning('Received a truncated notification frame (%d bytes for OPC %d). Discarding.'
                            % (len(data), opc))
             return None
 
         if esv == EchonetServiceCode.infc:
-            self.__send_infc_res(data)
+            self._send_infc_res(data)
 
         properties = {}
         cur = 12
@@ -208,9 +208,9 @@ class Momonga:
 
         return {'esv': EchonetServiceCode(esv), 'properties': properties}
 
-    def __send_infc_res(self, infc_data: bytes) -> None:
+    def _send_infc_res(self, infc_data: bytes) -> None:
         tid_int = int.from_bytes(infc_data[ECHONET_TID_SLICE], 'big')
-        header = self.__build_request_header(tid_int, EchonetServiceCode.infc_res)
+        header = self._build_request_header(tid_int, EchonetServiceCode.infc_res)
         opc = infc_data[ECHONET_OPC_OFFSET]
         props = b''
         cur = 12
@@ -226,12 +226,12 @@ class Momonga:
         except Exception:
             logger.warning('Failed to send INFC_Res.', exc_info=True)
 
-    def __get_transaction_id(self) -> int:
+    def _get_transaction_id(self) -> int:
         self.transaction_id += 1
         return self.transaction_id
 
     @staticmethod
-    def __build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
+    def _build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
         ehd = ECHONET_LITE_EHD
         tid = tid.to_bytes(4, 'big')[-2:]
         seoj = CONTROLLER_EOJ
@@ -239,12 +239,12 @@ class Momonga:
         esv = esv.to_bytes(1, 'big')
         return ehd + tid + seoj + deoj + esv
 
-    def __build_request_payload_with_data(self,
+    def _build_request_payload_with_data(self,
                                           tid: int,
                                           esv: EchonetServiceCode,
                                           properties_with_data: list[EchonetPropertyWithData],
                                           ) -> bytes:
-        header = self.__build_request_header(tid, esv)
+        header = self._build_request_header(tid, esv)
         opc = len(properties_with_data).to_bytes(1, 'big')
         payload = header + opc
         for pd in properties_with_data:
@@ -255,12 +255,12 @@ class Momonga:
 
         return payload
 
-    def __build_request_payload(self,
+    def _build_request_payload(self,
                                 tid: int,
                                 esv: EchonetServiceCode,
                                 properties: list[EchonetProperty],
                                 ) -> bytes:
-        header = self.__build_request_header(tid, esv)  # get
+        header = self._build_request_header(tid, esv)  # get
         opc = len(properties).to_bytes(1, 'big')
         payload = header + opc
         for p in properties:
@@ -271,7 +271,7 @@ class Momonga:
         return payload
 
     @staticmethod
-    def __extract_response_payload(data: bytes,
+    def _extract_response_payload(data: bytes,
                                    tid: int,
                                    req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                    ) -> list[EchonetPropertyWithData]:
@@ -303,7 +303,7 @@ class Momonga:
             raise MomongaResponseNotExpected(
                 'Unexpected packet format. OPC is expected %s but %d was set.' % (req_opc, opc))
 
-        if not Momonga.__property_block_is_complete(data, opc):
+        if not Momonga._property_block_is_complete(data, opc):
             raise MomongaResponseNotExpected('The response is truncated: %d bytes for OPC %d.' % (len(data), opc))
 
         properties = []
@@ -331,7 +331,7 @@ class Momonga:
 
         return properties
 
-    def __request(self,
+    def _request(self,
                   esv: EchonetServiceCode,
                   req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                   ) -> list[EchonetPropertyWithData]:
@@ -340,17 +340,17 @@ class Momonga:
             raise MomongaRuntimeError('Momonga is not open.')
 
         with self._request_lock:
-            return self.__request_locked(esv, req_properties)
+            return self._request_locked(esv, req_properties)
 
-    def __request_locked(self,
+    def _request_locked(self,
                          esv: EchonetServiceCode,
                          req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                          ) -> list[EchonetPropertyWithData]:
-        tid = self.__get_transaction_id()
+        tid = self._get_transaction_id()
         if esv == EchonetServiceCode.set_c:
-            tx_payload = self.__build_request_payload_with_data(tid, esv, req_properties)
+            tx_payload = self._build_request_payload_with_data(tid, esv, req_properties)
         elif esv == EchonetServiceCode.get:
-            tx_payload = self.__build_request_payload(tid, esv, req_properties)
+            tx_payload = self._build_request_payload(tid, esv, req_properties)
         else:
             raise MomongaRuntimeError('Unsupported service code.')
 
@@ -396,7 +396,7 @@ class Momonga:
                         continue
 
                     try:
-                        res_properties = self.__extract_response_payload(res.data, tid, req_properties)
+                        res_properties = self._extract_response_payload(res.data, tid, req_properties)
                     except MomongaResponseNotExpected:
                         continue
 
@@ -408,20 +408,20 @@ class Momonga:
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 
-    def __reopen_once(self, failed_session_manager: MomongaSessionManager) -> None:
+    def _reopen_once(self, failed_session_manager: MomongaSessionManager) -> None:
         with self._reopen_lock:
             if self.session_manager is failed_session_manager:
                 self.reopen()
 
-    def __request_with_recovery(self,
+    def _request_with_recovery(self,
                                 esv: EchonetServiceCode,
                                 req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                 ) -> list[EchonetPropertyWithData]:
         if self.reopen_delays is None or getattr(self._local, 'reopening', False):
-            return self.__request(esv, req_properties)
+            return self._request(esv, req_properties)
 
         try:
-            return self.__request(esv, req_properties)
+            return self._request(esv, req_properties)
         except MomongaNeedToReopen as initial_err:
             last_error: MomongaNeedToReopen = initial_err
             logger.warning('Session needs reopen, attempting recovery.')
@@ -434,8 +434,8 @@ class Momonga:
             failed_session_manager = self.session_manager
             time.sleep(delay)
             try:
-                self.__reopen_once(failed_session_manager)
-                return self.__request(esv, req_properties)
+                self._reopen_once(failed_session_manager)
+                return self._request(esv, req_properties)
             except MomongaNeedToReopen as err:
                 last_error = err
                 logger.warning('Reopen attempt failed after waiting %s seconds: %s', delay, err)
@@ -447,92 +447,92 @@ class Momonga:
         logger.error('All reopen attempts exhausted.')
         raise last_error
 
-    def __request_to_set(self,
+    def _request_to_set(self,
                          properties_with_data: list[EchonetPropertyWithData]
                          ) -> None:
-        self.__request_with_recovery(EchonetServiceCode.set_c, properties_with_data)
+        self._request_with_recovery(EchonetServiceCode.set_c, properties_with_data)
 
-    def __request_to_get(self,
+    def _request_to_get(self,
                          properties: list[EchonetProperty],
                          ) -> list[EchonetPropertyWithData]:
-        return self.__request_with_recovery(EchonetServiceCode.get, properties)
+        return self._request_with_recovery(EchonetServiceCode.get, properties)
 
     def get_operation_status(self) -> bool | None:
         req = EchonetProperty(EchonetPropertyCode.operation_status)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_operation_status(res.edt)
 
     def get_installation_location(self) -> str:
         req = EchonetProperty(EchonetPropertyCode.installation_location)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_installation_location(res.edt)
 
     def get_standard_version(self) -> str:
         req = EchonetProperty(EchonetPropertyCode.standard_version_information)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_standard_version_information(res.edt)
 
     def get_fault_status(self) -> bool | None:
         req = EchonetProperty(EchonetPropertyCode.fault_status)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_fault_status(res.edt)
 
     def get_manufacturer_code(self) -> bytes:
         req = EchonetProperty(EchonetPropertyCode.manufacturer_code)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_manufacturer_code(res.edt)
 
     def get_serial_number(self) -> str:
         req = EchonetProperty(EchonetPropertyCode.serial_number)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_serial_number(res.edt)
 
     def get_current_time_setting(self) -> datetime.time:
         req = EchonetProperty(EchonetPropertyCode.current_time_setting)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_current_time_setting(res.edt)
 
     def get_current_date_setting(self) -> datetime.date:
         req = EchonetProperty(EchonetPropertyCode.current_date_setting)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_current_date_setting(res.edt)
 
     def get_properties_for_status_notification(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_for_status_notification)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_property_map(res.edt)
 
     def get_properties_to_set_values(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_to_set_values)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_property_map(res.edt)
 
     def get_properties_to_get_values(self) -> set[EchonetPropertyCode | int]:
         req = EchonetProperty(EchonetPropertyCode.properties_to_get_values)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_property_map(res.edt)
 
     def get_route_b_id(self) -> dict[str, bytes]:
         req = EchonetProperty(EchonetPropertyCode.route_b_id)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_route_b_id(res.edt)
 
     def get_one_minute_measured_cumulative_energy(self) -> dict[str, datetime.datetime |
                                                                      dict[str, int | float | None]]:
         req = EchonetProperty(EchonetPropertyCode.one_minute_measured_cumulative_energy)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_one_minute_measured_cumulative_energy(res.edt,
                                                                              self.energy_unit,
                                                                              self.energy_coefficient)
 
     def get_coefficient_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_coefficient_for_cumulative_energy(res.edt)
 
     def get_number_of_effective_digits_for_cumulative_energy(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_number_of_effective_digits_for_cumulative_energy(res.edt)
 
     def get_measured_cumulative_energy(self,
@@ -544,14 +544,14 @@ class Momonga:
             epc = EchonetPropertyCode.measured_cumulative_energy_reversed
 
         req = EchonetProperty(epc)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_measured_cumulative_energy(res.edt,
                                                                   self.energy_unit,
                                                                   self.energy_coefficient)
 
     def get_unit_for_cumulative_energy(self) -> int | float:
         req = EchonetProperty(EchonetPropertyCode.unit_for_cumulative_energy)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_unit_for_cumulative_energy(res.edt)
 
     def get_historical_cumulative_energy_1(self,
@@ -566,7 +566,7 @@ class Momonga:
             epc = EchonetPropertyCode.historical_cumulative_energy_1_reversed
 
         req = EchonetProperty(epc)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_1(res.edt,
                                                                       self.energy_unit,
                                                                       self.energy_coefficient)
@@ -576,21 +576,21 @@ class Momonga:
                                       ) -> None:
         edt = EchonetDataBuilder.build_edata_to_set_day_for_historical_data_1(day)
         req = EchonetPropertyWithData(EchonetPropertyCode.day_for_historical_data_1, edt)
-        self.__request_to_set([req])
+        self._request_to_set([req])
 
     def get_day_for_historical_data_1(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.day_for_historical_data_1)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_day_for_historical_data_1(res.edt)
 
     def get_instantaneous_power(self) -> float:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_power)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_power(res.edt)
 
     def get_instantaneous_current(self) -> dict[str, float]:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_current)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_current(res.edt)
 
     def get_cumulative_energy_measured_at_fixed_time(self,
@@ -602,7 +602,7 @@ class Momonga:
             epc = EchonetPropertyCode.cumulative_energy_measured_at_fixed_time_reversed
 
         req = EchonetProperty(epc)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_cumulative_energy_measured_at_fixed_time(res.edt,
                                                                                 self.energy_unit,
                                                                                 self.energy_coefficient)
@@ -618,7 +618,7 @@ class Momonga:
         self.set_time_for_historical_data_2(timestamp, num_of_data_points)
 
         req = EchonetProperty(EchonetPropertyCode.historical_cumulative_energy_2)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_2(res.edt,
                                                                       self.energy_unit,
                                                                       self.energy_coefficient)
@@ -630,11 +630,11 @@ class Momonga:
         edt = EchonetDataBuilder.build_edata_to_set_time_for_historical_data_2(timestamp,
                                                                                num_of_data_points)
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_2, edt)
-        self.__request_to_set([req])
+        self._request_to_set([req])
 
     def get_time_for_historical_data_2(self) -> dict[str, datetime.datetime | None | int]:
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_2)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_time_for_historical_data_2(res.edt)
 
     def get_historical_cumulative_energy_3(self,
@@ -648,7 +648,7 @@ class Momonga:
         self.set_time_for_historical_data_3(timestamp, num_of_data_points)
 
         req = EchonetProperty(EchonetPropertyCode.historical_cumulative_energy_3)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_historical_cumulative_energy_3(res.edt,
                                                                       self.energy_unit,
                                                                       self.energy_coefficient)
@@ -660,11 +660,11 @@ class Momonga:
         edt = EchonetDataBuilder.build_edata_to_set_time_for_historical_data_3(timestamp,
                                                                                num_of_data_points)
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_3, edt)
-        self.__request_to_set([req])
+        self._request_to_set([req])
 
     def get_time_for_historical_data_3(self) -> dict[str, datetime.datetime | None | int]:
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_3)
-        res = self.__request_to_get([req])[0]
+        res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_time_for_historical_data_3(res.edt)
 
     class DayForHistoricalData1(TypedDict, total=False):
@@ -695,11 +695,11 @@ class Momonga:
             edt = EchonetDataBuilder.build_edata_to_set_time_for_historical_data_3(**time_for_historical_data_3)
             properties_with_data.append(EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_3, edt))
 
-        self.__request_to_set(properties_with_data)
+        self._request_to_set(properties_with_data)
 
     def request_to_get(self,
                        properties: set[EchonetPropertyCode]) -> dict[EchonetPropertyCode, Any]:
-        results = self.__request_to_get([EchonetProperty(epc) for epc in properties])
+        results = self._request_to_get([EchonetProperty(epc) for epc in properties])
         parsed_results = {}
         for r in results:
             try:

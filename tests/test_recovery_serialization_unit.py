@@ -12,7 +12,7 @@ from unittest.mock import patch
 from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaNeedToReopen
 
-REQUEST = '_Momonga__request'
+REQUEST = '_request'
 # these tests patch time.sleep on the time module itself
 REAL_SLEEP = time.sleep
 
@@ -32,7 +32,7 @@ class TestConcurrentRecovery(unittest.TestCase):
         mo.session_manager = object()  # another thread got there first
 
         with patch.object(mo, 'reopen', lambda: calls.append(1)):
-            getattr(mo, '_Momonga__reopen_once')(stale)
+            mo._reopen_once(stale)
 
         self.assertEqual(calls, [])
 
@@ -41,7 +41,7 @@ class TestConcurrentRecovery(unittest.TestCase):
         calls = []
 
         with patch.object(mo, 'reopen', lambda: calls.append(1)):
-            getattr(mo, '_Momonga__reopen_once')(mo.session_manager)
+            mo._reopen_once(mo.session_manager)
 
         self.assertEqual(calls, [1])
 

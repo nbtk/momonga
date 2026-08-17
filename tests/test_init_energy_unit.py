@@ -10,7 +10,7 @@ from unittest.mock import patch
 from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaResponseNotPossible
 
-INIT = '_Momonga__init_energy_unit'
+INIT = '_init_energy_unit'
 
 
 def _make_mo():

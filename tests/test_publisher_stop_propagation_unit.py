@@ -18,7 +18,7 @@ from momonga.momonga_exception import MomongaNeedToReopen
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 
-WRITELINE = '_MomongaSkWrapper__writeline'
+WRITELINE = '_writeline'
 
 
 def _make_skw():

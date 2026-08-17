@@ -16,7 +16,7 @@ from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandUnsupported
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
-WRITELINE = '_MomongaSkWrapper__writeline'
+WRITELINE = '_writeline'
 
 
 def _make_skw():

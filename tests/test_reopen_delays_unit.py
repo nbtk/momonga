@@ -17,10 +17,10 @@ class TestReopenDelays(unittest.TestCase):
                 raise momonga.MomongaNeedToReopen('retry me')
             return ['ok']
 
-        with patch.object(self.instance, '_Momonga__request', side_effect=fake_request), \
+        with patch.object(self.instance, '_request', side_effect=fake_request), \
                 patch.object(self.instance, 'reopen') as reopen_mock, \
                 patch('momonga.momonga.time.sleep') as sleep_mock:
-            result = self.instance._Momonga__request_with_recovery(
+            result = self.instance._request_with_recovery(
                 momonga.momonga.EchonetServiceCode.get,
                 [],
             )
@@ -31,11 +31,11 @@ class TestReopenDelays(unittest.TestCase):
         sleep_mock.assert_called_once_with(256.0)
 
     def test_request_raises_after_delays_exhausted(self) -> None:
-        with patch.object(self.instance, '_Momonga__request', side_effect=momonga.MomongaNeedToReopen('still failing')), \
+        with patch.object(self.instance, '_request', side_effect=momonga.MomongaNeedToReopen('still failing')), \
                 patch.object(self.instance, 'reopen') as reopen_mock, \
                 patch('momonga.momonga.time.sleep') as sleep_mock:
             with self.assertRaises(momonga.MomongaNeedToReopen):
-                self.instance._Momonga__request_with_recovery(
+                self.instance._request_with_recovery(
                     momonga.momonga.EchonetServiceCode.get,
                     [],
                 )
@@ -47,9 +47,9 @@ class TestReopenDelays(unittest.TestCase):
     def test_negative_delay_is_rejected(self) -> None:
         instance = momonga.Momonga('rbid', 'pwd', '/dev/null', reopen_delays=[-1.0])
 
-        with patch.object(instance, '_Momonga__request', side_effect=momonga.MomongaNeedToReopen('retry me')):
+        with patch.object(instance, '_request', side_effect=momonga.MomongaNeedToReopen('retry me')):
             with self.assertRaises(momonga.MomongaValueError):
-                instance._Momonga__request_with_recovery(
+                instance._request_with_recovery(
                     momonga.momonga.EchonetServiceCode.get,
                     [],
                 )

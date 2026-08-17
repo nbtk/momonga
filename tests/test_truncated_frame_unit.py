@@ -14,7 +14,7 @@ from momonga.momonga_echonet_enum import EchonetPropertyCode
 from momonga.momonga_exception import MomongaResponseNotExpected
 from momonga.momonga_response import SkParsedRxUdp
 
-EXTRACT = '_Momonga__extract_response_payload'
+EXTRACT = '_extract_response_payload'
 HEADER = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'  # EHD TID SEOJ DEOJ
 
 
