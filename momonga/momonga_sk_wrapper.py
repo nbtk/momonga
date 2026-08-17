@@ -32,15 +32,13 @@ logger = logging.getLogger(__name__)
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
 
-# far above any legitimate command, so it only fires when the module is unresponsive
+# deliberately generous; it must not fire during a legitimate command
 _SK_COMMAND_LIMIT = 300
 
-# commands whose argument is a credential issued by the power company
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
 def _mask_secrets(text: str) -> str:
-    # the Route-B id and password must reach neither a log nor an exception message.
     for name in _SECRET_COMMANDS:
         index = text.find(name)
         if index >= 0:
@@ -63,7 +61,7 @@ class MomongaSkWrapper:
         self.publisher_exception = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
-        # to serialize exec_command() calls that share the serial port and 'cmd_exec_q'.
+        # to serialize exec_command() calls from several threads.
         self._cmd_lock = threading.Lock()
 
     @property
@@ -179,7 +177,6 @@ class MomongaSkWrapper:
         self.ser.timeout = org_timeout
         if data_bytes != b'':
             logger.debug('<<< %s' % _mask_secrets(str(data_bytes)))
-        # a garbled byte must not take the publisher down with it.
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
         return line
 
@@ -270,7 +267,6 @@ class MomongaSkWrapper:
         return res
 
     def __raise_if_publisher_died(self) -> None:
-        # nothing can reach 'cmd_exec_q' any more, so waiting for a response is futile.
         if self.publisher_exception is not None:
             raise MomongaNeedToReopen('The packet publisher has stopped.'
                                       ' Close Momonga and open it again. %s: %s'

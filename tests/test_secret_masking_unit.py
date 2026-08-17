@@ -36,8 +36,7 @@ def _make_skw():
 class TestOutboundLog(unittest.TestCase):
 
     def _write(self, skw, *command):
-        # exec_command() drains the queue before writing, so the response has to be
-        # queued from inside the write itself.
+        # exec_command() drains the queue first, so answer from inside the write
         skw.ser.write.side_effect = lambda data: skw.subscribers['cmd_exec_q'].put('OK')
         with self.assertLogs('momonga.momonga_sk_wrapper', level=logging.DEBUG) as captured:
             skw.exec_command(list(command), timeout=5)
@@ -61,7 +60,7 @@ class TestOutboundLog(unittest.TestCase):
 class TestInboundLog(unittest.TestCase):
 
     def test_echoed_password_is_not_logged(self):
-        # the module echoes commands back unless SFE is disabled, which open() does not do
+        # open() leaves echoback enabled
         skw = _make_skw()
         skw.ser.readline.return_value = ('SKSETPWD %X %s\r\n' % (len(PWD), PWD)).encode()
 

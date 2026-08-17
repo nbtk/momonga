@@ -54,7 +54,6 @@ class TestExecCommandSerialization(unittest.TestCase):
             second_th = threading.Thread(target=skw.exec_command, args=(['SECOND'],))
             second_th.start()
             time.sleep(0.05)
-            # the second command must not reach the serial port yet.
             self.assertEqual(written, ['FIRST'])
 
             release_first.set()
@@ -120,7 +119,6 @@ class TestExecCommandLimit(unittest.TestCase):
         self.assertFalse(skw._cmd_lock.locked())
 
     def test_chatter_does_not_extend_the_limit(self):
-        # the lock would be held indefinitely otherwise
         skw = _make_skw()
         cmd_exec_q = skw.subscribers['cmd_exec_q']
         stop = threading.Event()
