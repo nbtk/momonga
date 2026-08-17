@@ -57,7 +57,7 @@ class Momonga:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
         self.internal_xmit_interval: int | float = 5
-        self.transaction_id: int = 0
+        self._transaction_id: int = 0
         self.energy_unit: int | float = 1
         self.energy_coefficient: int = 1
         self.is_open: bool = False
@@ -227,8 +227,8 @@ class Momonga:
             logger.warning('Failed to send INFC_Res.', exc_info=True)
 
     def _get_transaction_id(self) -> int:
-        self.transaction_id += 1
-        return self.transaction_id
+        self._transaction_id += 1
+        return self._transaction_id
 
     @staticmethod
     def _build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:

@@ -56,9 +56,9 @@ class MomongaSkWrapper:
         self.baudrate = baudrate
 
         # the following value will be set a pyserial object.
-        self.ser = None
-        self.publisher_th_breaker = False
-        self.publisher_th = None
+        self._ser = None
+        self._publisher_th_breaker = False
+        self._publisher_th = None
         self.publisher_exception = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
@@ -75,7 +75,7 @@ class MomongaSkWrapper:
         self.close()
 
     def open(self) -> Self:
-        self.ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
+        self._ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
 
         try:
             # to drop garbage data in the buffer.
@@ -98,42 +98,42 @@ class MomongaSkWrapper:
             while not q.empty():
                 q.get()
 
-        self.publisher_th_breaker = False  # set True when you want to stop the publisher.
+        self._publisher_th_breaker = False  # set True when you want to stop the publisher.
         self.publisher_exception = None
-        self.publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
-        self.publisher_th.start()
+        self._publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
+        self._publisher_th.start()
 
         # Detects device type
         self.detect_device()
         return self
 
     def close(self) -> None:
-        if self.publisher_th is not None:
-            self.publisher_th_breaker = True
-            self.publisher_th.join()
-            self.publisher_th = None
-        if self.ser is not None and not self.ser.closed:
-            self.ser.close()
+        if self._publisher_th is not None:
+            self._publisher_th_breaker = True
+            self._publisher_th.join()
+            self._publisher_th = None
+        if self._ser is not None and not self._ser.closed:
+            self._ser.close()
 
     def _clear_buf(self) -> None:  # do not call this after open().
-        self.ser.write(b'\r\n')
-        self.ser.flush()
-        timeout = self.ser.timeout
-        self.ser.timeout = 2  # will wait the specified seconds.
-        while self.ser.read():
+        self._ser.write(b'\r\n')
+        self._ser.flush()
+        timeout = self._ser.timeout
+        self._ser.timeout = 2  # will wait the specified seconds.
+        while self._ser.read():
             # this loop clears garbage data if it exists.
             pass
         # to undo the timeout.
-        self.ser.timeout = timeout
+        self._ser.timeout = timeout
 
     def _exec_ropt(self) -> int:  # do not call this after open().
-        self.ser.write(b'ROPT\r')
-        self.ser.flush()
+        self._ser.write(b'ROPT\r')
+        self._ser.flush()
         res = b''
         ok = b'OK '
         fail = b'FAIL'
         while True:
-            b = self.ser.read()
+            b = self._ser.read()
             if not b:
                 raise MomongaTimeoutError('ROPT command timed out.')
             res += b
@@ -156,11 +156,11 @@ class MomongaSkWrapper:
         if opt not in supported_opts:
             raise MomongaError('WOPT command dose not support the given option: %02d' % opt)
 
-        self.ser.write(('WOPT %02d\r' % opt).encode())
-        self.ser.flush()
+        self._ser.write(('WOPT %02d\r' % opt).encode())
+        self._ser.flush()
         res = b''
         while True:
-            b = self.ser.read()
+            b = self._ser.read()
             if not b:
                 raise MomongaTimeoutError('WOPT command timed out.')
             res += b
@@ -171,10 +171,10 @@ class MomongaSkWrapper:
     def _readline(self,
                    timeout: int | None = None,
                    ) -> str:
-        org_timeout = self.ser.timeout
-        self.ser.timeout = timeout
-        data_bytes = self.ser.readline()
-        self.ser.timeout = org_timeout
+        org_timeout = self._ser.timeout
+        self._ser.timeout = timeout
+        data_bytes = self._ser.readline()
+        self._ser.timeout = org_timeout
         if data_bytes != b'':
             logger.debug('<<< %s' % _mask_secrets(str(data_bytes)))
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
@@ -184,7 +184,7 @@ class MomongaSkWrapper:
         logger.debug('A received packet publisher has been started.')
         try:
             while True:
-                if self.publisher_th_breaker:
+                if self._publisher_th_breaker:
                     break
                 line = self._readline(timeout=1)
                 if line == '':
@@ -207,9 +207,9 @@ class MomongaSkWrapper:
             data_bytes = (line + ' ').encode() + payload
         else:
             data_bytes = (line + '\r\n').encode()
-        self.ser.write(data_bytes)
+        self._ser.write(data_bytes)
         logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
-        self.ser.flush()
+        self._ser.flush()
 
     def exec_command(self,
                      command: list[str],

@@ -18,8 +18,8 @@ from momonga.momonga_session_manager import MomongaSessionManager
 
 def _make_sm():
     sm = object.__new__(MomongaSessionManager)
-    sm.xmit_allowed = threading.Event()
-    sm.xmit_allowed.set()
+    sm._xmit_allowed = threading.Event()
+    sm._xmit_allowed.set()
     sm.session_established = True
     sm.receiver_exception = None
     sm.smart_meter_addr = 'FE80::1'
@@ -48,17 +48,17 @@ class TestXmitterGateTimeout(unittest.TestCase):
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_gate_never_opens_raises(self, _sleep):
         sm = _make_sm()
-        sm.xmit_allowed.clear()
-        with patch.object(sm.xmit_allowed, 'wait', return_value=False):
+        sm._xmit_allowed.clear()
+        with patch.object(sm._xmit_allowed, 'wait', return_value=False):
             with self.assertRaises(MomongaNeedToReopen):
                 sm.xmitter(b'\x00')
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_receiver_exception_during_wait_raises(self, _sleep):
         sm = _make_sm()
-        sm.xmit_allowed.clear()
+        sm._xmit_allowed.clear()
         sm.receiver_exception = RuntimeError('receiver died')
-        with patch.object(sm.xmit_allowed, 'wait', return_value=False):
+        with patch.object(sm._xmit_allowed, 'wait', return_value=False):
             with self.assertRaises(MomongaNeedToReopen):
                 sm.xmitter(b'\x00')
 
@@ -66,7 +66,7 @@ class TestXmitterGateTimeout(unittest.TestCase):
     def test_gate_opens_after_wait_succeeds(self, _sleep):
         sm = _make_sm()
         responses = [False] * 5 + [True]
-        with patch.object(sm.xmit_allowed, 'wait', side_effect=responses):
+        with patch.object(sm._xmit_allowed, 'wait', side_effect=responses):
             sm.xmitter(b'\x00')
         sm.skw.sksendto.assert_called_once()
 

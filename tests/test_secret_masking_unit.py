@@ -27,8 +27,8 @@ def _make_skw():
     skw.subscribers = {'cmd_exec_q': queue.Queue()}
     skw._cmd_lock = threading.Lock()
     skw.device_strategy = BP35C2Strategy()
-    skw.ser = MagicMock()
-    skw.publisher_th_breaker = False
+    skw._ser = MagicMock()
+    skw._publisher_th_breaker = False
     skw.publisher_exception = None
     return skw
 
@@ -37,7 +37,7 @@ class TestOutboundLog(unittest.TestCase):
 
     def _write(self, skw, *command):
         # exec_command() drains the queue first, so answer from inside the write
-        skw.ser.write.side_effect = lambda data: skw.subscribers['cmd_exec_q'].put('OK')
+        skw._ser.write.side_effect = lambda data: skw.subscribers['cmd_exec_q'].put('OK')
         with self.assertLogs('momonga.momonga_sk_wrapper', level=logging.DEBUG) as captured:
             skw.exec_command(list(command), timeout=5)
         return '\n'.join(captured.output)
@@ -62,7 +62,7 @@ class TestInboundLog(unittest.TestCase):
     def test_echoed_password_is_not_logged(self):
         # open() does not disable echoback
         skw = _make_skw()
-        skw.ser.readline.return_value = ('SKSETPWD %X %s\r\n' % (len(PWD), PWD)).encode()
+        skw._ser.readline.return_value = ('SKSETPWD %X %s\r\n' % (len(PWD), PWD)).encode()
 
         with self.assertLogs('momonga.momonga_sk_wrapper', level=logging.DEBUG) as captured:
             skw._readline(timeout=1)

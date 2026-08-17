@@ -19,16 +19,16 @@ def _make_sm():
     sm = object.__new__(MomongaSessionManager)
     sm.notif_q = queue.Queue()
     sm.recv_q = queue.Queue()
-    sm.pkt_sbsc_q = queue.Queue()
+    sm._pkt_sbsc_q = queue.Queue()
     sm.receiver_exception = None
-    sm.receiver_th = None
+    sm._receiver_th = None
     sm.session_established = False
-    sm.rejoin_lock = threading.Lock()
-    sm.gate_lock = threading.Lock()
-    sm.session_available = True
-    sm.rate_ok = True
-    sm.xmit_allowed = threading.Event()
-    sm.xmit_allowed.set()
+    sm._rejoin_lock = threading.Lock()
+    sm._gate_lock = threading.Lock()
+    sm._session_available = True
+    sm._rate_ok = True
+    sm._xmit_allowed = threading.Event()
+    sm._xmit_allowed.set()
     sm.smart_meter_addr = 'FE80::1'
     sm.skw = MagicMock()
     sm.skw.subscribers = {}
@@ -118,8 +118,8 @@ class TestReceiverDeathIsReported(unittest.TestCase):
         reader.start()
         time.sleep(0.05)
 
-        sm.pkt_sbsc_q.put(object())  # not a str; parse_sk_line will fail on it
-        sm.receiver()
+        sm._pkt_sbsc_q.put(object())  # not a str; parse_sk_line will fail on it
+        sm._receiver()
 
         reader.join(5)
         self.assertFalse(reader.is_alive())

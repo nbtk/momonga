@@ -26,8 +26,8 @@ def _make_skw():
     skw.subscribers = {'cmd_exec_q': queue.Queue()}
     skw._cmd_lock = threading.Lock()
     skw.device_strategy = BP35C2Strategy()
-    skw.ser = MagicMock()
-    skw.publisher_th_breaker = False
+    skw._ser = MagicMock()
+    skw._publisher_th_breaker = False
     skw.publisher_exception = None
     return skw
 
@@ -36,12 +36,12 @@ def _make_sm(skw):
     sm = object.__new__(MomongaSessionManager)
     sm.notif_q = queue.Queue()
     sm.recv_q = queue.Queue()
-    sm.pkt_sbsc_q = queue.Queue()
+    sm._pkt_sbsc_q = queue.Queue()
     sm.receiver_exception = None
     sm.smart_meter_addr = 'FE80::1'
     sm.on_meter_frame = None
     sm.skw = skw
-    skw.subscribers['pkt_sbsc_q'] = sm.pkt_sbsc_q
+    skw.subscribers['pkt_sbsc_q'] = sm._pkt_sbsc_q
     return sm
 
 
@@ -50,11 +50,11 @@ class TestPublisherTellsItsSubscribers(unittest.TestCase):
     def test_every_subscriber_queue_is_woken(self):
         skw = _make_skw()
         sm = _make_sm(skw)
-        skw.ser.readline.side_effect = serial.SerialException('device disconnected')
+        skw._ser.readline.side_effect = serial.SerialException('device disconnected')
 
         skw.received_packet_publisher()
 
-        self.assertIs(sm.pkt_sbsc_q.get_nowait(), PUBLISHER_STOPPED)
+        self.assertIs(sm._pkt_sbsc_q.get_nowait(), PUBLISHER_STOPPED)
         self.assertIs(skw.subscribers['cmd_exec_q'].get_nowait(), PUBLISHER_STOPPED)
 
 
@@ -63,9 +63,9 @@ class TestReceiverStopsWithIt(unittest.TestCase):
     def test_receiver_records_the_stop_and_ends_the_session(self):
         skw = _make_skw()
         sm = _make_sm(skw)
-        sm.pkt_sbsc_q.put(PUBLISHER_STOPPED)
+        sm._pkt_sbsc_q.put(PUBLISHER_STOPPED)
 
-        sm.receiver()
+        sm._receiver()
 
         self.assertIsInstance(sm.receiver_exception, MomongaNeedToReopen)
         self.assertFalse(sm.notif_q.empty())  # a waiting reader is released
@@ -78,7 +78,7 @@ class TestReceiverStopsWithIt(unittest.TestCase):
         mo.session_manager = sm
         result = []
 
-        receiver = threading.Thread(target=sm.receiver, daemon=True)
+        receiver = threading.Thread(target=sm._receiver, daemon=True)
         reader = threading.Thread(target=lambda: result.append(mo.get_notification(timeout=None)),
                                   daemon=True)
         receiver.start()
@@ -87,7 +87,7 @@ class TestReceiverStopsWithIt(unittest.TestCase):
         self.assertTrue(receiver.is_alive())
         self.assertTrue(reader.is_alive())
 
-        skw.ser.readline.side_effect = serial.SerialException('device disconnected')
+        skw._ser.readline.side_effect = serial.SerialException('device disconnected')
         publisher = threading.Thread(target=skw.received_packet_publisher, daemon=True)
         publisher.start()
 

@@ -413,14 +413,14 @@ class TestReceiverRouting(unittest.TestCase):
         from momonga.momonga_session_manager import MomongaSessionManager
         from momonga.momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
         sm = object.__new__(MomongaSessionManager)
-        sm.pkt_sbsc_q = queue.Queue()
+        sm._pkt_sbsc_q = queue.Queue()
         sm.recv_q = queue.Queue()
         sm.notif_q = queue.Queue()
-        sm.gate_lock = threading.Lock()
-        sm.session_available = True
-        sm.rate_ok = True
-        sm.xmit_allowed = threading.Event()
-        sm.xmit_allowed.set()
+        sm._gate_lock = threading.Lock()
+        sm._session_available = True
+        sm._rate_ok = True
+        sm._xmit_allowed = threading.Event()
+        sm._xmit_allowed.set()
         sm.session_established = True
         sm.receiver_exception = None
         sm.smart_meter_addr = 'FE80::1'
@@ -448,10 +448,10 @@ class TestReceiverRouting(unittest.TestCase):
                 '50 00 00 %04X %s' % (len(payload) // 2, payload))
 
     def _route(self, sm, packet):
-        th = threading.Thread(target=sm.receiver, daemon=True)
+        th = threading.Thread(target=sm._receiver, daemon=True)
         th.start()
-        sm.pkt_sbsc_q.put(packet)
-        sm.pkt_sbsc_q.put('__CLOSE__')
+        sm._pkt_sbsc_q.put(packet)
+        sm._pkt_sbsc_q.put('__CLOSE__')
         th.join(timeout=2)
 
     def test_non_smart_meter_inf_discarded(self):

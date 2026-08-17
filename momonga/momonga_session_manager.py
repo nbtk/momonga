@@ -30,33 +30,33 @@ class MomongaSessionManager:
                 ) -> None:
         self.dev = dev
         self.baudrate = baudrate
-        self.rbid = rbid
-        self.pwd = pwd
-        self.reset_dev = reset_dev
+        self._rbid = rbid
+        self._pwd = pwd
+        self._reset_dev = reset_dev
 
         # the following value will be set a pyserial object.
         self.skw = MomongaSkWrapper(dev, baudrate)
 
         # the following values will be set by open() with skscan().
-        self.smart_meter_mac = None
+        self._smart_meter_mac = None
         self.smart_meter_addr = None
         self.channel = None
         self.pan_id = None
 
         # the following values will be set by open() with skjoin().
         self.session_established = False
-        self.receiver_th = None
+        self._receiver_th = None
         self.receiver_exception = None
-        self.gate_lock = threading.Lock()
-        self.session_available = True
-        self.rate_ok = True
-        self.xmit_allowed = threading.Event()
-        self.xmit_allowed.set()
-        self.rejoin_lock = threading.Lock()
+        self._gate_lock = threading.Lock()
+        self._session_available = True
+        self._rate_ok = True
+        self._xmit_allowed = threading.Event()
+        self._xmit_allowed.set()
+        self._rejoin_lock = threading.Lock()
 
         self.on_meter_frame: Callable[[SkParsedRxUdp], None] | None = None
 
-        self.pkt_sbsc_q = queue.Queue()
+        self._pkt_sbsc_q = queue.Queue()
         self.recv_q = queue.Queue()
         self.notif_q = queue.Queue()
 
@@ -71,7 +71,7 @@ class MomongaSessionManager:
         try:
             self.skw.open()
 
-            if self.reset_dev is True:
+            if self._reset_dev is True:
                 # to reset the specified wi-sun module.
                 self.skw.skreset()
 
@@ -80,9 +80,9 @@ class MomongaSessionManager:
 
             # scanning a PAN from here.
             # to set a route b id.
-            self.skw.sksetrbid(self.rbid)
+            self.skw.sksetrbid(self._rbid)
             # to set a password.
-            self.skw.sksetpwd(self.pwd)
+            self.skw.sksetpwd(self._pwd)
             logger.info('The Route-B ID and the password were registered.')
             try:
                 logger.info('Scanning PAN channels...')
@@ -91,7 +91,7 @@ class MomongaSessionManager:
             except MomongaSkScanFailure as e:
                 logger.error('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.')
                 raise MomongaSkScanFailure('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.') from e
-            self.smart_meter_mac = scan_res.mac_addr
+            self._smart_meter_mac = scan_res.mac_addr
             self.channel = scan_res.channel
             self.pan_id = scan_res.pan_id
             # converting mac addr to ip6 addr.
@@ -112,16 +112,16 @@ class MomongaSessionManager:
                 logger.error('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
                 raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.') from e
 
-            while not self.pkt_sbsc_q.empty():
-                self.pkt_sbsc_q.get()
+            while not self._pkt_sbsc_q.empty():
+                self._pkt_sbsc_q.get()
             while not self.recv_q.empty():
                 self.recv_q.get()
             while not self.notif_q.empty():
                 self.notif_q.get()
 
-            self.receiver_th = threading.Thread(target=self.receiver, daemon=True)
-            self.skw.subscribers.update({'pkt_sbsc_q': self.pkt_sbsc_q})
-            self.receiver_th.start()
+            self._receiver_th = threading.Thread(target=self._receiver, daemon=True)
+            self.skw.subscribers.update({'pkt_sbsc_q': self._pkt_sbsc_q})
+            self._receiver_th.start()
 
             logger.info('A Momonga session is open.')
             return self
@@ -133,9 +133,9 @@ class MomongaSessionManager:
     def close(self) -> None:
         logger.info('Closing the Momonga session...')
 
-        rejoin_lock_acquired = self.rejoin_lock.acquire(timeout=120)
+        rejoin_lock_acquired = self._rejoin_lock.acquire(timeout=120)
         if not rejoin_lock_acquired:
-            logger.warning('Failed to acquire "rejoin_lock".')
+            logger.warning('Failed to acquire "_rejoin_lock".')
 
         if self.session_established:
             try:
@@ -146,34 +146,34 @@ class MomongaSessionManager:
                 logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
             finally:
                 if rejoin_lock_acquired:
-                    self.rejoin_lock.release()
+                    self._rejoin_lock.release()
         else:
             if rejoin_lock_acquired:
-                self.rejoin_lock.release()
+                self._rejoin_lock.release()
 
-        if self.receiver_th is not None:
-            if self.receiver_th.is_alive():
-                self.pkt_sbsc_q.put('__CLOSE__')  # to close the receiver thread.
-                self.receiver_th.join()
-            self.receiver_th = None
+        if self._receiver_th is not None:
+            if self._receiver_th.is_alive():
+                self._pkt_sbsc_q.put('__CLOSE__')  # to close the receiver thread.
+                self._receiver_th.join()
+            self._receiver_th = None
 
         if self.skw.subscribers.get('pkt_sbsc_q') is not None:
             self.skw.subscribers.pop('pkt_sbsc_q')
 
-        self.force_open_gates()
+        self._force_open_gates()
         self.notif_q.put(SESSION_ENDED)
 
-        if self.rejoin_lock.locked():
-            logger.error('"rejoin_lock" is unexpectedly locked.')
+        if self._rejoin_lock.locked():
+            logger.error('"_rejoin_lock" is unexpectedly locked.')
 
         self.skw.close()
         logger.info('The Momonga session is closed.')
 
-    def receiver(self) -> None:
+    def _receiver(self) -> None:
         logger.debug('A packet receiver has been started.')
         try:
             while True:
-                raw = self.pkt_sbsc_q.get()
+                raw = self._pkt_sbsc_q.get()
                 if raw == '__CLOSE__':
                     break
                 if raw is PUBLISHER_STOPPED:
@@ -186,10 +186,10 @@ class MomongaSessionManager:
                     num = parsed.num
                     if num == SkEventNum.session_lifetime:
                         logger.debug('The PANA session lifetime has been expired.')
-                        self.close_session_gate()
+                        self._close_session_gate()
                     elif num == SkEventNum.rejoin_failed:
                         logger.warning('Could not rejoin the PAN.')
-                        self.rejoin_lock.acquire()
+                        self._rejoin_lock.acquire()
                         if self.session_established:
                             self.session_established = False
                             try:
@@ -198,27 +198,27 @@ class MomongaSessionManager:
                                 logger.error('%s Close Momonga and open it again.' % (e))
                                 raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
                             finally:
-                                self.rejoin_lock.release()
+                                self._rejoin_lock.release()
                         else:
-                            self.rejoin_lock.release()
+                            self._rejoin_lock.release()
                     elif num == SkEventNum.rejoined:
                         logger.debug('Successfully rejoined the PAN.')
                         self.session_established = True
-                        self.open_session_gate()
+                        self._open_session_gate()
                     elif num == SkEventNum.rate_limit_exceeded:
                         logger.warning('The transmission rate limit has been exceeded.')
-                        self.close_rate_gate()
+                        self._close_rate_gate()
                     elif num == SkEventNum.rate_limit_released:
                         logger.debug('The transmission rate limit has been released.')
-                        self.open_rate_gate()
+                        self._open_rate_gate()
                     elif num == SkEventNum.session_closed:
-                        self.close_session_gate()
+                        self._close_session_gate()
                         logger.debug('The PANA session has been closed successfully.')
                     elif num == SkEventNum.no_session:
-                        self.close_session_gate()
+                        self._close_session_gate()
                         logger.warning('There was no PANA session to close.')
                     elif num in (SkEventNum.tx_done, SkEventNum.neighbor_discovery):
-                        if not self.is_restricted_to_xmit():
+                        if not self._is_restricted_to_xmit():
                             self.recv_q.put(parsed)
 
                 elif isinstance(parsed, SkParsedRxUdp):
@@ -244,7 +244,7 @@ class MomongaSessionManager:
                                       % (type(self.receiver_exception).__name__, self.receiver_exception))
 
     # Design note: the transmission gate is an optimization, not a correctness guarantee.
-    # There is an intentional check-then-act race window between xmit_allowed.wait() and
+    # There is an intentional check-then-act race window between _xmit_allowed.wait() and
     # sksendto(): the gate may close (e.g. EVENT 29 arrives) after the check but before
     # the send.  Plugging this window with a send-hold lock is not feasible — PANA session
     # state and rate limiting live in the SK module firmware and cannot be controlled
@@ -264,7 +264,7 @@ class MomongaSessionManager:
             logger.debug('Waiting for transmission gate to open.')
             allowed = False
             for r in range(gate_wait_retry_limit):
-                allowed = self.xmit_allowed.wait(timeout=gate_wait_timeout)
+                allowed = self._xmit_allowed.wait(timeout=gate_wait_timeout)
                 if not allowed:
                     logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, gate_wait_retry_limit))
                     self.raise_if_receiver_died()
@@ -295,42 +295,42 @@ class MomongaSessionManager:
             logger.error('Could not transmit a packet. Close Momonga and open it again.')
             raise MomongaNeedToReopen('Could not transmit a packet. Close Momonga and open it again.')
 
-    def close_session_gate(self) -> None:
-        with self.gate_lock:
-            self.session_available = False
-            self.xmit_allowed.clear()
+    def _close_session_gate(self) -> None:
+        with self._gate_lock:
+            self._session_available = False
+            self._xmit_allowed.clear()
         logger.debug('Session gate closed.')
 
-    def open_session_gate(self) -> None:
-        with self.gate_lock:
-            self.session_available = True
-            if self.rate_ok:
-                self.xmit_allowed.set()
+    def _open_session_gate(self) -> None:
+        with self._gate_lock:
+            self._session_available = True
+            if self._rate_ok:
+                self._xmit_allowed.set()
                 logger.debug('Both gates open; transmission allowed.')
             else:
                 logger.debug('Session gate opened but rate gate still closed.')
 
-    def close_rate_gate(self) -> None:
-        with self.gate_lock:
-            self.rate_ok = False
-            self.xmit_allowed.clear()
+    def _close_rate_gate(self) -> None:
+        with self._gate_lock:
+            self._rate_ok = False
+            self._xmit_allowed.clear()
         logger.debug('Rate gate closed.')
 
-    def open_rate_gate(self) -> None:
-        with self.gate_lock:
-            self.rate_ok = True
-            if self.session_available:
-                self.xmit_allowed.set()
+    def _open_rate_gate(self) -> None:
+        with self._gate_lock:
+            self._rate_ok = True
+            if self._session_available:
+                self._xmit_allowed.set()
                 logger.debug('Both gates open; transmission allowed.')
             else:
                 logger.debug('Rate gate opened but session gate still closed.')
 
-    def force_open_gates(self) -> None:
-        with self.gate_lock:
-            self.session_available = True
-            self.rate_ok = True
-            self.xmit_allowed.set()
+    def _force_open_gates(self) -> None:
+        with self._gate_lock:
+            self._session_available = True
+            self._rate_ok = True
+            self._xmit_allowed.set()
         logger.debug('All gates forcibly opened.')
 
-    def is_restricted_to_xmit(self) -> bool:
-        return not self.xmit_allowed.is_set()
+    def _is_restricted_to_xmit(self) -> bool:
+        return not self._xmit_allowed.is_set()

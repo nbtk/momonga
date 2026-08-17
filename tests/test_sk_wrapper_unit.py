@@ -24,8 +24,8 @@ def _make_skw():
     skw.subscribers = {'cmd_exec_q': queue.Queue()}
     skw._cmd_lock = threading.Lock()
     skw.device_strategy = BP35C2Strategy()
-    skw.ser = MagicMock()
-    skw.publisher_th_breaker = False
+    skw._ser = MagicMock()
+    skw._publisher_th_breaker = False
     skw.publisher_exception = None
     return skw
 
@@ -164,10 +164,10 @@ class TestPublisherSurvival(unittest.TestCase):
         def readline():
             if lines:
                 return lines.pop(0)
-            skw.publisher_th_breaker = True
+            skw._publisher_th_breaker = True
             return b''
 
-        skw.ser.readline.side_effect = readline
+        skw._ser.readline.side_effect = readline
         skw.received_packet_publisher()
 
         self.assertIsNone(skw.publisher_exception)
@@ -175,7 +175,7 @@ class TestPublisherSurvival(unittest.TestCase):
 
     def test_serial_failure_is_recorded_instead_of_vanishing(self):
         skw = _make_skw()
-        skw.ser.readline.side_effect = serial.SerialException('device disconnected')
+        skw._ser.readline.side_effect = serial.SerialException('device disconnected')
 
         skw.received_packet_publisher()
 

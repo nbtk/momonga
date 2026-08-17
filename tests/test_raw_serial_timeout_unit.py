@@ -18,7 +18,7 @@ def _make_skw():
     skw = object.__new__(MomongaSkWrapper)
     skw.dev = '/dev/ttyUSB0'
     skw.baudrate = 115200
-    skw.ser = MagicMock()
+    skw._ser = MagicMock()
     return skw
 
 
@@ -42,26 +42,26 @@ class TestSerialPortTimeout(unittest.TestCase):
 
     def test_clear_buf_restores_the_finite_timeout(self):
         skw = _make_skw()
-        skw.ser.timeout = 300
-        skw.ser.read.return_value = b''
+        skw._ser.timeout = 300
+        skw._ser.read.return_value = b''
 
         skw._clear_buf()
 
-        self.assertEqual(skw.ser.timeout, 300)
+        self.assertEqual(skw._ser.timeout, 300)
 
 
 class TestRawReadGuards(unittest.TestCase):
 
     def test_ropt_reports_a_silent_module(self):
         skw = _make_skw()
-        skw.ser.read.return_value = b''  # what read() returns once the timeout expires
+        skw._ser.read.return_value = b''  # what read() returns once the timeout expires
 
         with self.assertRaises(MomongaTimeoutError):
             skw._exec_ropt()
 
     def test_wopt_reports_a_silent_module(self):
         skw = _make_skw()
-        skw.ser.read.return_value = b''
+        skw._ser.read.return_value = b''
 
         with self.assertRaises(MomongaTimeoutError):
             skw._exec_wopt(1)
