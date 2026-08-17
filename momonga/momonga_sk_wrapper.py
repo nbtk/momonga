@@ -29,7 +29,13 @@ from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
 
-PUBLISHER_STOPPED = object()
+
+class _PublisherStopped:
+    def __repr__(self) -> str:
+        return 'PUBLISHER_STOPPED'
+
+
+PUBLISHER_STOPPED = _PublisherStopped()
 
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE

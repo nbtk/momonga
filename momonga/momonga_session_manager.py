@@ -17,7 +17,13 @@ from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
-SESSION_ENDED = object()
+
+class _SessionEnded:
+    def __repr__(self) -> str:
+        return 'SESSION_ENDED'
+
+
+SESSION_ENDED = _SessionEnded()
 
 
 class MomongaSessionManager:
