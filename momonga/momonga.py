@@ -66,6 +66,8 @@ class Momonga:
             reopen_delays = _ReplayableIterator(reopen_delays)
         self.reopen_delays: Iterable[float] | None = reopen_delays
         self._request_lock: threading.Lock = threading.Lock()
+        self._reopen_lock: threading.Lock = threading.Lock()
+        self._local: threading.local = threading.local()
         self._rbid: str = rbid
         self._pwd: str = pwd
         self._dev: str = dev
@@ -124,15 +126,19 @@ class Momonga:
 
     def reopen(self) -> None:
         logger.info('Reopening Momonga session.')
+        self._local.reopening = True
         try:
-            self.close()
-        except Exception:
-            logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
+            try:
+                self.close()
+            except Exception:
+                logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
 
-        self.session_manager = MomongaSessionManager(
-            self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
-        )
-        self.open()
+            self.session_manager = MomongaSessionManager(
+                self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
+            )
+            self.open()
+        finally:
+            self._local.reopening = False
         logger.info('Momonga session reopened successfully.')
 
     @staticmethod
@@ -403,11 +409,16 @@ class Momonga:
         raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 
+    def __reopen_once(self, failed_session_manager: MomongaSessionManager) -> None:
+        with self._reopen_lock:
+            if self.session_manager is failed_session_manager:
+                self.reopen()
+
     def __request_with_recovery(self,
                                 esv: EchonetServiceCode,
                                 req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
                                 ) -> list[EchonetPropertyWithData]:
-        if self.reopen_delays is None:
+        if self.reopen_delays is None or getattr(self._local, 'reopening', False):
             return self.__request(esv, req_properties)
 
         try:
@@ -421,9 +432,10 @@ class Momonga:
             if delay < 0:
                 raise MomongaValueError('reopen_delays must not contain negative values.')
 
+            failed_session_manager = self.session_manager
             time.sleep(delay)
             try:
-                self.reopen()
+                self.__reopen_once(failed_session_manager)
                 return self.__request(esv, req_properties)
             except MomongaNeedToReopen as err:
                 last_error = err

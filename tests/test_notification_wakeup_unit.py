@@ -36,7 +36,7 @@ def _make_sm():
 
 
 def _make_mo(sm):
-    mo = object.__new__(Momonga)
+    mo = Momonga(rbid='', pwd='', dev='')
     mo.is_open = True
     mo.session_manager = sm
     return mo
