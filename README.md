@@ -190,7 +190,7 @@ Momongaクラスのインスタンス化。
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
-- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。
+- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。
 
 e.g.
 ```python3

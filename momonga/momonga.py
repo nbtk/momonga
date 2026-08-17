@@ -33,6 +33,19 @@ from .momonga_sk_wrapper import logger as sk_wrapper_logger
 logger = logging.getLogger(__name__)
 
 
+class _ReplayableIterator:
+    # a one-shot iterator yields nothing the second time, so remember what it produced
+    def __init__(self, source: Iterable[float]) -> None:
+        self._source = source
+        self._seen: list[float] = []
+
+    def __iter__(self):
+        yield from self._seen
+        for delay in self._source:
+            self._seen.append(delay)
+            yield delay
+
+
 class Momonga:
     def __init__(self,
                  rbid: str,
@@ -49,6 +62,8 @@ class Momonga:
         self.energy_unit: int | float = 1
         self.energy_coefficient: int = 1
         self.is_open: bool = False
+        if reopen_delays is not None and iter(reopen_delays) is reopen_delays:
+            reopen_delays = _ReplayableIterator(reopen_delays)
         self.reopen_delays: Iterable[float] | None = reopen_delays
         self._request_lock: threading.Lock = threading.Lock()
         self._rbid: str = rbid
