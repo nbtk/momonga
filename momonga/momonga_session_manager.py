@@ -12,7 +12,7 @@ from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkCommandExecutionFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
-from .momonga_sk_wrapper import MomongaSkWrapper
+from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
@@ -182,6 +182,9 @@ class MomongaSessionManager:
                 raw = self.pkt_sbsc_q.get()
                 if raw == '__CLOSE__':
                     break
+                if raw is PUBLISHER_STOPPED:
+                    raise MomongaNeedToReopen('The packet publisher has stopped.'
+                                              ' Close Momonga and open it again.')
 
                 parsed = parse_sk_line(raw, self.skw.device_strategy)
 

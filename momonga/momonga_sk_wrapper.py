@@ -34,6 +34,8 @@ _BP35A1_SIDE_SENTINEL = 0xFFFE
 
 _SK_COMMAND_LIMIT = 300
 
+PUBLISHER_STOPPED = object()
+
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
@@ -192,6 +194,8 @@ class MomongaSkWrapper:
         except Exception as e:
             logger.error('An exception was raised from the publisher thread. %s: %s' % (type(e).__name__, e))
             self.publisher_exception = e
+            for q in self.subscribers.values():
+                q.put(PUBLISHER_STOPPED)
 
         logger.debug('The received packet publisher has been stopped.')
 
@@ -242,6 +246,8 @@ class MomongaSkWrapper:
             remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
             try:
                 r = subscriber_q.get(timeout=remaining)
+                if r is PUBLISHER_STOPPED:
+                    self.__raise_if_publisher_died()
             except queue.Empty:
                 self.__raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'
