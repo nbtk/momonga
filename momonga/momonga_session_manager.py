@@ -17,6 +17,8 @@ from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
+SESSION_ENDED = object()
+
 
 class MomongaSessionManager:
     def __init__(self,
@@ -165,6 +167,7 @@ class MomongaSessionManager:
             self.skw.subscribers.pop('pkt_sbsc_q')
 
         self.force_open_gates()
+        self.notif_q.put(SESSION_ENDED)
 
         if self.rejoin_lock.locked():
             logger.error('"rejoin_lock" is unexpectedly locked.')
@@ -232,8 +235,16 @@ class MomongaSessionManager:
         except Exception as e:
             logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
             self.receiver_exception = e
+            self.notif_q.put(SESSION_ENDED)
 
         logger.debug('The packet receiver has been stopped.')
+
+    def raise_if_receiver_died(self) -> None:
+        if self.receiver_exception is not None:
+            logger.error('Got an exception from the receiver thread. %s: %s'
+                         % (type(self.receiver_exception).__name__, self.receiver_exception))
+            raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s'
+                                      % (type(self.receiver_exception).__name__, self.receiver_exception))
 
     # Design note: the transmission gate is an optimization, not a correctness guarantee.
     # There is an intentional check-then-act race window between xmit_allowed.wait() and
@@ -251,6 +262,7 @@ class MomongaSessionManager:
         gate_wait_retry_limit = 60
         gate_wait_timeout     = 60
         xmitted = False
+        self.raise_if_receiver_died()
         for _ in range(xmit_retry_limit):
             logger.debug('Waiting for transmission gate to open.')
             allowed = False
@@ -258,9 +270,7 @@ class MomongaSessionManager:
                 allowed = self.xmit_allowed.wait(timeout=gate_wait_timeout)
                 if not allowed:
                     logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, gate_wait_retry_limit))
-                    if self.receiver_exception is not None:
-                        logger.error('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
-                        raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s' % (type(self.receiver_exception).__name__, self.receiver_exception))
+                    self.raise_if_receiver_died()
                 else:
                     break
 

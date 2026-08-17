@@ -26,7 +26,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaValueError,
                                 MomongaRuntimeError)
 from .momonga_response import SkEventNum, SkTxResult, SkParsedEvent, SkParsedRxUdp
-from .momonga_session_manager import MomongaSessionManager
+from .momonga_session_manager import MomongaSessionManager, SESSION_ENDED
 from .momonga_session_manager import logger as session_manager_logger
 from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
@@ -135,9 +135,15 @@ class Momonga:
         if not self.is_open:
             raise MomongaRuntimeError('Momonga is not open.')
 
+        session_manager = self.session_manager
+        session_manager.raise_if_receiver_died()
+
         try:
-            frame = self.session_manager.notif_q.get(timeout=timeout)
+            frame = session_manager.notif_q.get(timeout=timeout)
         except queue.Empty:
+            return None
+
+        if frame is SESSION_ENDED:
             return None
 
         data = frame.data
