@@ -76,9 +76,9 @@ class Momonga:
     def __init_energy_unit(self) -> None:
         logger.debug('Initializing the energy unit and coefficient.')
         self.energy_unit = self.get_unit_for_cumulative_energy()
+        time.sleep(self.internal_xmit_interval)
         try:
             self.energy_coefficient = self.get_coefficient_for_cumulative_energy()
-            time.sleep(self.internal_xmit_interval)
         except MomongaResponseNotPossible:  # due to the property 0xD3 is optional.
             self.energy_coefficient = 1
         time.sleep(self.internal_xmit_interval)
