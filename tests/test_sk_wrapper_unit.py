@@ -10,6 +10,8 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
+import serial
+
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandUnsupported
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
@@ -23,6 +25,8 @@ def _make_skw():
     skw._cmd_lock = threading.Lock()
     skw.device_strategy = BP35C2Strategy()
     skw.ser = MagicMock()
+    skw.publisher_th_breaker = False
+    skw.publisher_exception = None
     return skw
 
 
@@ -149,6 +153,71 @@ class TestExecCommandLimit(unittest.TestCase):
             res = skw.exec_command(['SKSENDTO'], timeout=5)
 
         self.assertEqual(res, ['EVENT 21 FE80::1 0 00', 'OK'])
+
+
+class TestPublisherSurvival(unittest.TestCase):
+
+    def test_non_utf8_bytes_do_not_kill_the_publisher(self):
+        # an ERXUDP payload in binary mode (WOPT 00) reaching decode()
+        skw = _make_skw()
+        lines = [b'ERXUDP FE80::1 FE80::2 0E1A 0E1A 001D1290 1 0 0004 \x10\x81\x00\x01\r\n',
+                 b'OK\r\n']
+
+        def readline():
+            if lines:
+                return lines.pop(0)
+            skw.publisher_th_breaker = True
+            return b''
+
+        skw.ser.readline.side_effect = readline
+        skw.received_packet_publisher()
+
+        self.assertIsNone(skw.publisher_exception)
+        self.assertEqual(skw.subscribers['cmd_exec_q'].qsize(), 2)
+
+    def test_serial_failure_is_recorded_instead_of_vanishing(self):
+        skw = _make_skw()
+        skw.ser.readline.side_effect = serial.SerialException('device disconnected')
+
+        skw.received_packet_publisher()
+
+        self.assertIsInstance(skw.publisher_exception, serial.SerialException)
+
+
+class TestPublisherDeathIsReported(unittest.TestCase):
+
+    def test_command_fails_immediately_when_publisher_is_dead(self):
+        skw = _make_skw()
+        skw.publisher_exception = serial.SerialException('device disconnected')
+        written = []
+
+        with patch.object(skw, WRITELINE, lambda line, payload=None: written.append(line)):
+            with self.assertRaises(MomongaNeedToReopen):
+                skw.exec_command(['SKVER'])
+
+        self.assertEqual(written, [])  # must not wait out the limit first
+
+    def test_publisher_death_during_a_command_is_reported(self):
+        skw = _make_skw()
+
+        def fake_writeline(line, payload=None):
+            skw.publisher_exception = serial.SerialException('device disconnected')
+
+        with patch.object(skw, WRITELINE, fake_writeline):
+            with self.assertRaises(MomongaNeedToReopen) as ctx:
+                skw.exec_command(['SKVER'], timeout=0.05)
+
+        self.assertIn('publisher', str(ctx.exception))
+
+    def test_lock_is_released_when_publisher_is_dead(self):
+        skw = _make_skw()
+        skw.publisher_exception = serial.SerialException('device disconnected')
+
+        with patch.object(skw, WRITELINE, lambda line, payload=None: None):
+            with self.assertRaises(MomongaNeedToReopen):
+                skw.exec_command(['SKVER'])
+
+        self.assertFalse(skw._cmd_lock.locked())
 
 
 if __name__ == '__main__':

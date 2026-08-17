@@ -48,6 +48,7 @@ class MomongaSkWrapper:
         self.ser = None
         self.publisher_th_breaker = False
         self.publisher_th = None
+        self.publisher_exception = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
         # to serialize exec_command() calls that share the serial port and 'cmd_exec_q'.
@@ -88,6 +89,7 @@ class MomongaSkWrapper:
                 q.get()
 
         self.publisher_th_breaker = False  # set True when you want to stop the publisher.
+        self.publisher_exception = None
         self.publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
         self.publisher_th.start()
 
@@ -165,19 +167,25 @@ class MomongaSkWrapper:
         self.ser.timeout = org_timeout
         if data_bytes != b'':
             logger.debug('<<< %s' % data_bytes)
-        line = data_bytes.decode().split('\r\n')[0]
+        # a garbled byte must not take the publisher down with it.
+        line = data_bytes.decode(errors='replace').split('\r\n')[0]
         return line
 
     def received_packet_publisher(self) -> None:
         logger.debug('A received packet publisher has been started.')
-        while True:
-            if self.publisher_th_breaker:
-                break
-            line = self.__readline(timeout=1)
-            if line == '':
-                continue
-            for q in self.subscribers.values():
-                q.put(line)  # will dispatch the line to each subscriber
+        try:
+            while True:
+                if self.publisher_th_breaker:
+                    break
+                line = self.__readline(timeout=1)
+                if line == '':
+                    continue
+                for q in self.subscribers.values():
+                    q.put(line)  # will dispatch the line to each subscriber
+        except Exception as e:
+            logger.error('An exception was raised from the publisher thread. %s: %s' % (type(e).__name__, e))
+            self.publisher_exception = e
+
         logger.debug('The received packet publisher has been stopped.')
 
     def __writeline(self,
@@ -212,6 +220,8 @@ class MomongaSkWrapper:
         if type(wait_until) is str:
             wait_until = [wait_until]
 
+        self.__raise_if_publisher_died()
+
         subscriber_q = self.subscribers['cmd_exec_q']
         while not subscriber_q.empty():
             subscriber_q.get()
@@ -226,6 +236,7 @@ class MomongaSkWrapper:
             try:
                 r = subscriber_q.get(timeout=remaining)
             except queue.Empty:
+                self.__raise_if_publisher_died()
                 # a late response to an abandoned command would desync the next one.
                 raise MomongaNeedToReopen('The module did not respond to a command.'
                                           ' Close Momonga and open it again: %s' % (command))
@@ -245,6 +256,13 @@ class MomongaSkWrapper:
                 if matched:
                     break
         return res
+
+    def __raise_if_publisher_died(self) -> None:
+        # nothing can reach 'cmd_exec_q' any more, so waiting for a response is futile.
+        if self.publisher_exception is not None:
+            raise MomongaNeedToReopen('The packet publisher has stopped.'
+                                      ' Close Momonga and open it again. %s: %s'
+                                      % (type(self.publisher_exception).__name__, self.publisher_exception))
 
     def __raise_fail_response(self, command: str, r: str) -> None:
         error_code = int(r[7:10])
