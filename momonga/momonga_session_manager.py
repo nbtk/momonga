@@ -59,7 +59,6 @@ class MomongaSessionManager:
         self.pkt_sbsc_q = queue.Queue()
         self.recv_q = queue.Queue()
         self.notif_q = queue.Queue()
-        self.xmit_q = queue.Queue()
 
     def __enter__(self) -> Self:
         return self.open()
@@ -122,8 +121,6 @@ class MomongaSessionManager:
                 self.recv_q.get()
             while not self.notif_q.empty():
                 self.notif_q.get()
-            while not self.xmit_q.empty():
-                self.xmit_q.get()
 
             self.receiver_th = threading.Thread(target=self.receiver, daemon=True)
             self.skw.subscribers.update({'pkt_sbsc_q': self.pkt_sbsc_q})
