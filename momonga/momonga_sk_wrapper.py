@@ -45,6 +45,8 @@ class MomongaSkWrapper:
         self.publisher_th = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
+        # to serialize exec_command() calls that share the serial port and 'cmd_exec_q'.
+        self._cmd_lock = threading.Lock()
 
     @property
     def device_type(self) -> DeviceType:
@@ -191,6 +193,15 @@ class MomongaSkWrapper:
                      timeout: int | None = None,
                      payload: bytes | None = None,
                      ) -> list[str]:
+        with self._cmd_lock:
+            return self.__exec_command_locked(command, wait_until, timeout, payload)
+
+    def __exec_command_locked(self,
+                              command: list[str],
+                              wait_until: str | list[str],
+                              timeout: int | None,
+                              payload: bytes | None,
+                              ) -> list[str]:
         command = ' '.join([c for c in command if c is not None])
 
         if type(wait_until) is str:
