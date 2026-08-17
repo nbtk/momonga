@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 
 class _ReplayableIterator:
-    # a one-shot iterator yields nothing the second time, so remember what it produced
     def __init__(self, source: Iterable[float]) -> None:
         self._source = source
         self._seen: list[float] = []

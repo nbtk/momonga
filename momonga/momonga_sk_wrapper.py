@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
 
-# deliberately generous; it must not fire during a legitimate command
 _SK_COMMAND_LIMIT = 300
 
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
@@ -61,7 +60,6 @@ class MomongaSkWrapper:
         self.publisher_exception = None
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
-        # to serialize exec_command() calls from several threads.
         self._cmd_lock = threading.Lock()
 
     @property
@@ -246,7 +244,6 @@ class MomongaSkWrapper:
                 r = subscriber_q.get(timeout=remaining)
             except queue.Empty:
                 self.__raise_if_publisher_died()
-                # a late response to an abandoned command would desync the next one.
                 raise MomongaNeedToReopen('The module did not respond to a command.'
                                           ' Close Momonga and open it again: %s' % (_mask_secrets(command)))
 
