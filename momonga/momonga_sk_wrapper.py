@@ -2,11 +2,13 @@ import logging
 import threading
 import queue
 import serial
+import time
 
 from typing import Self
 
 from .momonga_exception import (MomongaError,
                                 MomongaTimeoutError,
+                                MomongaNeedToReopen,
                                 MomongaSkCommandUnknownError,
                                 MomongaSkCommandUnsupported,
                                 MomongaSkCommandInvalidArgument,
@@ -29,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
+
+# far above any legitimate command, so it only fires when the module is unresponsive
+_SK_COMMAND_LIMIT = 300
 
 
 class MomongaSkWrapper:
@@ -190,7 +195,7 @@ class MomongaSkWrapper:
     def exec_command(self,
                      command: list[str],
                      wait_until: str | list[str] = 'OK',
-                     timeout: int | None = None,
+                     timeout: int | float | None = _SK_COMMAND_LIMIT,
                      payload: bytes | None = None,
                      ) -> list[str]:
         with self._cmd_lock:
@@ -199,7 +204,7 @@ class MomongaSkWrapper:
     def __exec_command_locked(self,
                               command: list[str],
                               wait_until: str | list[str],
-                              timeout: int | None,
+                              timeout: int | float | None,
                               payload: bytes | None,
                               ) -> list[str]:
         command = ' '.join([c for c in command if c is not None])
@@ -213,15 +218,22 @@ class MomongaSkWrapper:
 
         self.__writeline(command, payload)
 
+        deadline = None if timeout is None else time.monotonic() + timeout
+
         res = []
         while True:
-            r = subscriber_q.get(timeout=timeout)
+            remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
+            try:
+                r = subscriber_q.get(timeout=remaining)
+            except queue.Empty:
+                # a late response to an abandoned command would desync the next one.
+                raise MomongaNeedToReopen('The module did not respond to a command.'
+                                          ' Close Momonga and open it again: %s' % (command))
+
             if r.startswith('ERXUDP'):
                 continue
 
-            if r == '':
-                raise MomongaTimeoutError('The command timed out: %s' % (command))
-            elif r[:4] == 'FAIL':
+            if r[:4] == 'FAIL':
                 self.__raise_fail_response(command, r)
             else:
                 res.append(r)
