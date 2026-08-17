@@ -77,7 +77,7 @@ class MomongaSkWrapper:
         self.close()
 
     def open(self) -> Self:
-        self.ser = serial.Serial(self.dev, self.baudrate)
+        self.ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
 
         try:
             # to drop garbage data in the buffer.
