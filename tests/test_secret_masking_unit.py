@@ -60,7 +60,7 @@ class TestOutboundLog(unittest.TestCase):
 class TestInboundLog(unittest.TestCase):
 
     def test_echoed_password_is_not_logged(self):
-        # open() leaves echoback enabled
+        # open() does not disable echoback
         skw = _make_skw()
         skw.ser.readline.return_value = ('SKSETPWD %X %s\r\n' % (len(PWD), PWD)).encode()
 

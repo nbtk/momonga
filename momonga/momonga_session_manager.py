@@ -75,9 +75,6 @@ class MomongaSessionManager:
                 # to reset the specified wi-sun module.
                 self.skw.skreset()
 
-            # to disable echoback.
-            # self.sksreg('SFE', '0')
-
             # to show the rssi of the received packets.
             self.skw.sksreg('SA2', '1')
 
