@@ -580,7 +580,9 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 ```
 
 # AsyncMomonga
-`AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。内部的に`asyncio.to_thread()`を使用しており、`Momonga`のブロッキング処理をイベントループをブロックせずに実行できます。
+`AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。`Momonga`のブロッキング処理はインスタンスごとに持つスレッドプールで実行されるため、イベントループをブロックしません。プロセスで共有されるデフォルトのexecutorは使いません。
+
+スレッドプールは`async with`文を抜けるときに停止します。抜けたあとのインスタンスは再利用できません。
 
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
 AsyncMomongaクラスのインスタンス化。引数は`Momonga`と同じ。

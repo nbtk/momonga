@@ -5,6 +5,7 @@ Run:
   python -m unittest tests/test_async_cancellation_unit.py -v
 """
 import asyncio
+import threading
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -196,6 +197,75 @@ class TestTheTimeoutContractIsUnchanged(unittest.IsolatedAsyncioTestCase):
             got = await amo.get_notification(timeout=5)
 
         self.assertIsNotNone(got)
+
+
+class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
+
+    async def test_work_does_not_run_on_the_default_executor(self):
+        amo, _sm = _make_amo()
+        names = []
+        amo._sync.get_notification = lambda timeout=None: names.append(
+            threading.current_thread().name)
+
+        await amo.get_notification(timeout=0)
+
+        self.assertEqual(len(names), 1)
+        self.assertTrue(names[0].startswith('momonga'), names[0])
+
+    async def test_two_instances_do_not_share_a_pool(self):
+        first, _ = _make_amo()
+        second, _ = _make_amo()
+
+        self.assertIsNot(first._executor, second._executor)
+
+    async def test_leaving_the_context_manager_shuts_the_pool_down(self):
+        amo, _sm = _make_amo()
+        amo._sync.open = lambda: amo._sync
+        amo._sync.close = lambda: None
+
+        async with amo:
+            pass
+
+        with self.assertRaises(MomongaRuntimeError):  # no new work after shutdown
+            await amo.get_notification(timeout=0)
+
+    async def test_the_pool_is_shut_down_even_if_close_raises(self):
+        amo, _sm = _make_amo()
+
+        def failing_close():
+            raise OSError('port gone')
+
+        amo._sync.close = failing_close
+        amo._sync.open = lambda: amo._sync
+
+        with self.assertRaises(OSError):
+            async with amo:
+                pass
+
+        self.assertTrue(amo._executor._shutdown)
+
+
+    async def test_a_reader_still_running_at_exit_is_told_momonga_closed(self):
+        amo, sm = _make_amo()
+        amo._sync.open = lambda: amo._sync
+        amo._sync.close = lambda: None
+        seen = []
+
+        async def consume():
+            try:
+                async for notif in amo.notifications(timeout=5):
+                    seen.append(notif)
+            except Exception as e:
+                seen.append(type(e).__name__)
+
+        with patch(POLL, 0.1):
+            async with amo:
+                reader = asyncio.create_task(consume())
+                await asyncio.sleep(0.2)
+            await asyncio.sleep(0.4)
+
+        reader.cancel()
+        self.assertEqual(seen, ['MomongaRuntimeError'])
 
 
 if __name__ == '__main__':
