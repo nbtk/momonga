@@ -20,6 +20,8 @@ class AsyncMomonga:
                  reopen_delays: Iterable[float] | None = None,
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays)
+        self._orphaned: dict | None = None
+        self._orphaned_session = None
 
     async def __aenter__(self) -> Self:
         await asyncio.to_thread(self._sync.open)
@@ -40,16 +42,36 @@ class AsyncMomonga:
     async def get_notification(self,
                                timeout: int | float | None = None,
                                ) -> dict | None:
+        if self._orphaned is not None:
+            notif, self._orphaned = self._orphaned, None
+            if (self._sync.is_open
+                    and self._sync.session_manager is self._orphaned_session):
+                return notif
+
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             poll = _NOTIFICATION_POLL
             if deadline is not None:
                 poll = min(poll, max(0.0, deadline - time.monotonic()))
-            notif = await asyncio.to_thread(self._sync.get_notification, poll)
+            reading = asyncio.ensure_future(
+                asyncio.to_thread(self._sync.get_notification, poll))
+            try:
+                notif = await asyncio.shield(reading)
+            except asyncio.CancelledError:
+                reading.add_done_callback(self._keep_what_was_read)
+                raise
             if notif is not None:
                 return notif
             if deadline is not None and time.monotonic() >= deadline:
                 return None
+
+    def _keep_what_was_read(self, reading: asyncio.Future) -> None:
+        if reading.cancelled() or reading.exception() is not None:
+            return
+        notif = reading.result()
+        if notif is not None:
+            self._orphaned = notif
+            self._orphaned_session = self._sync.session_manager
 
     async def notifications(self,
                             timeout: int | float = 60,

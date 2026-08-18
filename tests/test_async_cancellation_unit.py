@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from momonga.momonga_async import AsyncMomonga
+from momonga.momonga_exception import MomongaRuntimeError
 from momonga.momonga_session_manager import MomongaSessionManager
 
 POLL = 'momonga.momonga_async._NOTIFICATION_POLL'
@@ -83,6 +84,79 @@ class TestACancelledReadReleasesItsWorker(unittest.IsolatedAsyncioTestCase):
             got = await asyncio.wait_for(t, timeout=5)
 
         self.assertIsNotNone(got)
+
+
+class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestCase):
+
+    @staticmethod
+    def _slow_read(amo, notif):
+        def read(timeout=None):
+            time.sleep(0.2)  # long enough for the caller to give up first
+            return notif
+        amo._sync.get_notification = read
+
+    async def test_the_next_call_gets_what_the_cancelled_one_took(self):
+        amo, _sm = _make_amo()
+        taken = {'esv': 'INF', 'properties': {}}
+        self._slow_read(amo, taken)
+
+        t = asyncio.create_task(amo.get_notification(timeout=None))
+        await asyncio.sleep(0.05)
+        t.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await t
+
+        await asyncio.sleep(0.4)  # the read the caller abandoned finishes
+        self.assertIs(await amo.get_notification(timeout=0), taken)
+
+    async def test_it_is_handed_over_only_once(self):
+        amo, _sm = _make_amo()
+        taken = {'esv': 'INF', 'properties': {}}
+        self._slow_read(amo, taken)
+
+        t = asyncio.create_task(amo.get_notification(timeout=None))
+        await asyncio.sleep(0.05)
+        t.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await t
+        await asyncio.sleep(0.4)
+
+        self.assertIs(await amo.get_notification(timeout=0), taken)
+        amo._sync.get_notification = lambda timeout=None: None
+        self.assertIsNone(await amo.get_notification(timeout=0))
+
+    async def test_a_cancelled_read_that_took_nothing_keeps_nothing(self):
+        amo, _sm = _make_amo()
+
+        with patch(POLL, 0.2):
+            t = asyncio.create_task(amo.get_notification(timeout=None))
+            await asyncio.sleep(0.05)
+            t.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await t
+            await asyncio.sleep(0.5)
+
+        self.assertIsNone(amo._orphaned)
+
+
+class TestWhatIsHeldBelongsToOneSession(unittest.IsolatedAsyncioTestCase):
+
+    async def test_a_closed_momonga_is_refused_rather_than_handed_it(self):
+        amo, _sm = _make_amo()
+        amo._orphaned = {'esv': 'INF', 'properties': {}}
+        amo._orphaned_session = amo._sync.session_manager
+        amo._sync.is_open = False
+
+        with self.assertRaises(MomongaRuntimeError):
+            await amo.get_notification(timeout=0)
+
+    async def test_a_rebuilt_session_does_not_inherit_it(self):
+        amo, _sm = _make_amo()
+        amo._orphaned = {'esv': 'INF', 'properties': {}}
+        amo._orphaned_session = object()  # the session it was read from is gone
+
+        self.assertIsNone(await amo.get_notification(timeout=0))
+        self.assertIsNone(amo._orphaned)
 
 
 class TestTheTimeoutContractIsUnchanged(unittest.IsolatedAsyncioTestCase):
