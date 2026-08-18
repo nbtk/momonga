@@ -237,6 +237,15 @@ PANAセッションを終了する。
 ### Return Value
 - None
 
+## momonga.reopen()
+PANAセッションを一度終了し、張り直す。`MomongaNeedToReopen`を受け取ったあとに手動で再接続するときに使う。reopen_delaysを指定している場合は自動で呼ばれるので、通常は直接呼ぶ必要はない。
+
+再接続のあいだmomonga.is_openはFalseになる。この間に他のスレッドから発行されたリクエストは`MomongaNeedToReopen`となり、reopen_delaysを指定していれば再接続の完了後に自動で再試行される。momonga.get_notification()は再接続の完了を待ってから新しいセッションの通知を返す。
+### Arguments
+- Void
+### Return Value
+- None
+
 ## momonga.get_operation_status()
 スマートメーターの状態を取得する。
 ### Arguments
@@ -521,6 +530,27 @@ e.g.
 ```python3
 {'timestamp': datetime.datetime | None,
  'number of data points': int}
+```
+
+## momonga.request_to_set(day_for_historical_data_1: dict | None = None, time_for_historical_data_2: dict | None = None, time_for_historical_data_3: dict | None = None)
+複数のEchonetプロパティを一括設定するためのインタフェース。指定した引数だけが1回のリクエストにまとめられる。すべてNoneのときは何も送信しない。
+### Arguments
+- day_for_historical_data_1: momonga.set_day_for_historical_data_1()に渡す引数
+- time_for_historical_data_2: momonga.set_time_for_historical_data_2()に渡す引数
+- time_for_historical_data_3: momonga.set_time_for_historical_data_3()に渡す引数
+### Return Value
+- None
+
+e.g.
+```python3
+import datetime
+
+with momonga.Momonga(rbid, pwd, dev) as mo:
+    mo.request_to_set(
+        day_for_historical_data_1={'day': 1},
+        time_for_historical_data_2={'timestamp': datetime.datetime.now(),
+                                    'num_of_data_points': 12},
+    )
 ```
 
 ## momonga.request_to_get()
