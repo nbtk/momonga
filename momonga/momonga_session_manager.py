@@ -13,7 +13,6 @@ from .momonga_exception import (MomongaSkScanFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
 from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
-from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
