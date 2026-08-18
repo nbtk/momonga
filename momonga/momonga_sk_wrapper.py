@@ -41,10 +41,10 @@ PUBLISHER_STOPPED = _PublisherStopped()
 
 class _CommandsCancelled:
     def __repr__(self) -> str:
-        return 'COMMANDS_CANCELLED'
+        return '_COMMANDS_CANCELLED'
 
 
-COMMANDS_CANCELLED = _CommandsCancelled()
+_COMMANDS_CANCELLED = _CommandsCancelled()
 
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
@@ -230,7 +230,7 @@ class MomongaSkWrapper:
 
     def cancel_commands(self) -> None:
         self._cancelled = True
-        self.subscribers['cmd_exec_q'].put(COMMANDS_CANCELLED)
+        self.subscribers['cmd_exec_q'].put(_COMMANDS_CANCELLED)
         logger.warning('SK command execution has been cancelled.')
 
     def exec_command(self,
@@ -280,7 +280,7 @@ class MomongaSkWrapper:
                     self._raise_if_publisher_died()
                     raise MomongaNeedToReopen('The packet publisher has stopped.'
                                               ' Close Momonga and open it again.')
-                if r is COMMANDS_CANCELLED:
+                if r is _COMMANDS_CANCELLED:
                     raise MomongaSkCommandCancelled('The command was cancelled: %s'
                                                     % (_mask_secrets(command)))
             except queue.Empty:
