@@ -587,6 +587,8 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
 AsyncMomongaクラスのインスタンス化。引数は`Momonga`と同じ。
 
+momonga.xmit_retries、momonga.recv_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficientは読み取りのみです。
+
 `async with`文による使用を推奨します。
 
 ```python3

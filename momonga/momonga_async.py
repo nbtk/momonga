@@ -35,6 +35,42 @@ class AsyncMomonga:
         except RuntimeError as e:
             raise MomongaRuntimeError('Momonga is not open.') from e
 
+    @property
+    def xmit_retries(self) -> int:
+        return self._sync.xmit_retries
+
+    @xmit_retries.setter
+    def xmit_retries(self, value: int) -> None:
+        self._sync.xmit_retries = value
+
+    @property
+    def recv_timeout(self) -> int | float:
+        return self._sync.recv_timeout
+
+    @recv_timeout.setter
+    def recv_timeout(self, value: int | float) -> None:
+        self._sync.recv_timeout = value
+
+    @property
+    def internal_xmit_interval(self) -> int | float:
+        return self._sync.internal_xmit_interval
+
+    @internal_xmit_interval.setter
+    def internal_xmit_interval(self, value: int | float) -> None:
+        self._sync.internal_xmit_interval = value
+
+    @property
+    def is_open(self) -> bool:
+        return self._sync.is_open
+
+    @property
+    def energy_unit(self) -> int | float:
+        return self._sync.energy_unit
+
+    @property
+    def energy_coefficient(self) -> int:
+        return self._sync.energy_coefficient
+
     async def __aenter__(self) -> Self:
         await self._run(self._sync.open)
         return self

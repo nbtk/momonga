@@ -268,5 +268,33 @@ class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen, ['MomongaRuntimeError'])
 
 
+class TestTheSyncSettingsAreReachable(unittest.IsolatedAsyncioTestCase):
+
+    async def test_the_tunables_read_and_write_through(self):
+        amo, _sm = _make_amo()
+
+        amo.recv_timeout = 30
+        amo.xmit_retries = 3
+        amo.internal_xmit_interval = 1
+
+        self.assertEqual(amo._sync.recv_timeout, 30)
+        self.assertEqual(amo._sync.xmit_retries, 3)
+        self.assertEqual(amo._sync.internal_xmit_interval, 1)
+        self.assertEqual(amo.recv_timeout, 30)
+
+    async def test_the_state_is_readable_but_not_settable(self):
+        amo, _sm = _make_amo()
+        amo._sync.energy_unit = 0.1
+        amo._sync.energy_coefficient = 3
+
+        self.assertTrue(amo.is_open)
+        self.assertEqual(amo.energy_unit, 0.1)
+        self.assertEqual(amo.energy_coefficient, 3)
+
+        for name in ('is_open', 'energy_unit', 'energy_coefficient'):
+            with self.assertRaises(AttributeError):
+                setattr(amo, name, 1)
+
+
 if __name__ == '__main__':
     unittest.main()
