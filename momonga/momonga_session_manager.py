@@ -29,6 +29,8 @@ _REJOIN_LOCK_LIMIT = 120
 
 _SKTERM_LOCK_LIMIT = 30
 
+_RECEIVER_JOIN_LIMIT = 30
+
 
 class MomongaSessionManager:
     def __init__(self,
@@ -122,8 +124,7 @@ class MomongaSessionManager:
                 logger.error('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
                 raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.') from e
 
-            while not self._pkt_sbsc_q.empty():
-                self._pkt_sbsc_q.get()
+            self._pkt_sbsc_q = queue.Queue()
             while not self.recv_q.empty():
                 self.recv_q.get()
             while not self.notif_q.empty():
@@ -167,7 +168,10 @@ class MomongaSessionManager:
         if self._receiver_th is not None:
             if self._receiver_th.is_alive():
                 self._pkt_sbsc_q.put('__CLOSE__')  # to close the receiver thread.
-                self._receiver_th.join()
+                self._receiver_th.join(timeout=_RECEIVER_JOIN_LIMIT)
+                if self._receiver_th.is_alive():
+                    logger.warning('The packet receiver is still running. It is inside'
+                                   ' on_meter_frame and will stop when that returns.')
             self._receiver_th = None
 
         if self.skw.subscribers.get('pkt_sbsc_q') is not None:
@@ -184,9 +188,10 @@ class MomongaSessionManager:
 
     def _receiver(self) -> None:
         logger.debug('A packet receiver has been started.')
+        pkt_sbsc_q = self._pkt_sbsc_q
         try:
             while True:
-                raw = self._pkt_sbsc_q.get()
+                raw = pkt_sbsc_q.get()
                 if raw == '__CLOSE__':
                     break
                 if raw is PUBLISHER_STOPPED:
