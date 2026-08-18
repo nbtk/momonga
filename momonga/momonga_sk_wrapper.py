@@ -254,6 +254,8 @@ class MomongaSkWrapper:
                 r = subscriber_q.get(timeout=remaining)
                 if r is PUBLISHER_STOPPED:
                     self._raise_if_publisher_died()
+                    raise MomongaNeedToReopen('The packet publisher has stopped.'
+                                              ' Close Momonga and open it again.')
             except queue.Empty:
                 self._raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'

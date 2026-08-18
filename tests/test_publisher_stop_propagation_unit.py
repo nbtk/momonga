@@ -106,6 +106,17 @@ class TestCommandsFailAtOnce(unittest.TestCase):
 
         self.assertLess(elapsed, 1.0)
 
+    def test_the_sentinel_alone_ends_the_command(self):
+        skw = _make_skw()
+        cmd_exec_q = skw.subscribers['cmd_exec_q']
+
+        def fake_writeline(line, payload=None):
+            cmd_exec_q.put(PUBLISHER_STOPPED)  # nothing recorded in publisher_exception
+
+        with patch.object(skw, WRITELINE, fake_writeline):
+            with self.assertRaises(MomongaNeedToReopen):
+                skw.exec_command(['SKVER'], timeout=30)
+
 
 if __name__ == '__main__':
     unittest.main()
