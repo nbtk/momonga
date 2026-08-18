@@ -1,10 +1,13 @@
 import asyncio
 import datetime
+import time
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any, Self
 
 from .momonga import Momonga
 from .momonga_echonet_enum import EchonetPropertyCode
+
+_NOTIFICATION_POLL = 1
 
 
 class AsyncMomonga:
@@ -37,7 +40,16 @@ class AsyncMomonga:
     async def get_notification(self,
                                timeout: int | float | None = None,
                                ) -> dict | None:
-        return await asyncio.to_thread(self._sync.get_notification, timeout)
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            poll = _NOTIFICATION_POLL
+            if deadline is not None:
+                poll = min(poll, max(0.0, deadline - time.monotonic()))
+            notif = await asyncio.to_thread(self._sync.get_notification, poll)
+            if notif is not None:
+                return notif
+            if deadline is not None and time.monotonic() >= deadline:
+                return None
 
     async def notifications(self,
                             timeout: int | float = 60,
