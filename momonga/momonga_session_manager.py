@@ -125,6 +125,7 @@ class MomongaSessionManager:
             while not self.notif_q.empty():
                 self.notif_q.get()
 
+            self.receiver_exception = None
             self._receiver_th = threading.Thread(target=self._receiver, daemon=True)
             self.skw.subscribers.update({'pkt_sbsc_q': self._pkt_sbsc_q})
             self._receiver_th.start()
