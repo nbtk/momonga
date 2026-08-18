@@ -15,10 +15,7 @@ from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
 
 def _make_skw():
-    skw = object.__new__(MomongaSkWrapper)
-    skw.subscribers = {'cmd_exec_q': queue.Queue()}
-    skw._publisher_th_breaker = False
-    skw.publisher_exception = None
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
     skw._ser = MagicMock()
     skw._ser.readline.return_value = b'EVENT 21 FE80::1 0 00\r\n'
     return skw

@@ -4,7 +4,6 @@ Unit tests for MomongaSkWrapper.exec_command() serialization and command limit.
 Run:
   python -m unittest tests/test_sk_wrapper_unit.py -v
 """
-import queue
 import threading
 import time
 import unittest
@@ -12,7 +11,6 @@ from unittest.mock import MagicMock, patch
 
 import serial
 
-from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandUnsupported
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
@@ -20,13 +18,8 @@ WRITELINE = '_writeline'
 
 
 def _make_skw():
-    skw = object.__new__(MomongaSkWrapper)
-    skw.subscribers = {'cmd_exec_q': queue.Queue()}
-    skw._cmd_lock = threading.Lock()
-    skw.device_strategy = BP35C2Strategy()
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
     skw._ser = MagicMock()
-    skw._publisher_th_breaker = False
-    skw.publisher_exception = None
     return skw
 
 

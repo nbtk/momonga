@@ -14,11 +14,8 @@ INIT = '_init_energy_unit'
 
 
 def _make_mo():
-    mo = object.__new__(Momonga)
+    mo = Momonga('', '', '/dev/ttyUSB0')
     mo.is_open = True
-    mo.internal_xmit_interval = 5
-    mo.energy_unit = 1
-    mo.energy_coefficient = 1
     return mo
 
 

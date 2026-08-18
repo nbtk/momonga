@@ -30,10 +30,8 @@ def _response(*, tid: int, opc: int, properties: bytes) -> bytes:
 
 
 def _make_mo():
-    mo = object.__new__(Momonga)
+    mo = Momonga('', '', '/dev/ttyUSB0')
     mo.is_open = True
-    mo.energy_unit = 1
-    mo.energy_coefficient = 1
     mo.session_manager = MagicMock()
     mo.session_manager.notif_q = queue.Queue()
     return mo

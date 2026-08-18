@@ -6,11 +6,9 @@ Run:
 """
 import logging
 import queue
-import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import (
     MomongaNeedToReopen,
     MomongaSkCommandInvalidArgument,
@@ -23,13 +21,8 @@ WRITELINE = '_writeline'
 
 
 def _make_skw():
-    skw = object.__new__(MomongaSkWrapper)
-    skw.subscribers = {'cmd_exec_q': queue.Queue()}
-    skw._cmd_lock = threading.Lock()
-    skw.device_strategy = BP35C2Strategy()
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
     skw._ser = MagicMock()
-    skw._publisher_th_breaker = False
-    skw.publisher_exception = None
     return skw
 
 

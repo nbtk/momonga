@@ -4,7 +4,6 @@ Unit tests for MomongaSessionManager.xmitter().
 Run:
   python -m unittest tests/test_xmitter_unit.py -v
 """
-import threading
 import unittest
 from unittest.mock import MagicMock, patch, call
 
@@ -17,11 +16,8 @@ from momonga.momonga_session_manager import MomongaSessionManager
 
 
 def _make_sm():
-    sm = object.__new__(MomongaSessionManager)
-    sm._xmit_allowed = threading.Event()
-    sm._xmit_allowed.set()
+    sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
     sm.session_established = True
-    sm.receiver_exception = None
     sm.smart_meter_addr = 'FE80::1'
     sm.skw = MagicMock()
     sm.skw.device_strategy = BP35C2Strategy()

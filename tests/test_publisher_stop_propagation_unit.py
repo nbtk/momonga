@@ -4,7 +4,6 @@ Unit tests for a dead publisher reaching everyone waiting on it.
 Run:
   python -m unittest tests/test_publisher_stop_propagation_unit.py -v
 """
-import queue
 import threading
 import time
 import unittest
@@ -13,7 +12,6 @@ from unittest.mock import MagicMock, patch
 import serial
 
 from momonga.momonga import Momonga
-from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
@@ -22,24 +20,14 @@ WRITELINE = '_writeline'
 
 
 def _make_skw():
-    skw = object.__new__(MomongaSkWrapper)
-    skw.subscribers = {'cmd_exec_q': queue.Queue()}
-    skw._cmd_lock = threading.Lock()
-    skw.device_strategy = BP35C2Strategy()
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
     skw._ser = MagicMock()
-    skw._publisher_th_breaker = False
-    skw.publisher_exception = None
     return skw
 
 
 def _make_sm(skw):
-    sm = object.__new__(MomongaSessionManager)
-    sm.notif_q = queue.Queue()
-    sm.recv_q = queue.Queue()
-    sm._pkt_sbsc_q = queue.Queue()
-    sm.receiver_exception = None
+    sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
     sm.smart_meter_addr = 'FE80::1'
-    sm.on_meter_frame = None
     sm.skw = skw
     skw.subscribers['pkt_sbsc_q'] = sm._pkt_sbsc_q
     return sm

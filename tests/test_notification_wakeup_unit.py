@@ -16,19 +16,7 @@ from momonga.momonga_session_manager import MomongaSessionManager, SESSION_ENDED
 
 
 def _make_sm():
-    sm = object.__new__(MomongaSessionManager)
-    sm.notif_q = queue.Queue()
-    sm.recv_q = queue.Queue()
-    sm._pkt_sbsc_q = queue.Queue()
-    sm.receiver_exception = None
-    sm._receiver_th = None
-    sm.session_established = False
-    sm._rejoin_lock = threading.Lock()
-    sm._gate_lock = threading.Lock()
-    sm._session_available = True
-    sm._rate_ok = True
-    sm._xmit_allowed = threading.Event()
-    sm._xmit_allowed.set()
+    sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
     sm.smart_meter_addr = 'FE80::1'
     sm.skw = MagicMock()
     sm.skw.subscribers = {}

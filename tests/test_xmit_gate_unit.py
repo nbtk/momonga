@@ -10,7 +10,6 @@ Transmission is allowed only when BOTH gates are open.
 Run:
   python -m unittest tests/test_xmit_gate_unit.py -v
 """
-import queue
 import threading
 import unittest
 from unittest.mock import MagicMock
@@ -20,20 +19,9 @@ from momonga.momonga_session_manager import MomongaSessionManager
 
 
 def _make_sm():
-    sm = object.__new__(MomongaSessionManager)
-    sm._pkt_sbsc_q = queue.Queue()
-    sm.recv_q = queue.Queue()
-    sm.notif_q = queue.Queue()
-    sm._gate_lock = threading.Lock()
-    sm._session_available = True
-    sm._rate_ok = True
-    sm._xmit_allowed = threading.Event()
-    sm._xmit_allowed.set()
+    sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
     sm.session_established = True
-    sm.receiver_exception = None
     sm.smart_meter_addr = 'FE80::1'
-    sm.on_meter_frame = None
-    sm._rejoin_lock = threading.Lock()
     sm.skw = MagicMock()
     sm.skw.device_strategy = BP35C2Strategy()
     return sm

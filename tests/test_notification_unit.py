@@ -239,10 +239,8 @@ def _make_echonet_frame(esv: int, epc: int, edt: bytes) -> bytes:
 class TestGetNotification(unittest.TestCase):
 
     def _make_momonga(self):
-        mo = object.__new__(Momonga)
+        mo = Momonga('', '', '/dev/ttyUSB0')
         mo.is_open = True
-        mo.energy_unit = 1
-        mo.energy_coefficient = 1
         mo.session_manager = MagicMock()
         return mo
 
@@ -323,7 +321,7 @@ class TestAsyncMomonga(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         self.mock_sync = MagicMock()
-        self.async_mo = object.__new__(AsyncMomonga)
+        self.async_mo = AsyncMomonga('', '', '/dev/ttyUSB0')
         self.async_mo._sync = self.mock_sync
 
     async def test_open_delegates_to_sync(self):
@@ -412,17 +410,8 @@ class TestReceiverRouting(unittest.TestCase):
     def _make_session_manager(self):
         from momonga.momonga_session_manager import MomongaSessionManager
         from momonga.momonga_echonet_enum import EchonetServiceCode, SMART_METER_EOJ
-        sm = object.__new__(MomongaSessionManager)
-        sm._pkt_sbsc_q = queue.Queue()
-        sm.recv_q = queue.Queue()
-        sm.notif_q = queue.Queue()
-        sm._gate_lock = threading.Lock()
-        sm._session_available = True
-        sm._rate_ok = True
-        sm._xmit_allowed = threading.Event()
-        sm._xmit_allowed.set()
+        sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
         sm.session_established = True
-        sm.receiver_exception = None
         sm.smart_meter_addr = 'FE80::1'
         sm.skw = MagicMock()
         sm.skw.device_strategy = BP35C2Strategy()

@@ -15,9 +15,7 @@ WOPT = '_exec_wopt'
 
 
 def _make_skw():
-    skw = object.__new__(MomongaSkWrapper)
-    skw.dev = '/dev/ttyUSB0'
-    skw.baudrate = 115200
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
     skw._ser = MagicMock()
     return skw
 
