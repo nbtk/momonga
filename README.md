@@ -203,6 +203,26 @@ momonga.Momonga(rbid, pwd, dev, reopen_delays=[600.0, 600.0, 600.0])
 momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 ```
 
+## momonga.xmit_retries
+ひとつのリクエストを送り直す回数の上限。使い切ると`MomongaNeedToReopen`を送出する。既定値は12。
+
+## momonga.recv_timeout
+1回の送信に対して応答を待つ秒数。超えると送り直す。既定値は12。
+
+スマートメーターが応答しないとき、ひとつのリクエストを諦めるまでにかかる時間はおおむねmomonga.xmit_retriesとmomonga.recv_timeoutの積になる。既定値では約144秒。
+
+## momonga.internal_xmit_interval
+momongaが続けて送信するときに空ける秒数。momonga.open()のなかの積算電力量の単位と係数の取得、および応答が得られなかったリクエストの送り直しに使われる。既定値は5。
+
+これら3つはインスタンス化したあとに変更できる。
+
+e.g.
+```python3
+mo = momonga.Momonga(rbid, pwd, dev)
+mo.recv_timeout = 30  # 応答の遅いスマートメーターに合わせて延ばす
+mo.xmit_retries = 3   # 早めに諦めてreopen_delaysの再接続に任せる
+```
+
 ## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　
 ### Arguments
