@@ -61,6 +61,9 @@ class TestCloseWakesTheReader(unittest.TestCase):
             mo.get_notification(timeout=1)
 
 
+NOTIF_FRAME = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01\x73\x01\xe7\x04\x00\x00\x00\x64'
+
+
 class TestReopenWakesTheReader(unittest.TestCase):
 
     def test_reader_moves_to_the_queue_of_the_new_session(self):
@@ -71,27 +74,54 @@ class TestReopenWakesTheReader(unittest.TestCase):
 
         def read_twice():
             result.append(mo.get_notification(timeout=None))   # blocked on the old queue
-            result.append(mo.get_notification(timeout=5))      # must read the new queue
+            try:
+                result.append(mo.get_notification(timeout=5))  # spans the reopen window
+            except Exception as e:
+                result.append(e)
 
         reader = threading.Thread(target=read_twice, daemon=True)
         reader.start()
         time.sleep(0.05)
 
-        with patch.object(mo, 'close', side_effect=lambda: old.close()), \
-             patch.object(mo, 'open'):
-            with patch('momonga.momonga.MomongaSessionManager', return_value=new):
-                mo._rbid = mo._pwd = mo._dev = ''
-                mo._baudrate = 115200
-                mo._reset_dev = True
-                mo.reopen()
+        def slow_open():
+            time.sleep(0.3)  # stands in for skscan and skjoin
+            mo.is_open = True
+
+        with patch.object(mo, 'open', slow_open), \
+             patch('momonga.momonga.MomongaSessionManager', return_value=new):
+            mo.reopen()
 
         frame = MagicMock()
-        frame.data = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01\x73\x01\xe7\x04\x00\x00\x00\x64'
+        frame.data = NOTIF_FRAME
         new.notif_q.put(frame)
         reader.join(5)
 
-        self.assertIsNone(result[0])          # woken by the old session closing
-        self.assertIsNotNone(result[1])       # read from the new session
+        self.assertIsNone(result[0])                    # woken by the old session closing
+        self.assertNotIsInstance(result[1], Exception)  # not refused mid-reopen
+        self.assertIsNotNone(result[1])                 # read from the new session
+
+    def test_a_read_that_runs_out_of_time_mid_reopen_returns_none(self):
+        mo = _make_mo(_make_sm())
+        mo.is_open = False
+        mo._reopen_done.clear()  # a reopen is in flight and will not finish in time
+
+        try:
+            self.assertIsNone(mo.get_notification(timeout=0.1))
+        finally:
+            mo._reopen_done.set()
+
+    def test_a_failed_reopen_is_reported_at_once(self):
+        mo = _make_mo(_make_sm())
+
+        with patch.object(mo, 'open', side_effect=OSError('no device')), \
+             patch('momonga.momonga.MomongaSessionManager', return_value=_make_sm()):
+            with self.assertRaises(OSError):
+                mo.reopen()
+
+        started = time.monotonic()
+        with self.assertRaises(MomongaRuntimeError):
+            mo.get_notification(timeout=5)
+        self.assertLess(time.monotonic() - started, 1)  # not waited out
 
 
 class TestReceiverDeathIsReported(unittest.TestCase):

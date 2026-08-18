@@ -66,6 +66,8 @@ class Momonga:
         self.reopen_delays: Iterable[float] | None = reopen_delays
         self._request_lock: threading.Lock = threading.Lock()
         self._reopen_lock: threading.Lock = threading.Lock()
+        self._reopen_done: threading.Event = threading.Event()
+        self._reopen_done.set()
         self._local: threading.local = threading.local()
         self._rbid: str = rbid
         self._pwd: str = pwd
@@ -126,6 +128,7 @@ class Momonga:
     def reopen(self) -> None:
         logger.info('Reopening Momonga session.')
         self._local.reopening = True
+        self._reopen_done.clear()
         try:
             try:
                 self.close()
@@ -138,6 +141,7 @@ class Momonga:
             self.open()
         finally:
             self._local.reopening = False
+            self._reopen_done.set()
         logger.info('Momonga session reopened successfully.')
 
     @staticmethod
@@ -151,15 +155,29 @@ class Momonga:
                 return False
         return True
 
+    @staticmethod
+    def _remaining(deadline: int | float | None) -> float | None:
+        return None if deadline is None else max(0.0, deadline - time.monotonic())
+
+    def _reopen_in_progress(self) -> bool:
+        return not self._reopen_done.is_set() and not getattr(self._local, 'reopening', False)
+
     def get_notification(self, timeout: int | float | None = None) -> dict | None:
+        deadline = None if timeout is None else time.monotonic() + timeout
+
         if not self.is_open:
-            raise MomongaRuntimeError('Momonga is not open.')
+            if not self._reopen_in_progress():
+                raise MomongaRuntimeError('Momonga is not open.')
+            if not self._reopen_done.wait(timeout=self._remaining(deadline)):
+                return None
+            if not self.is_open:
+                raise MomongaRuntimeError('Momonga is not open.')
 
         session_manager = self.session_manager
         session_manager.raise_if_receiver_died()
 
         try:
-            frame = session_manager.notif_q.get(timeout=timeout)
+            frame = session_manager.notif_q.get(timeout=self._remaining(deadline))
         except queue.Empty:
             return None
 
@@ -337,6 +355,8 @@ class Momonga:
                   ) -> list[EchonetPropertyWithData]:
         logger.debug('Checking if Momonga is open: is_open=%s', self.is_open)
         if not self.is_open:
+            if self._reopen_in_progress():
+                raise MomongaNeedToReopen('A reopen of the Momonga session is in progress.')
             raise MomongaRuntimeError('Momonga is not open.')
 
         with self._request_lock:
@@ -420,6 +440,7 @@ class Momonga:
         if self.reopen_delays is None or getattr(self._local, 'reopening', False):
             return self._request(esv, req_properties)
 
+        failed_session_manager = self.session_manager
         try:
             return self._request(esv, req_properties)
         except MomongaNeedToReopen as initial_err:
@@ -431,7 +452,6 @@ class Momonga:
             if delay < 0:
                 raise MomongaValueError('reopen_delays must not contain negative values.')
 
-            failed_session_manager = self.session_manager
             time.sleep(delay)
             try:
                 self._reopen_once(failed_session_manager)
@@ -443,6 +463,7 @@ class Momonga:
                 logger.warning('Reopen attempt failed after waiting %s seconds: %s: %s',
                                delay, type(err).__name__, err)
                 last_error = MomongaNeedToReopen(str(err))
+            failed_session_manager = self.session_manager
 
         logger.error('All reopen attempts exhausted.')
         raise last_error

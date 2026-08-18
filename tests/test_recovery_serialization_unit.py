@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from momonga.momonga import Momonga
-from momonga.momonga_exception import MomongaNeedToReopen
+from momonga.momonga_exception import MomongaNeedToReopen, MomongaRuntimeError
 
 REQUEST = '_request'
 # these tests patch time.sleep on the time module itself
@@ -128,6 +128,66 @@ class TestRecoveryDoesNotRecurse(unittest.TestCase):
                 mo.reopen()
 
         self.assertFalse(getattr(mo._local, 'reopening', False))
+
+
+class TestRequestsDuringAReopen(unittest.TestCase):
+
+    def test_a_request_hands_the_reopen_to_the_recovery_loop(self):
+        mo = _make_mo(None)
+        mo.is_open = False
+        mo._reopen_done.clear()  # a reopen is in flight
+
+        try:
+            with self.assertRaises(MomongaNeedToReopen):
+                mo._request(None, [])
+        finally:
+            mo._reopen_done.set()
+
+    def test_a_closed_momonga_is_still_refused_as_a_runtime_error(self):
+        mo = _make_mo(None)
+        mo.is_open = False
+
+        started = time.monotonic()
+        with self.assertRaises(MomongaRuntimeError):
+            mo._request(None, [])
+        self.assertLess(time.monotonic() - started, 1)  # not waited out
+
+    def test_the_reopening_thread_is_not_refused_by_its_own_reopen(self):
+        mo = _make_mo(None)
+        mo.is_open = False
+        mo._reopen_done.clear()
+        outcome = []
+
+        def run():
+            mo._local.reopening = True  # thread local, so it has to be set in here
+            try:
+                mo._request(None, [])
+            except Exception as e:
+                outcome.append(type(e).__name__)
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(2)
+        mo._reopen_done.set()
+
+        self.assertEqual(outcome, ['MomongaRuntimeError'])
+
+    def test_a_session_rebuilt_before_the_request_is_not_rebuilt_again(self):
+        mo = _make_mo([0.0])
+        calls = []
+        rebuilt = object()
+
+        def fail_then_swap(*_args):
+            mo.session_manager = rebuilt  # another thread finished a reopen
+            raise MomongaNeedToReopen('a reopen is in progress')
+
+        with patch.object(Momonga, REQUEST, side_effect=fail_then_swap), \
+             patch.object(mo, 'reopen', lambda: calls.append(1)), \
+             patch('momonga.momonga.time.sleep'):
+            with self.assertRaises(MomongaNeedToReopen):
+                mo.get_instantaneous_power()
+
+        self.assertEqual(calls, [])
 
 
 if __name__ == '__main__':
