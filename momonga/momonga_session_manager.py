@@ -25,6 +25,10 @@ class _SessionEnded:
 
 SESSION_ENDED = _SessionEnded()
 
+_REJOIN_LOCK_LIMIT = 120
+
+_SKTERM_LOCK_LIMIT = 30
+
 
 class MomongaSessionManager:
     def __init__(self,
@@ -140,7 +144,7 @@ class MomongaSessionManager:
     def close(self) -> None:
         logger.info('Closing the Momonga session...')
 
-        rejoin_lock_acquired = self._rejoin_lock.acquire(timeout=120)
+        rejoin_lock_acquired = self._rejoin_lock.acquire(timeout=_REJOIN_LOCK_LIMIT)
         if not rejoin_lock_acquired:
             logger.warning('Failed to acquire "_rejoin_lock".')
 
@@ -148,7 +152,7 @@ class MomongaSessionManager:
             try:
                 self.session_established = False
                 logger.info('Terminating the PANA session...')
-                self.skw.skterm()
+                self.skw.skterm(lock_timeout=_SKTERM_LOCK_LIMIT)
             except Exception as e:
                 logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
             finally:
@@ -157,6 +161,8 @@ class MomongaSessionManager:
         else:
             if rejoin_lock_acquired:
                 self._rejoin_lock.release()
+
+        self.skw.cancel_commands()
 
         if self._receiver_th is not None:
             if self._receiver_th.is_alive():

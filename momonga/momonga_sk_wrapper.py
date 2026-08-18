@@ -15,6 +15,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkCommandInvalidSyntax,
                                 MomongaSkCommandSerialInputError,
                                 MomongaSkCommandFailedToExecute,
+                                MomongaSkCommandCancelled,
                                 MomongaSkScanFailure,
                                 MomongaSkJoinFailure)
 from .momonga_response import (DeviceStrategy,
@@ -36,6 +37,14 @@ class _PublisherStopped:
 
 
 PUBLISHER_STOPPED = _PublisherStopped()
+
+
+class _CommandsCancelled:
+    def __repr__(self) -> str:
+        return 'COMMANDS_CANCELLED'
+
+
+COMMANDS_CANCELLED = _CommandsCancelled()
 
 # BP35A1 returns this value for the SKINFO side field (not a real side index)
 _BP35A1_SIDE_SENTINEL = 0xFFFE
@@ -69,6 +78,7 @@ class MomongaSkWrapper:
         self.subscribers = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
         self._cmd_lock = threading.Lock()
+        self._cancelled = False
 
     @property
     def device_type(self) -> DeviceType:
@@ -106,6 +116,7 @@ class MomongaSkWrapper:
 
         self._publisher_th_breaker = False  # set True when you want to stop the publisher.
         self.publisher_exception = None
+        self._cancelled = False
         self._publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
         self._publisher_th.start()
 
@@ -217,14 +228,26 @@ class MomongaSkWrapper:
         logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
         self._ser.flush()
 
+    def cancel_commands(self) -> None:
+        self._cancelled = True
+        self.subscribers['cmd_exec_q'].put(COMMANDS_CANCELLED)
+        logger.warning('SK command execution has been cancelled.')
+
     def exec_command(self,
                      command: list[str],
                      wait_until: str | list[str] = 'OK',
                      timeout: int | float | None = _SK_COMMAND_LIMIT,
                      payload: bytes | None = None,
+                     lock_timeout: int | float = -1,
                      ) -> list[str]:
-        with self._cmd_lock:
+        if not self._cmd_lock.acquire(timeout=lock_timeout):
+            raise MomongaSkCommandCancelled('Another SK command is still running: %s'
+                                            % (_mask_secrets(' '.join(
+                                                c for c in command if c is not None))))
+        try:
             return self._exec_command_locked(command, wait_until, timeout, payload)
+        finally:
+            self._cmd_lock.release()
 
     def _exec_command_locked(self,
                               command: list[str],
@@ -238,6 +261,7 @@ class MomongaSkWrapper:
             wait_until = [wait_until]
 
         self._raise_if_publisher_died()
+        self._raise_if_cancelled()
 
         subscriber_q = self.subscribers['cmd_exec_q']
         while not subscriber_q.empty():
@@ -256,6 +280,9 @@ class MomongaSkWrapper:
                     self._raise_if_publisher_died()
                     raise MomongaNeedToReopen('The packet publisher has stopped.'
                                               ' Close Momonga and open it again.')
+                if r is COMMANDS_CANCELLED:
+                    raise MomongaSkCommandCancelled('The command was cancelled: %s'
+                                                    % (_mask_secrets(command)))
             except queue.Empty:
                 self._raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'
@@ -282,6 +309,11 @@ class MomongaSkWrapper:
             raise MomongaNeedToReopen('The packet publisher has stopped.'
                                       ' Close Momonga and open it again. %s: %s'
                                       % (type(self.publisher_exception).__name__, self.publisher_exception))
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancelled:
+            raise MomongaSkCommandCancelled('SK command execution has been cancelled.'
+                                            ' Close Momonga and open it again.')
 
     def _raise_fail_response(self, command: str, r: str) -> None:
         error_code = int(r[7:10])
@@ -372,9 +404,11 @@ class MomongaSkWrapper:
                 return
         raise MomongaSkJoinFailure('Could not establish a PANA session.')
 
-    def skterm(self) -> None:
+    def skterm(self,
+               lock_timeout: int | float = -1,
+               ) -> None:
         logger.debug('Trying to terminate the session...')
-        res = self.exec_command(['SKTERM'], ['EVENT 27', 'EVENT 28'])
+        res = self.exec_command(['SKTERM'], ['EVENT 27', 'EVENT 28'], lock_timeout=lock_timeout)
         if res[-1].startswith('EVENT 28'):
             logger.warning('There was no session to terminate.')
 

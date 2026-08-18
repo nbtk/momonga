@@ -58,6 +58,10 @@ class MomongaNeedToReopen(MomongaError):
     pass
 
 
+class MomongaSkCommandCancelled(MomongaNeedToReopen):
+    pass
+
+
 class MomongaResponseNotExpected(MomongaError):
     pass
 
