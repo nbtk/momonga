@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga, _INFC_RES_XMIT_LIMIT
 from momonga.momonga_device_strategy import BP35C2Strategy
-from momonga.momonga_exception import MomongaNeedToReopen, MomongaTimeoutError
+from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 
@@ -99,7 +99,7 @@ class TestXmitterBudget(unittest.TestCase):
         sm = _make_sm()
         sm._xmit_allowed.clear()
         with patch.object(sm._xmit_allowed, 'wait', return_value=False) as wait:
-            with self.assertRaises(MomongaTimeoutError):
+            with self.assertRaises(MomongaXmitTimeout):
                 sm.xmitter(b'\x00', timeout=0)
         self.assertEqual(wait.call_count, 1)
 
@@ -117,9 +117,24 @@ class TestXmitterBudget(unittest.TestCase):
     def test_send_retries_stop_once_the_budget_is_spent(self, _sleep):
         sm = _make_sm()
         sm.skw.sksendto.side_effect = OSError('io error')
-        with self.assertRaises(MomongaTimeoutError):
+        with self.assertRaises(MomongaXmitTimeout):
             sm.xmitter(b'\x00', timeout=0)
         self.assertEqual(sm.skw.sksendto.call_count, 1)
+
+
+class TestASpentBudgetStaysCatchable(unittest.TestCase):
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_the_handler_every_caller_already_has_still_catches_it(self, _sleep):
+        sm = _make_sm()
+        sm._xmit_allowed.clear()
+        with patch.object(sm._xmit_allowed, 'wait', return_value=False):
+            with self.assertRaises(MomongaNeedToReopen):
+                sm.xmitter(b'\x00', timeout=0)
+
+    def test_it_is_still_tellable_apart_from_a_lost_session(self):
+        self.assertTrue(issubclass(MomongaXmitTimeout, MomongaNeedToReopen))
+        self.assertFalse(issubclass(MomongaNeedToReopen, MomongaXmitTimeout))
 
 
 class _CaptureLogs(logging.Handler):
@@ -154,7 +169,7 @@ class TestASpentBudgetIsNotReportedAsALostSession(unittest.TestCase):
         sm._xmit_allowed.clear()
         with _CaptureLogs() as logs:
             with patch.object(sm._xmit_allowed, 'wait', return_value=False):
-                with self.assertRaises(MomongaTimeoutError):
+                with self.assertRaises(MomongaXmitTimeout):
                     sm.xmitter(b'\x00', timeout=0)
         self.assertEqual(logs.at('ERROR'), [])
 
