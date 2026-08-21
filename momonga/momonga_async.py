@@ -13,6 +13,8 @@ from .momonga_exception import MomongaRuntimeError
 
 _NOTIFICATION_POLL = 1
 
+_DEFAULT_MAX_WORKERS = 4
+
 
 class AsyncMomonga:
     def __init__(self,
@@ -22,16 +24,21 @@ class AsyncMomonga:
                  baudrate: int = 115200,
                  reset_dev: bool = True,
                  reopen_delays: Iterable[float] | None = None,
+                 max_workers: int = _DEFAULT_MAX_WORKERS,
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays)
         self._orphaned: dict | None = None
         self._orphaned_session = None
-        self._executor = ThreadPoolExecutor(thread_name_prefix='momonga')
+        self._executor = ThreadPoolExecutor(max_workers=max_workers,
+                                            thread_name_prefix='momonga')
+        self._notif_executor = ThreadPoolExecutor(max_workers=1,
+                                                  thread_name_prefix='momonga-notif')
 
-    def _run(self, fn, *args) -> asyncio.Future:
+    def _run(self, fn, *args, executor: ThreadPoolExecutor | None = None) -> asyncio.Future:
         loop = asyncio.get_running_loop()
         try:
-            return loop.run_in_executor(self._executor, functools.partial(fn, *args))
+            return loop.run_in_executor(executor or self._executor,
+                                        functools.partial(fn, *args))
         except RuntimeError as e:
             raise MomongaRuntimeError('Momonga is not open.') from e
 
@@ -88,6 +95,7 @@ class AsyncMomonga:
             await self._run(self._sync.close)
         finally:
             self._executor.shutdown(wait=False)
+            self._notif_executor.shutdown(wait=False)
 
     async def open(self) -> None:
         await self._run(self._sync.open)
@@ -112,7 +120,8 @@ class AsyncMomonga:
             poll = _NOTIFICATION_POLL
             if deadline is not None:
                 poll = min(poll, max(0.0, deadline - time.monotonic()))
-            reading = self._run(self._sync.get_notification, poll)
+            reading = self._run(self._sync.get_notification, poll,
+                                executor=self._notif_executor)
             try:
                 notif = await asyncio.shield(reading)
             except asyncio.CancelledError:

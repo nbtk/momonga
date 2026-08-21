@@ -268,6 +268,59 @@ class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen, ['MomongaRuntimeError'])
 
 
+class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
+
+    @staticmethod
+    def _saturate(amo, release):
+        loop = asyncio.get_running_loop()
+        return [loop.run_in_executor(amo._executor, lambda: release.wait(30))
+                for _ in range(amo._executor._max_workers)]
+
+    async def test_a_saturated_pool_does_not_starve_the_reader(self):
+        amo, _sm = _make_amo()
+        amo._sync.get_notification = lambda timeout=None: None
+        release = threading.Event()
+        busy = self._saturate(amo, release)
+        await asyncio.sleep(0.2)
+        try:
+            started = time.monotonic()
+            await asyncio.wait_for(amo.get_notification(timeout=0.5), timeout=5)
+            self.assertLess(time.monotonic() - started, 3)
+        finally:
+            release.set()
+            await asyncio.gather(*busy, return_exceptions=True)
+
+    async def test_a_read_does_not_take_a_worker_the_requests_need(self):
+        amo, _sm = _make_amo()
+        names = []
+        amo._sync.get_notification = lambda timeout=None: names.append(
+            threading.current_thread().name)
+
+        await amo.get_notification(timeout=0)
+
+        self.assertTrue(names[0].startswith('momonga-notif'), names[0])
+
+    async def test_the_general_pool_size_is_settable(self):
+        amo = AsyncMomonga('', '', '/dev/ttyUSB0', max_workers=2)
+        try:
+            self.assertEqual(amo._executor._max_workers, 2)
+            self.assertEqual(amo._notif_executor._max_workers, 1)
+        finally:
+            amo._executor.shutdown(wait=False)
+            amo._notif_executor.shutdown(wait=False)
+
+    async def test_leaving_the_context_manager_shuts_both_pools_down(self):
+        amo, _sm = _make_amo()
+        amo._sync.open = lambda: amo._sync
+        amo._sync.close = lambda: None
+
+        async with amo:
+            pass
+
+        self.assertTrue(amo._executor._shutdown)
+        self.assertTrue(amo._notif_executor._shutdown)
+
+
 class TestTheSyncSettingsAreReachable(unittest.IsolatedAsyncioTestCase):
 
     async def test_the_tunables_read_and_write_through(self):

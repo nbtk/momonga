@@ -618,10 +618,14 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 # AsyncMomonga
 `AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。`Momonga`のブロッキング処理はインスタンスごとに持つスレッドプールで実行されるため、イベントループをブロックしません。プロセスで共有されるデフォルトのexecutorは使いません。
 
+スレッドプールは2つに分かれています。`get_notification()`と`notifications()`は専用の1スレッドで動き、それ以外のメソッドは汎用プールを使います。リクエストが何本詰まっていても通知の`timeout`が守られるようにするためです。
+
 スレッドプールは`async with`文を抜けるときに停止します。抜けたあとのインスタンスは再利用できません。
 
-## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
-AsyncMomongaクラスのインスタンス化。引数は`Momonga`と同じ。
+## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None, max_workers: int = 4)
+AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
+### Arguments
+- max_workers: 汎用プールのワーカー数。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本、open/close/reopen用に1本、予備2本）
 
 momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficientは読み取りのみです。
 
