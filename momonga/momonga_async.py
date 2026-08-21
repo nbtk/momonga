@@ -86,6 +86,14 @@ class AsyncMomonga:
     def energy_coefficient(self) -> int:
         return self._sync.energy_coefficient
 
+    @property
+    def lqi(self) -> int | None:
+        return self._sync.lqi
+
+    @property
+    def rssi(self) -> float | None:
+        return self._sync.rssi
+
     async def __aenter__(self) -> Self:
         await self._run(self._sync.open)
         return self

@@ -63,6 +63,8 @@ class Momonga:
         self._transaction_id: int = 0
         self.energy_unit: int | float = 1
         self.energy_coefficient: int = 1
+        self.lqi: int | None = None
+        self.rssi: float | None = None
         self.is_open: bool = False
         if reopen_delays is not None and iter(reopen_delays) is reopen_delays:
             reopen_delays = _ReplayableIterator(reopen_delays)
@@ -96,6 +98,8 @@ class Momonga:
         self.close()
 
     def _route_meter_frame(self, frame: SkParsedRxUdp) -> None:
+        self.lqi = frame.lqi
+        self.rssi = frame.rssi
         seoj = frame.data[ECHONET_SEOJ_SLICE] if len(frame.data) >= 7 else b''
         if seoj != SMART_METER_EOJ:
             return
@@ -107,6 +111,8 @@ class Momonga:
 
     def open(self) -> Self:
         logger.info('Opening Momonga.')
+        self.lqi = None
+        self.rssi = None
         self.session_manager.on_meter_frame = self._route_meter_frame
         self.session_manager.open()
         time.sleep(self.internal_xmit_interval)

@@ -259,6 +259,25 @@ PANAセッションを一度終了し、張り直す。`MomongaNeedToReopen`を�
 ### Return Value
 - None
 
+## momonga.lqi / momonga.rssi
+最後にスマートメーターから届いたパケットの受信品質。読み取り専用。
+
+- momonga.lqi: 受信品質を表す0-255の値（`int`）
+- momonga.rssi: 受信電力（`float`、dBm）。`0.275 × lqi - 104.27`で算出
+
+momonga.open()を実行した直後や、まだ一度もパケットが届いていないあいだは両方とも`None`。BP35A1系のWi-SUNモジュールはERXUDPに受信品質を含めないため、その場合も`None`のままになる。
+
+セッションを張り直すと`None`に戻る。
+
+e.g.
+```python3
+with momonga.Momonga(rbid, pwd, dev) as mo:
+    while True:
+        res = mo.get_instantaneous_power()
+        print('%0.1fW (rssi: %s dBm)' % (res, mo.rssi))
+        time.sleep(60)
+```
+
 ## momonga.get_operation_status()
 スマートメーターの状態を取得する。
 ### Arguments
