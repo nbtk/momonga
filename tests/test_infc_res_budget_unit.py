@@ -11,7 +11,8 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga, _INFC_RES_XMIT_LIMIT
 from momonga.momonga_device_strategy import BP35C2Strategy
-from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
+from momonga.momonga_exception import (MomongaNeedToReopen, MomongaXmitTimeout,
+                                       MomongaSkCommandCancelled)
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, _SK_COMMAND_LIMIT
@@ -185,6 +186,31 @@ class TestASpentBudgetStaysCatchable(unittest.TestCase):
     def test_it_is_still_tellable_apart_from_a_lost_session(self):
         self.assertTrue(issubclass(MomongaXmitTimeout, MomongaNeedToReopen))
         self.assertFalse(issubclass(MomongaNeedToReopen, MomongaXmitTimeout))
+
+
+class TestASpentBudgetIsNamedWhereverItRunsOut(unittest.TestCase):
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_a_budget_spent_on_the_send_is_still_a_timeout(self, _sleep):
+        sm = _make_sm()  # the gate is open, so the budget runs out in sksendto
+        sm.skw.sksendto.side_effect = MomongaNeedToReopen('The module did not respond.')
+        with self.assertRaises(MomongaXmitTimeout):
+            sm.xmitter(b'\x00', timeout=0)
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_a_lost_session_is_not_relabelled_as_a_timeout(self, _sleep):
+        sm = _make_sm()
+        sm.skw.sksendto.side_effect = MomongaNeedToReopen('session gone')
+        with self.assertRaises(MomongaNeedToReopen) as caught:
+            sm.xmitter(b'\x00', timeout=60)
+        self.assertNotIsInstance(caught.exception, MomongaXmitTimeout)
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_a_cancelled_command_stays_a_cancellation(self, _sleep):
+        sm = _make_sm()
+        sm.skw.sksendto.side_effect = MomongaSkCommandCancelled('close() cancelled it')
+        with self.assertRaises(MomongaSkCommandCancelled):
+            sm.xmitter(b'\x00', timeout=0)
 
 
 class _CaptureLogs(logging.Handler):

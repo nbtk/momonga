@@ -10,6 +10,7 @@ from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
                                 MomongaXmitTimeout,
+                                MomongaSkCommandCancelled,
                                 MomongaSkCommandExecutionFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
@@ -334,7 +335,12 @@ class MomongaSessionManager:
                 break
             except MomongaSkCommandExecutionFailure as e:
                 logger.warning('Failed to transmit a packet: %s' % (e))
+            except MomongaSkCommandCancelled:
+                raise
             except MomongaNeedToReopen:
+                if _deadline_passed(deadline):
+                    logger.debug('Could not transmit a packet within the given time.')
+                    raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout))
                 raise
             except Exception as e:
                 logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
