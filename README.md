@@ -622,6 +622,25 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
 スレッドプールは`async with`文を抜けるときに停止します。抜けたあとのインスタンスは再利用できません。
 
+## Note: awaitをキャンセルしても処理は止まりません
+`asyncio.wait_for()`やタスクのキャンセルで待つのをやめても、スレッドプールで動いている`Momonga`の処理は最後まで走り続けます。実行中のSKコマンドを途中で捨てるとWi-SUNモジュールの応答とコマンド列が同期を失うため、途中で止める手段は用意していません。
+
+放棄された処理はそのリクエストが終わるまで汎用プールの枠を占有します。占有時間は`Momonga`側の設定で決まります。
+
+- reopen_delaysを指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約1時間
+- **reopen_delaysに`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わりません**
+
+`asyncio`で使うなら`xmit_timeout`を短めに設定し、`max_workers`には余裕を持たせることを推奨します。有限のreopen_delaysを使えば占有時間の上限も有限になります。
+
+e.g.
+```python3
+async with momonga.AsyncMomonga(rbid, pwd, dev,
+                                reopen_delays=[600.0, 600.0, 600.0]) as mo:
+    mo.xmit_timeout = 120  # 送信ブロッキングが2分続いたら諦める
+```
+
+`get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルされても専用スレッドは1秒以内に解放されます。読み取り済みの通知は次の呼び出しに引き継がれます。
+
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None, max_workers: int = 4)
 AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
 ### Arguments
