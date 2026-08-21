@@ -143,7 +143,7 @@ while True:
 スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知します（INF/INFC）。
 Momongaはこれらの通知を`get_notification()`または`notifications()`で受け取れます。
 
-INFCを受信した場合、Momongaは自動的にINFC_Resを送信します。
+INFCを受信した場合、Momongaは自動的にINFC_Resを送信します。この送信はベストエフォートで、送信ブロッキング中などで15秒以内に送出できないときは送信を諦めます。通知そのものの受け取りは`timeout`に指定した時間を超えません。
 
 ## Notification Example
 ```python3

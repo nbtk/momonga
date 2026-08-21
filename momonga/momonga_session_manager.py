@@ -31,6 +31,16 @@ _SKTERM_LOCK_LIMIT = 30
 _RECEIVER_JOIN_LIMIT = 30
 
 
+def _capped_wait(deadline: float | None, cap: int | float) -> int | float:
+    if deadline is None:
+        return cap
+    return min(cap, max(0.0, deadline - time.monotonic()))
+
+
+def _deadline_passed(deadline: float | None) -> bool:
+    return deadline is not None and time.monotonic() >= deadline
+
+
 class MomongaSessionManager:
     def __init__(self,
                  rbid: str,
@@ -271,20 +281,25 @@ class MomongaSessionManager:
     # states, not providing atomicity.
     def xmitter(self,
                 data: bytes,
+                timeout: int | float | None = None,
                ) -> None:
         xmit_retry_limit      = 3
         gate_wait_retry_limit = 60
         gate_wait_timeout     = 60
+        xmit_retry_interval   = 3
         xmitted = False
+        deadline = None if timeout is None else time.monotonic() + timeout
         self.raise_if_receiver_died()
         for _ in range(xmit_retry_limit):
             logger.debug('Waiting for transmission gate to open.')
             allowed = False
             for r in range(gate_wait_retry_limit):
-                allowed = self._xmit_allowed.wait(timeout=gate_wait_timeout)
+                allowed = self._xmit_allowed.wait(timeout=_capped_wait(deadline, gate_wait_timeout))
                 if not allowed:
                     logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, gate_wait_retry_limit))
                     self.raise_if_receiver_died()
+                    if _deadline_passed(deadline):
+                        break
                 else:
                     break
 
@@ -307,7 +322,9 @@ class MomongaSessionManager:
                 raise
             except Exception as e:
                 logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
-            time.sleep(3)
+            if _deadline_passed(deadline):
+                break
+            time.sleep(_capped_wait(deadline, xmit_retry_interval))
         if not xmitted:
             logger.error('Could not transmit a packet. Close Momonga and open it again.')
             raise MomongaNeedToReopen('Could not transmit a packet. Close Momonga and open it again.')

@@ -32,6 +32,8 @@ from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
+_INFC_RES_XMIT_LIMIT = 15
+
 
 class _ReplayableIterator:
     def __init__(self, source: Iterable[float]) -> None:
@@ -197,7 +199,7 @@ class Momonga:
             return None
 
         if esv == EchonetServiceCode.infc:
-            self._send_infc_res(data)
+            self._send_infc_res(data, self._remaining(deadline))
 
         properties = {}
         cur = 12
@@ -226,7 +228,10 @@ class Momonga:
 
         return {'esv': EchonetServiceCode(esv), 'properties': properties}
 
-    def _send_infc_res(self, infc_data: bytes) -> None:
+    def _send_infc_res(self,
+                        infc_data: bytes,
+                        timeout: int | float | None = None,
+                        ) -> None:
         tid_int = int.from_bytes(infc_data[ECHONET_TID_SLICE], 'big')
         header = self._build_request_header(tid_int, EchonetServiceCode.infc_res)
         opc = infc_data[ECHONET_OPC_OFFSET]
@@ -239,8 +244,9 @@ class Momonga:
             cur += 1 + pdc
             props += b'\x00'               # PDC = 0, no EDT in response
         payload = header + opc.to_bytes(1, 'big') + props
+        budget = _INFC_RES_XMIT_LIMIT if timeout is None else min(_INFC_RES_XMIT_LIMIT, timeout)
         try:
-            self.session_manager.xmitter(payload)
+            self.session_manager.xmitter(payload, timeout=budget)
         except Exception:
             logger.warning('Failed to send INFC_Res.', exc_info=True)
 
