@@ -209,18 +209,24 @@ momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 ## momonga.recv_timeout
 1回の送信に対して応答を待つ秒数。超えると送り直す。既定値は12。
 
-スマートメーターが応答しないとき、ひとつのリクエストを諦めるまでにかかる時間はおおむねmomonga.xmit_retriesとmomonga.recv_timeoutの積になる。既定値では約144秒。
+スマートメーターが応答しないとき、ひとつのリクエストを諦めるまでにかかる時間はおおむねmomonga.xmit_retriesとmomonga.recv_timeoutの積になる。既定値では約144秒。ただしこれは応答を待つ時間だけで、送信ブロッキング中の待ち時間は含まない。そちらはmomonga.xmit_timeoutが上限になる。
+
+## momonga.xmit_timeout
+ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、reopen_delaysを指定していれば自動再接続の対象になる。既定値は3600。
+
+この上限はリクエスト全体に対して1回分で、momonga.xmit_retriesの回数だけ繰り返されることはない。`None`を指定すると上限なしになる。
 
 ## momonga.internal_xmit_interval
 momongaが続けて送信するときに空ける秒数。momonga.open()のなかの積算電力量の単位と係数の取得、および応答が得られなかったリクエストの送り直しに使われる。既定値は5。
 
-これら3つはインスタンス化したあとに変更できる。
+これら4つはインスタンス化したあとに変更できる。
 
 e.g.
 ```python3
 mo = momonga.Momonga(rbid, pwd, dev)
 mo.recv_timeout = 30  # 応答の遅いスマートメーターに合わせて延ばす
 mo.xmit_retries = 3   # 早めに諦めてreopen_delaysの再接続に任せる
+mo.xmit_timeout = 300 # 送信ブロッキングが5分続いたら諦める
 ```
 
 ## momonga.open()
@@ -617,7 +623,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None)
 AsyncMomongaクラスのインスタンス化。引数は`Momonga`と同じ。
 
-momonga.xmit_retries、momonga.recv_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficientは読み取りのみです。
+momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficientは読み取りのみです。
 
 `async with`文による使用を推奨します。
 

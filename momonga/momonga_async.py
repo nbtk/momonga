@@ -52,6 +52,14 @@ class AsyncMomonga:
         self._sync.recv_timeout = value
 
     @property
+    def xmit_timeout(self) -> int | float | None:
+        return self._sync.xmit_timeout
+
+    @xmit_timeout.setter
+    def xmit_timeout(self, value: int | float | None) -> None:
+        self._sync.xmit_timeout = value
+
+    @property
     def internal_xmit_interval(self) -> int | float:
         return self._sync.internal_xmit_interval
 

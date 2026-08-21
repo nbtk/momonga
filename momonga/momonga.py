@@ -58,6 +58,7 @@ class Momonga:
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
+        self.xmit_timeout: int | float | None = 3600
         self.internal_xmit_interval: int | float = 5
         self._transaction_id: int = 0
         self.energy_unit: int | float = 1
@@ -383,8 +384,9 @@ class Momonga:
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get()  # drops stored data
 
+        deadline = None if self.xmit_timeout is None else time.monotonic() + self.xmit_timeout
         for _ in range(self.xmit_retries):
-            self.session_manager.xmitter(tx_payload)
+            self.session_manager.xmitter(tx_payload, timeout=self._remaining(deadline))
             while True:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)

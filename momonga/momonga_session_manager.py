@@ -317,9 +317,10 @@ class MomongaSessionManager:
                 if deadline is None:
                     self.skw.sksendto(self.smart_meter_addr, data)
                 else:
-                    left = _capped_wait(deadline, _SK_COMMAND_LIMIT)
-                    self.skw.sksendto(self.smart_meter_addr, data,
-                                      timeout=left, lock_timeout=left)
+                    self.skw.sksendto(
+                        self.smart_meter_addr, data,
+                        timeout=_capped_wait(deadline, _SK_COMMAND_LIMIT),
+                        lock_timeout=max(0.0, deadline - time.monotonic()))
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:
