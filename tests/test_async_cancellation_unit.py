@@ -309,6 +309,20 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
             amo._executor.shutdown(wait=False)
             amo._notif_executor.shutdown(wait=False)
 
+    async def test_close_leaves_the_pools_up_so_open_can_follow_it(self):
+        amo, _sm = _make_amo()
+        amo._sync.open = lambda: amo._sync
+        amo._sync.close = lambda: None
+
+        await amo.open()
+        await amo.close()
+        await amo.open()  # documented as supported; shutting down in close() breaks it
+
+        self.assertFalse(amo._executor._shutdown)
+        self.assertFalse(amo._notif_executor._shutdown)
+        amo._executor.shutdown(wait=False)
+        amo._notif_executor.shutdown(wait=False)
+
     async def test_leaving_the_context_manager_shuts_both_pools_down(self):
         amo, _sm = _make_amo()
         amo._sync.open = lambda: amo._sync
