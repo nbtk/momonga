@@ -9,6 +9,7 @@ from typing import Self
 from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkJoinFailure,
                                 MomongaNeedToReopen,
+                                MomongaTimeoutError,
                                 MomongaSkCommandExecutionFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
@@ -304,6 +305,9 @@ class MomongaSessionManager:
                     break
 
             if not allowed:
+                if _deadline_passed(deadline):
+                    logger.debug('The transmission gate did not open within the given time.')
+                    raise MomongaTimeoutError('The transmission gate did not open within %s seconds.' % (timeout))
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
                 raise MomongaNeedToReopen('Transmission rights could not be acquired. Close Momonga and open it again.')
             else:
@@ -326,6 +330,9 @@ class MomongaSessionManager:
                 break
             time.sleep(_capped_wait(deadline, xmit_retry_interval))
         if not xmitted:
+            if _deadline_passed(deadline):
+                logger.debug('Could not transmit a packet within the given time.')
+                raise MomongaTimeoutError('Could not transmit a packet within %s seconds.' % (timeout))
             logger.error('Could not transmit a packet. Close Momonga and open it again.')
             raise MomongaNeedToReopen('Could not transmit a packet. Close Momonga and open it again.')
 

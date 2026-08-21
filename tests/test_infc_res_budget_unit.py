@@ -4,13 +4,14 @@ Unit tests for the transmission budget of the automatic INFC_Res reply.
 Run:
   python -m unittest tests/test_infc_res_budget_unit.py -v
 """
+import logging
 import time
 import unittest
 from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga, _INFC_RES_XMIT_LIMIT
 from momonga.momonga_device_strategy import BP35C2Strategy
-from momonga.momonga_exception import MomongaNeedToReopen
+from momonga.momonga_exception import MomongaNeedToReopen, MomongaTimeoutError
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 
@@ -88,6 +89,7 @@ class TestXmitterBudget(unittest.TestCase):
         sm = _make_sm()
         sm._xmit_allowed.clear()
         with patch.object(sm._xmit_allowed, 'wait', return_value=False) as wait:
+            # the mocked wait consumes no time, so the budget never actually runs out
             with self.assertRaises(MomongaNeedToReopen):
                 sm.xmitter(b'\x00', timeout=5)
         self.assertLessEqual(wait.call_args_list[0].kwargs['timeout'], 5)
@@ -97,7 +99,7 @@ class TestXmitterBudget(unittest.TestCase):
         sm = _make_sm()
         sm._xmit_allowed.clear()
         with patch.object(sm._xmit_allowed, 'wait', return_value=False) as wait:
-            with self.assertRaises(MomongaNeedToReopen):
+            with self.assertRaises(MomongaTimeoutError):
                 sm.xmitter(b'\x00', timeout=0)
         self.assertEqual(wait.call_count, 1)
 
@@ -115,9 +117,69 @@ class TestXmitterBudget(unittest.TestCase):
     def test_send_retries_stop_once_the_budget_is_spent(self, _sleep):
         sm = _make_sm()
         sm.skw.sksendto.side_effect = OSError('io error')
-        with self.assertRaises(MomongaNeedToReopen):
+        with self.assertRaises(MomongaTimeoutError):
             sm.xmitter(b'\x00', timeout=0)
         self.assertEqual(sm.skw.sksendto.call_count, 1)
+
+
+class _CaptureLogs(logging.Handler):
+
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+    def __enter__(self):
+        self._logger = logging.getLogger('momonga.momonga_session_manager')
+        self._level = self._logger.level
+        self._logger.addHandler(self)
+        self._logger.setLevel(logging.DEBUG)
+        return self
+
+    def __exit__(self, *exc):
+        self._logger.removeHandler(self)
+        self._logger.setLevel(self._level)
+
+    def at(self, level):
+        return [r.getMessage() for r in self.records if r.levelname == level]
+
+
+class TestASpentBudgetIsNotReportedAsALostSession(unittest.TestCase):
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_a_spent_budget_does_not_advise_reopening(self, _sleep):
+        sm = _make_sm()
+        sm._xmit_allowed.clear()
+        with _CaptureLogs() as logs:
+            with patch.object(sm._xmit_allowed, 'wait', return_value=False):
+                with self.assertRaises(MomongaTimeoutError):
+                    sm.xmitter(b'\x00', timeout=0)
+        self.assertEqual(logs.at('ERROR'), [])
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_a_gate_that_never_opens_still_advises_reopening(self, _sleep):
+        sm = _make_sm()
+        sm._xmit_allowed.clear()
+        with _CaptureLogs() as logs:
+            with patch.object(sm._xmit_allowed, 'wait', return_value=False):
+                with self.assertRaises(MomongaNeedToReopen):
+                    sm.xmitter(b'\x00')
+        self.assertEqual(len(logs.at('ERROR')), 1)
+
+    def test_an_undeliverable_infc_res_stays_a_warning(self):
+        mo = Momonga('', '', '/dev/ttyUSB0')
+        mo.is_open = True
+        sm = _make_sm()
+        sm._xmit_allowed.clear()
+        mo.session_manager = sm
+        sm.notif_q.put(_infc_frame())
+
+        with _CaptureLogs() as logs:
+            mo.get_notification(timeout=0.2)
+
+        self.assertEqual(logs.at('ERROR'), [])
 
 
 if __name__ == '__main__':
