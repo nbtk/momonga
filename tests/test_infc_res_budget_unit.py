@@ -14,6 +14,7 @@ from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
+from momonga.momonga_sk_wrapper import MomongaSkWrapper, _SK_COMMAND_LIMIT
 
 
 def _infc_frame() -> SkParsedRxUdp:
@@ -62,6 +63,55 @@ class TestGetNotificationHonoursTimeout(unittest.TestCase):
         result = mo.get_notification(timeout=0.3)
 
         self.assertEqual(result['properties'][0xE7], 1000)
+
+
+def _make_mo_with_a_real_wrapper():
+    """A session manager whose skw is the real wrapper, so the send is not a mock."""
+    skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
+    skw._ser = MagicMock()
+    sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
+    sm.session_established = True
+    sm.smart_meter_addr = 'FE80::1'
+    sm.skw = skw
+    mo = Momonga('', '', '/dev/ttyUSB0')
+    mo.is_open = True
+    mo.session_manager = sm
+    sm.notif_q.put(_infc_frame())
+    return mo, sm, skw
+
+
+class TestTheWholeSendIsBounded(unittest.TestCase):
+
+    def _elapsed(self, mo, timeout=0.3):
+        started = time.monotonic()
+        mo.get_notification(timeout=timeout)
+        return time.monotonic() - started
+
+    def test_a_module_that_never_answers_does_not_hold_the_reader(self):
+        mo, sm, skw = _make_mo_with_a_real_wrapper()
+        self.assertLess(self._elapsed(mo), 5)  # not the sk command limit
+
+    def test_another_command_holding_the_lock_does_not_hold_the_reader(self):
+        mo, sm, skw = _make_mo_with_a_real_wrapper()
+        skw._cmd_lock.acquire()
+        try:
+            self.assertLess(self._elapsed(mo), 5)  # not an unbounded lock wait
+        finally:
+            skw._cmd_lock.release()
+
+    def test_the_packet_still_reaches_the_module_when_the_ack_is_not_awaited(self):
+        mo, sm, skw = _make_mo_with_a_real_wrapper()
+        with patch.object(skw, '_writeline') as writeline:
+            self._elapsed(mo)
+        writeline.assert_called_once()
+
+    def test_a_send_without_a_budget_keeps_the_wrapper_defaults(self):
+        sm = _make_sm()
+        sm.skw = MagicMock()
+        with patch.object(MomongaSkWrapper, 'exec_command') as exec_command:
+            MomongaSkWrapper.sksendto(MomongaSkWrapper('/dev/ttyUSB0'), 'FE80::1', b'\x00')
+        self.assertEqual(exec_command.call_args.kwargs['timeout'], _SK_COMMAND_LIMIT)
+        self.assertEqual(exec_command.call_args.kwargs['lock_timeout'], -1)
 
 
 class TestInfcResBudget(unittest.TestCase):

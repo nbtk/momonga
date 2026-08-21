@@ -13,7 +13,7 @@ from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkCommandExecutionFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
-from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
+from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED, _SK_COMMAND_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +314,12 @@ class MomongaSessionManager:
                 if not self.session_established:
                     logger.error('Tried to transmit a packet, but no PANA session was established.')
                     raise MomongaNeedToReopen('No PANA session established. Close Momonga and open it again.')
-                self.skw.sksendto(self.smart_meter_addr, data)
+                if deadline is None:
+                    self.skw.sksendto(self.smart_meter_addr, data)
+                else:
+                    left = _capped_wait(deadline, _SK_COMMAND_LIMIT)
+                    self.skw.sksendto(self.smart_meter_addr, data,
+                                      timeout=left, lock_timeout=left)
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:

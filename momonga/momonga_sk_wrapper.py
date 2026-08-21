@@ -419,10 +419,14 @@ class MomongaSkWrapper:
                  port: int = ECHONET_LITE_PORT,
                  sec: int = 2,
                  side: int = 0,
+                 timeout: int | float | None = _SK_COMMAND_LIMIT,
+                 lock_timeout: int | float = -1,
                  ) -> None:
         self.exec_command(
             self.device_strategy.sksendto_args(handle, ip6_addr, port, sec, side, len(data)),
             payload=data,
+            timeout=timeout,
+            lock_timeout=lock_timeout,
         )
 
     def detect_device(self):
