@@ -51,6 +51,8 @@ _BP35A1_SIDE_SENTINEL = 0xFFFE
 
 _SK_COMMAND_LIMIT = 300
 
+_PUBLISHER_JOIN_LIMIT = 5
+
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
@@ -127,7 +129,10 @@ class MomongaSkWrapper:
     def close(self) -> None:
         if self._publisher_th is not None:
             self._publisher_th_breaker = True
-            self._publisher_th.join()
+            self._publisher_th.join(timeout=_PUBLISHER_JOIN_LIMIT)
+            if self._publisher_th.is_alive():
+                logger.warning('The received packet publisher is still running. It is stuck'
+                               ' reading the serial port and will stop when that read returns.')
             self._publisher_th = None
         if self._ser is not None and not self._ser.closed:
             self._ser.close()

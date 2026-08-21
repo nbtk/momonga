@@ -190,7 +190,7 @@ class MomongaSessionManager:
         self._force_open_gates()
         self.notif_q.put(SESSION_ENDED)
 
-        if self._rejoin_lock.locked():
+        if rejoin_lock_acquired and self._rejoin_lock.locked():
             logger.error('"_rejoin_lock" is unexpectedly locked.')
 
         self.skw.close()
