@@ -441,6 +441,12 @@ class Momonga:
             if self.session_manager is failed_session_manager:
                 self.reopen()
 
+    @staticmethod
+    def _as_reopen_error(err: Exception) -> MomongaNeedToReopen:
+        if isinstance(err, MomongaNeedToReopen):
+            return err
+        return MomongaNeedToReopen('%s: %s' % (type(err).__name__, err))
+
     def _request_with_recovery(self,
                                 esv: EchonetServiceCode,
                                 req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
@@ -451,8 +457,8 @@ class Momonga:
         failed_session_manager = self.session_manager
         try:
             return self._request(esv, req_properties)
-        except MomongaNeedToReopen as initial_err:
-            last_error: MomongaNeedToReopen = initial_err
+        except (MomongaNeedToReopen, OSError) as initial_err:
+            last_error: MomongaNeedToReopen = self._as_reopen_error(initial_err)
             logger.warning('Session needs reopen, attempting recovery.')
 
         for delay in self.reopen_delays:
@@ -463,14 +469,19 @@ class Momonga:
             time.sleep(delay)
             try:
                 self._reopen_once(failed_session_manager)
-                return self._request(esv, req_properties)
-            except MomongaNeedToReopen as err:
-                last_error = err
-                logger.warning('Reopen attempt failed after waiting %s seconds: %s', delay, err)
             except (MomongaError, OSError) as err:
                 logger.warning('Reopen attempt failed after waiting %s seconds: %s: %s',
                                delay, type(err).__name__, err)
-                last_error = MomongaNeedToReopen(str(err))
+                last_error = self._as_reopen_error(err)
+                failed_session_manager = self.session_manager
+                continue
+
+            try:
+                return self._request(esv, req_properties)
+            except (MomongaNeedToReopen, OSError) as err:
+                logger.warning('The request failed again after reopening: %s: %s',
+                               type(err).__name__, err)
+                last_error = self._as_reopen_error(err)
             failed_session_manager = self.session_manager
 
         logger.error('All reopen attempts exhausted.')
