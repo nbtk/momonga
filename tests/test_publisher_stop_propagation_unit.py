@@ -4,6 +4,7 @@ Unit tests for a dead publisher reaching everyone waiting on it.
 Run:
   python -m unittest tests/test_publisher_stop_propagation_unit.py -v
 """
+import queue
 import threading
 import time
 import unittest
@@ -116,6 +117,37 @@ class TestCommandsFailAtOnce(unittest.TestCase):
         with patch.object(skw, WRITELINE, fake_writeline):
             with self.assertRaises(MomongaNeedToReopen):
                 skw.exec_command(['SKVER'], timeout=30)
+
+
+class _DyingQueue(queue.Queue):
+    """Kills the publisher while the command is draining, so its news lands mid-drain."""
+
+    def __init__(self, skw):
+        super().__init__()
+        self._skw = skw
+        self._fired = False
+
+    def empty(self):
+        if not self._fired:
+            self._fired = True
+            self._skw.publisher_exception = serial.SerialException('device disconnected')
+            self.put(PUBLISHER_STOPPED)
+        return super().empty()
+
+
+class TestADeadPublisherSurvivesTheQueueDrain(unittest.TestCase):
+
+    def test_a_death_racing_the_drain_is_not_swallowed(self):
+        skw = _make_skw()
+        skw.subscribers['cmd_exec_q'] = _DyingQueue(skw)
+
+        started = time.monotonic()
+        with patch.object(skw, WRITELINE) as writeline:
+            with self.assertRaises(MomongaNeedToReopen):
+                skw.exec_command(['SKVER'], timeout=2)
+
+        self.assertLess(time.monotonic() - started, 1)  # not the command's own timeout
+        writeline.assert_not_called()
 
 
 if __name__ == '__main__':

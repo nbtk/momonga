@@ -4,6 +4,7 @@ Unit tests for cutting a stuck SK command loose so close() cannot outlast it.
 Run:
   python -m unittest tests/test_command_cancellation_unit.py -v
 """
+import queue
 import threading
 import time
 import unittest
@@ -175,6 +176,36 @@ class TestCloseDoesNotWaitOutAStuckReceiver(unittest.TestCase):
             sm.close()
 
         self.assertEqual(sent, ['SKTERM'])
+
+
+class _CancellingQueue(queue.Queue):
+    """Cancels while the command is draining, so the sentinel lands mid-drain."""
+
+    def __init__(self, skw):
+        super().__init__()
+        self._skw = skw
+        self._fired = False
+
+    def empty(self):
+        if not self._fired:
+            self._fired = True
+            self._skw.cancel_commands()
+        return super().empty()
+
+
+class TestACancellationSurvivesTheQueueDrain(unittest.TestCase):
+
+    def test_a_cancellation_racing_the_drain_is_not_swallowed(self):
+        skw = _make_skw()
+        skw.subscribers['cmd_exec_q'] = _CancellingQueue(skw)
+
+        started = time.monotonic()
+        with patch.object(skw, WRITELINE) as writeline:
+            with self.assertRaises(MomongaSkCommandCancelled):
+                skw.exec_command(['SKJOIN', 'FE80::1'], 'EVENT 25', timeout=2)
+
+        self.assertLess(time.monotonic() - started, 1)  # not the command's own timeout
+        writeline.assert_not_called()
 
 
 class TestOpenClearsTheCancellation(unittest.TestCase):

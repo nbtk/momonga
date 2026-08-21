@@ -260,12 +260,12 @@ class MomongaSkWrapper:
         if type(wait_until) is str:
             wait_until = [wait_until]
 
-        self._raise_if_publisher_died()
-        self._raise_if_cancelled()
-
         subscriber_q = self.subscribers['cmd_exec_q']
         while not subscriber_q.empty():
             subscriber_q.get()
+
+        self._raise_if_publisher_died()
+        self._raise_if_cancelled()
 
         self._writeline(command, payload)
 
