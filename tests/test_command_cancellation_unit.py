@@ -4,6 +4,7 @@ Unit tests for cutting a stuck SK command loose so close() cannot outlast it.
 Run:
   python -m unittest tests/test_command_cancellation_unit.py -v
 """
+import logging
 import queue
 import threading
 import time
@@ -176,6 +177,40 @@ class TestCloseDoesNotWaitOutAStuckReceiver(unittest.TestCase):
             sm.close()
 
         self.assertEqual(sent, ['SKTERM'])
+
+
+class TestCancellingNothingIsNotAWarning(unittest.TestCase):
+
+    def _levels(self, skw):
+        records = []
+
+        class Cap(logging.Handler):
+            def emit(self, record):
+                records.append(record.levelname)
+
+        lg = logging.getLogger('momonga.momonga_sk_wrapper')
+        cap = Cap()
+        lg.addHandler(cap)
+        level = lg.level
+        lg.setLevel(logging.DEBUG)
+        try:
+            skw.cancel_commands()
+        finally:
+            lg.removeHandler(cap)
+            lg.setLevel(level)
+        return records
+
+    def test_an_idle_wrapper_is_cancelled_quietly(self):
+        skw = _make_skw()
+        self.assertNotIn('WARNING', self._levels(skw))
+
+    def test_a_running_command_still_warns(self):
+        skw = _make_skw()
+        skw._cmd_lock.acquire()  # a command is in flight
+        try:
+            self.assertIn('WARNING', self._levels(skw))
+        finally:
+            skw._cmd_lock.release()
 
 
 class _CancellingQueue(queue.Queue):

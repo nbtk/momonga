@@ -242,9 +242,13 @@ class MomongaSkWrapper:
         self._ser.flush()
 
     def cancel_commands(self) -> None:
+        running = self._cmd_lock.locked()
         self._cancelled = True
         self.subscribers['cmd_exec_q'].put(_COMMANDS_CANCELLED)
-        logger.warning('SK command execution has been cancelled.')
+        if running:
+            logger.warning('SK command execution has been cancelled.')
+        else:
+            logger.debug('SK command execution has been cancelled. Nothing was running.')
 
     def exec_command(self,
                      command: list[str],
