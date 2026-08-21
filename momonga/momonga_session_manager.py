@@ -25,6 +25,14 @@ class _SessionEnded:
 
 SESSION_ENDED = _SessionEnded()
 
+
+class _StopReceiver:
+    def __repr__(self) -> str:
+        return '_STOP_RECEIVER'
+
+
+_STOP_RECEIVER = _StopReceiver()
+
 _REJOIN_LOCK_LIMIT = 120
 
 _SKTERM_LOCK_LIMIT = 30
@@ -177,7 +185,7 @@ class MomongaSessionManager:
 
         if self._receiver_th is not None:
             if self._receiver_th.is_alive():
-                self._pkt_sbsc_q.put('__CLOSE__')  # to close the receiver thread.
+                self._pkt_sbsc_q.put(_STOP_RECEIVER)  # to close the receiver thread.
                 self._receiver_th.join(timeout=_RECEIVER_JOIN_LIMIT)
                 if self._receiver_th.is_alive():
                     logger.warning('The packet receiver is still running. It is inside'
@@ -202,7 +210,7 @@ class MomongaSessionManager:
         try:
             while True:
                 raw = pkt_sbsc_q.get()
-                if raw == '__CLOSE__':
+                if raw is _STOP_RECEIVER:
                     break
                 if raw is PUBLISHER_STOPPED:
                     raise MomongaNeedToReopen('The packet publisher has stopped.'
@@ -217,17 +225,18 @@ class MomongaSessionManager:
                         self._close_session_gate()
                     elif num == SkEventNum.rejoin_failed:
                         logger.warning('Could not rejoin the PAN.')
-                        self._rejoin_lock.acquire()
-                        if self.session_established:
-                            self.session_established = False
-                            try:
-                                self.skw.skjoin(self.smart_meter_addr)
-                            except MomongaSkJoinFailure as e:
-                                logger.error('%s Close Momonga and open it again.' % (e))
-                                raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
-                            finally:
-                                self._rejoin_lock.release()
-                        else:
+                        if not self._rejoin_lock.acquire(timeout=_REJOIN_LOCK_LIMIT):
+                            logger.warning('Gave up rejoining the PAN. The session is being closed.')
+                            continue
+                        try:
+                            if self.session_established:
+                                self.session_established = False
+                                try:
+                                    self.skw.skjoin(self.smart_meter_addr)
+                                except MomongaSkJoinFailure as e:
+                                    logger.error('%s Close Momonga and open it again.' % (e))
+                                    raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
+                        finally:
                             self._rejoin_lock.release()
                     elif num == SkEventNum.rejoined:
                         logger.debug('Successfully rejoined the PAN.')

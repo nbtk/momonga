@@ -53,6 +53,8 @@ _SK_COMMAND_LIMIT = 300
 
 _PUBLISHER_JOIN_LIMIT = 5
 
+_BUF_CLEAR_LIMIT = 10
+
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
@@ -96,34 +98,35 @@ class MomongaSkWrapper:
         self._ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
 
         try:
-            # to drop garbage data in the buffer.
-            self._clear_buf()
+            try:
+                # to drop garbage data in the buffer.
+                self._clear_buf()
 
-            # to check udp payloads returned from the wi-sun module are in ascii format.
-            if self._exec_ropt() != 1:
-                logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
-                                "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
-                                "This configuration is saved in the Wi-SUN module, so this log message should "
-                                "no longer appear.")
-                self._exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
-        except MomongaSkCommandUnsupported:
-            logger.info('ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
+                # to check udp payloads returned from the wi-sun module are in ascii format.
+                if self._exec_ropt() != 1:
+                    logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
+                                    "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
+                                    "This configuration is saved in the Wi-SUN module, so this log message should "
+                                    "no longer appear.")
+                    self._exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
+            except MomongaSkCommandUnsupported:
+                logger.info('ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
+
+            for q in list(self.subscribers.values()):
+                while not q.empty():
+                    q.get()
+
+            self._publisher_th_breaker = False  # set True when you want to stop the publisher.
+            self.publisher_exception = None
+            self._cancelled = False
+            self._publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
+            self._publisher_th.start()
+
+            # Detects device type
+            self.detect_device()
         except Exception:
             self.close()
             raise
-
-        for q in list(self.subscribers.values()):
-            while not q.empty():
-                q.get()
-
-        self._publisher_th_breaker = False  # set True when you want to stop the publisher.
-        self.publisher_exception = None
-        self._cancelled = False
-        self._publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
-        self._publisher_th.start()
-
-        # Detects device type
-        self.detect_device()
         return self
 
     def close(self) -> None:
@@ -142,9 +145,12 @@ class MomongaSkWrapper:
         self._ser.flush()
         timeout = self._ser.timeout
         self._ser.timeout = 2  # will wait the specified seconds.
+        deadline = time.monotonic() + _BUF_CLEAR_LIMIT
         while self._ser.read():
             # this loop clears garbage data if it exists.
-            pass
+            if time.monotonic() >= deadline:
+                logger.warning('Gave up clearing the buffer. The Wi-SUN module keeps sending data.')
+                break
         # to undo the timeout.
         self._ser.timeout = timeout
 
@@ -154,9 +160,10 @@ class MomongaSkWrapper:
         res = b''
         ok = b'OK '
         fail = b'FAIL'
+        deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
             b = self._ser.read()
-            if not b:
+            if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('ROPT command timed out.')
             res += b
             if ok in res and res.endswith(b'\r'):
@@ -181,9 +188,10 @@ class MomongaSkWrapper:
         self._ser.write(('WOPT %02d\r' % opt).encode())
         self._ser.flush()
         res = b''
+        deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
             b = self._ser.read()
-            if not b:
+            if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('WOPT command timed out.')
             res += b
             if b'OK\r' in res:

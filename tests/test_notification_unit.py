@@ -11,6 +11,7 @@ from momonga.momonga_echonet_data import EchonetDataBuilder, EchonetDataParser
 from momonga.momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_response import SkParsedRxUdp
+from momonga.momonga_session_manager import _STOP_RECEIVER
 
 
 # ---------------------------------------------------------------------------
@@ -440,7 +441,7 @@ class TestReceiverRouting(unittest.TestCase):
         th = threading.Thread(target=sm._receiver, daemon=True)
         th.start()
         sm._pkt_sbsc_q.put(packet)
-        sm._pkt_sbsc_q.put('__CLOSE__')
+        sm._pkt_sbsc_q.put(_STOP_RECEIVER)
         th.join(timeout=2)
 
     def test_non_smart_meter_inf_discarded(self):

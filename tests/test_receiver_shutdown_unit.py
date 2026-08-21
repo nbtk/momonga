@@ -113,7 +113,7 @@ class TestTheNextSessionIsNotSharedWithIt(unittest.TestCase):
         with patch(JOIN_LIMIT, 0.2):
             sm.close()
         sm.on_meter_frame = None
-        sm.open()  # would have drained '__CLOSE__' before
+        sm.open()  # would have drained the stop sentinel before
 
         release.set()
         abandoned_th.join(5)

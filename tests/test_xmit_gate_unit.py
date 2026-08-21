@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from momonga.momonga_device_strategy import BP35C2Strategy
-from momonga.momonga_session_manager import MomongaSessionManager
+from momonga.momonga_session_manager import MomongaSessionManager, _STOP_RECEIVER
 
 
 def _make_sm():
@@ -33,7 +33,7 @@ def _run(sm, *events):
     th.start()
     for ev in events:
         sm._pkt_sbsc_q.put(ev)
-    sm._pkt_sbsc_q.put('__CLOSE__')
+    sm._pkt_sbsc_q.put(_STOP_RECEIVER)
     th.join(timeout=2)
 
 
