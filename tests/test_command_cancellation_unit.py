@@ -11,7 +11,8 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandCancelled
+from momonga.momonga_exception import (MomongaNeedToReopen, MomongaSkCommandBusy,
+                                       MomongaSkCommandCancelled)
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 
@@ -93,9 +94,20 @@ class TestALockedOutCommandGivesUp(unittest.TestCase):
         skw._cmd_lock.acquire()  # another thread is mid-command
         try:
             started = time.monotonic()
-            with self.assertRaises(MomongaSkCommandCancelled):
+            with self.assertRaises(MomongaSkCommandBusy):
                 skw.skterm(lock_timeout=0.2)
             self.assertLess(time.monotonic() - started, 5)  # not the command limit
+        finally:
+            skw._cmd_lock.release()
+
+    def test_being_locked_out_is_not_reported_as_a_cancellation(self):
+        skw = _make_skw()
+        skw._cmd_lock.acquire()
+        try:
+            with self.assertRaises(MomongaSkCommandBusy) as caught:
+                skw.skterm(lock_timeout=0.1)
+            self.assertNotIsInstance(caught.exception, MomongaSkCommandCancelled)
+            self.assertIsInstance(caught.exception, MomongaNeedToReopen)  # handlers still work
         finally:
             skw._cmd_lock.release()
 

@@ -66,6 +66,10 @@ class MomongaXmitTimeout(MomongaNeedToReopen, TimeoutError):
     pass
 
 
+class MomongaSkCommandBusy(MomongaNeedToReopen, TimeoutError):
+    pass
+
+
 class MomongaResponseNotExpected(MomongaError):
     pass
 

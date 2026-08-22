@@ -16,6 +16,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkCommandSerialInputError,
                                 MomongaSkCommandFailedToExecute,
                                 MomongaSkCommandCancelled,
+                                MomongaSkCommandBusy,
                                 MomongaSkScanFailure,
                                 MomongaSkJoinFailure)
 from .momonga_response import (DeviceStrategy,
@@ -258,9 +259,9 @@ class MomongaSkWrapper:
                      lock_timeout: int | float = -1,
                      ) -> list[str]:
         if not self._cmd_lock.acquire(timeout=lock_timeout):
-            raise MomongaSkCommandCancelled('Another SK command is still running: %s'
-                                            % (_mask_secrets(' '.join(
-                                                c for c in command if c is not None))))
+            raise MomongaSkCommandBusy('Another SK command is still running: %s'
+                                       % (_mask_secrets(' '.join(
+                                           c for c in command if c is not None))))
         try:
             return self._exec_command_locked(command, wait_until, timeout, payload)
         finally:

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from momonga.momonga import Momonga, _INFC_RES_XMIT_LIMIT
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import (MomongaNeedToReopen, MomongaXmitTimeout,
-                                       MomongaSkCommandCancelled)
+                                       MomongaSkCommandCancelled, MomongaSkCommandBusy)
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, _SK_COMMAND_LIMIT
@@ -204,6 +204,20 @@ class TestASpentBudgetIsNamedWhereverItRunsOut(unittest.TestCase):
         with self.assertRaises(MomongaNeedToReopen) as caught:
             sm.xmitter(b'\x00', timeout=60)
         self.assertNotIsInstance(caught.exception, MomongaXmitTimeout)
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_being_locked_out_with_no_budget_left_is_a_timeout(self, _sleep):
+        sm = _make_sm()
+        sm.skw.sksendto.side_effect = MomongaSkCommandBusy('Another SK command is still running')
+        with self.assertRaises(MomongaXmitTimeout):
+            sm.xmitter(b'\x00', timeout=0)
+
+    @patch('momonga.momonga_session_manager.time.sleep')
+    def test_being_locked_out_with_budget_left_keeps_its_own_type(self, _sleep):
+        sm = _make_sm()
+        sm.skw.sksendto.side_effect = MomongaSkCommandBusy('Another SK command is still running')
+        with self.assertRaises(MomongaSkCommandBusy):
+            sm.xmitter(b'\x00', timeout=60)
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_a_cancelled_command_stays_a_cancellation(self, _sleep):
