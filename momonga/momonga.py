@@ -58,7 +58,7 @@ class Momonga:
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
-        self.xmit_timeout: int | float | None = 3600
+        self.xmit_timeout: int | float | None = 300
         self.internal_xmit_interval: int | float = 5
         self._transaction_id: int = 0
         self.energy_unit: int | float = 1

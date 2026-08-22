@@ -124,7 +124,7 @@ class TestInfcResBudget(unittest.TestCase):
         return mo.session_manager.xmitter.call_args.kwargs['timeout']
 
     def test_clamped_to_the_limit_when_the_caller_waits_longer(self):
-        self.assertEqual(self._capture_budget(3600), _INFC_RES_XMIT_LIMIT)
+        self.assertEqual(self._capture_budget(300), _INFC_RES_XMIT_LIMIT)
 
     def test_clamped_to_the_limit_when_the_caller_did_not_set_a_timeout(self):
         self.assertEqual(self._capture_budget(None), _INFC_RES_XMIT_LIMIT)

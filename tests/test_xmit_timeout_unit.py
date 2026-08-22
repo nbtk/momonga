@@ -13,6 +13,7 @@ from momonga.momonga_async import AsyncMomonga
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
 from momonga.momonga_session_manager import MomongaSessionManager
+from momonga.momonga_sk_wrapper import _SK_COMMAND_LIMIT
 
 
 def _make_mo(gate_open=True):
@@ -70,25 +71,31 @@ class TestOneBudgetPerRequest(unittest.TestCase):
         self.assertEqual(len(waits), 60 * mo.xmit_retries)  # what the budget is for
 
 
-class TestTheBudgetDoesNotShortenTheLockWait(unittest.TestCase):
+class TestTheBudgetIsSplitBetweenTheTwoWaits(unittest.TestCase):
 
-    def test_a_request_still_outwaits_a_rejoin_holding_the_command_lock(self):
+    def _send_kwargs(self, xmit_timeout):
         mo, sm = _make_mo(gate_open=True)
+        mo.xmit_timeout = xmit_timeout
         try:
             mo.get_instantaneous_power()
         except MomongaNeedToReopen:
             pass
-        lock_timeout = sm.skw.sksendto.call_args.kwargs['lock_timeout']
-        # a rejoining receiver can hold _cmd_lock for skjoin's 3 x 300 s
-        self.assertGreater(lock_timeout, 900)
+        return sm.skw.sksendto.call_args.kwargs
 
-    def test_the_response_wait_keeps_the_sk_command_limit(self):
-        mo, sm = _make_mo(gate_open=True)
-        try:
-            mo.get_instantaneous_power()
-        except MomongaNeedToReopen:
-            pass
-        self.assertEqual(sm.skw.sksendto.call_args.kwargs['timeout'], 300)
+    def test_the_lock_wait_is_not_capped_by_the_command_limit(self):
+        # the receiver holds _cmd_lock while it rejoins, and the budget is what
+        # says how long a request may wait for it - not the per-command limit
+        kwargs = self._send_kwargs(900)
+        self.assertGreater(kwargs['lock_timeout'], _SK_COMMAND_LIMIT)
+
+    def test_the_response_wait_is_capped_by_the_command_limit(self):
+        kwargs = self._send_kwargs(900)
+        self.assertEqual(kwargs['timeout'], _SK_COMMAND_LIMIT)
+
+    def test_a_budget_under_the_command_limit_shortens_both(self):
+        kwargs = self._send_kwargs(30)
+        self.assertLessEqual(kwargs['timeout'], 30)
+        self.assertLessEqual(kwargs['lock_timeout'], 30)
 
 
 class TestTheBudgetReachesRecovery(unittest.TestCase):
@@ -129,7 +136,7 @@ class TestTheSettingIsReachableFromAsync(unittest.TestCase):
     def test_async_reads_and_writes_it(self):
         mo = AsyncMomonga('', '', '/dev/ttyUSB0')
         try:
-            self.assertEqual(mo.xmit_timeout, 3600)
+            self.assertEqual(mo.xmit_timeout, 300)
             mo.xmit_timeout = 30
             self.assertEqual(mo._sync.xmit_timeout, 30)
         finally:

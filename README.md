@@ -221,7 +221,9 @@ momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 スマートメーターが応答しないとき、ひとつのリクエストを諦めるまでにかかる時間はおおむねmomonga.xmit_retriesとmomonga.recv_timeoutの積になる。既定値では約144秒。ただしこれは応答を待つ時間だけで、送信ブロッキング中の待ち時間は含まない。そちらはmomonga.xmit_timeoutが上限になる。
 
 ## momonga.xmit_timeout
-ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、reopen_delaysを指定していれば自動再接続の対象になる。既定値は3600。
+ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、reopen_delaysを指定していれば自動再接続の対象になる。既定値は300。
+
+この値は、設置環境で送信ブロッキングが解けるのに要する時間より長くする必要がある。PANAセッションの自動再認証によるブロッキングは通常数秒から十数秒で解けるが、送信レート制限に当たった場合は環境によって長引くことがある。
 
 この上限はリクエスト全体に対して1回分で、momonga.xmit_retriesの回数だけ繰り返されることはない。`None`を指定すると上限なしになる。
 
@@ -251,6 +253,8 @@ mo.xmit_timeout = 300 # 送信ブロッキングが5分続いたら諦める
 
 ## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　
+
+所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。reopen_delaysで再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
 ### Arguments
 - Void
 ### Return Value
