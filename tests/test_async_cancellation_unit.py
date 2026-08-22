@@ -16,7 +16,8 @@ from momonga.momonga_session_manager import MomongaSessionManager
 
 POLL = 'momonga.momonga_async._NOTIFICATION_POLL'
 from momonga.momonga import _INFC_RES_XMIT_LIMIT
-from momonga.momonga_async import _NOTIFICATION_POLL as POLL_SECONDS
+from momonga.momonga_async import (_NOTIFICATION_POLL as POLL_SECONDS,
+                                   _RESERVED_WORKERS)
 
 
 def _make_amo():
@@ -28,6 +29,13 @@ def _make_amo():
     amo._sync.session_manager = sm
     amo._sync.is_open = True
     return amo, sm
+
+
+def _infc_frame():
+    f = MagicMock()
+    f.data = (b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'
+              + b'\x74' + b'\x01' + b'\xe7\x04\x00\x00\x03\xe8')
+    return f
 
 
 def _frame():
@@ -306,7 +314,8 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
         amo = AsyncMomonga('', '', '/dev/ttyUSB0', max_workers=2)
         try:
             self.assertEqual(amo._executor._max_workers, 2)
-            self.assertEqual(amo._notif_executor._max_workers, 1)
+            self.assertEqual(amo._notif_executor._max_workers, _RESERVED_WORKERS)
+            self.assertEqual(amo._life_executor._max_workers, _RESERVED_WORKERS)
         finally:
             amo._executor.shutdown(wait=False)
             amo._notif_executor.shutdown(wait=False)
@@ -342,18 +351,11 @@ class TestTheReplyBudgetIsNotThePollSlice(unittest.IsolatedAsyncioTestCase):
     worker quickly. That slice is this loop's business - the INFC_Res the read
     may have to send belongs to the timeout the caller actually asked for."""
 
-    @staticmethod
-    def _infc_frame():
-        f = MagicMock()
-        f.data = (b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'
-                  + b'\x74' + b'\x01' + b'\xe7\x04\x00\x00\x03\xe8')
-        return f
-
     async def _budget_for(self, timeout):
         amo, sm = _make_amo()
         seen = []
         sm.xmitter = lambda payload, timeout=None: seen.append(timeout)
-        sm.notif_q.put(self._infc_frame())
+        sm.notif_q.put(_infc_frame())
         await amo.get_notification(timeout=timeout)
         amo._executor.shutdown(wait=False)
         amo._notif_executor.shutdown(wait=False)
@@ -405,6 +407,53 @@ class TestShutdownIsNotBlockedByAbandonedRequests(unittest.IsolatedAsyncioTestCa
         amo._notif_executor.shutdown(wait=False)
         amo._life_executor.shutdown(wait=False)
         self.assertTrue(names[0].startswith('momonga-life'), names[0])
+
+
+class TestAnAbandonedCallCannotBlockTheNextOne(unittest.IsolatedAsyncioTestCase):
+    """The dedicated pools keep a spare worker. Without it the call that was
+    given up on owns the only thread and the next one queues behind it."""
+
+    async def test_close_can_still_run_while_an_open_is_stuck(self):
+        amo, _sm = _make_amo()
+        stuck = threading.Event()
+        closed = threading.Event()
+        amo._sync.open = lambda: stuck.wait(30)      # a module that never answers
+        amo._sync.close = lambda: closed.set()       # what would unstick it
+
+        entering = asyncio.ensure_future(amo.__aenter__())
+        await asyncio.sleep(0.2)
+        entering.cancel()
+        try:
+            await entering
+        except asyncio.CancelledError:
+            pass
+
+        try:
+            await asyncio.wait_for(amo.__aexit__(None, None, None), timeout=5)
+        finally:
+            stuck.set()
+        self.assertTrue(closed.is_set())
+
+    async def test_a_cancelled_read_does_not_hold_up_the_next_read(self):
+        amo, sm = _make_amo()
+        sm.notif_q.put(_infc_frame())
+        holding = threading.Event()
+        sm.xmitter = lambda payload, timeout=None: holding.wait(20)  # a shut gate
+
+        reading = asyncio.ensure_future(amo.get_notification(timeout=60))
+        await asyncio.sleep(0.3)
+        reading.cancel()
+        try:
+            await reading
+        except asyncio.CancelledError:
+            pass
+
+        started = time.monotonic()
+        try:
+            await asyncio.wait_for(amo.get_notification(timeout=0), timeout=5)
+        finally:
+            holding.set()
+        self.assertLess(time.monotonic() - started, 3)
 
 
 class TestTheSyncSettingsAreReachable(unittest.IsolatedAsyncioTestCase):

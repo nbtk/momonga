@@ -16,6 +16,10 @@ _NOTIFICATION_POLL = 1
 
 _DEFAULT_MAX_WORKERS = 4
 
+# one to run the call, one so a call nobody is waiting for any more cannot keep
+# the next one from starting
+_RESERVED_WORKERS = 2
+
 
 class AsyncMomonga:
     def __init__(self,
@@ -32,9 +36,9 @@ class AsyncMomonga:
         self._orphaned_session = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers,
                                             thread_name_prefix='momonga')
-        self._notif_executor = ThreadPoolExecutor(max_workers=1,
+        self._notif_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
                                                   thread_name_prefix='momonga-notif')
-        self._life_executor = ThreadPoolExecutor(max_workers=1,
+        self._life_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
                                                  thread_name_prefix='momonga-life')
 
     def _run(self, fn, *args, executor: ThreadPoolExecutor | None = None) -> asyncio.Future:

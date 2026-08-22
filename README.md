@@ -661,7 +661,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 # AsyncMomonga
 `AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。`Momonga`のブロッキング処理はインスタンスごとに持つスレッドプールで実行されるため、イベントループをブロックしません。プロセスで共有されるデフォルトのexecutorは使いません。
 
-スレッドプールは3つに分かれています。`get_notification()`と`notifications()`は専用の1スレッド、`open()`/`close()`/`reopen()`はもう1つの専用スレッド、それ以外のメソッドは汎用プールを使います。リクエストが何本詰まっていても、通知の`timeout`が守られ、セッションの開閉が待たされないようにするためです。
+スレッドプールは3つに分かれています。`get_notification()`と`notifications()`は専用プール、`open()`/`close()`/`reopen()`はもう1つの専用プール、それ以外のメソッドは汎用プールを使います。リクエストが何本詰まっていても、通知の`timeout`が守られ、セッションの開閉が待たされないようにするためです。専用プールはそれぞれワーカーを2本持ちます。1本は実行中の呼び出し用、もう1本は、キャンセルされて誰も待っていない呼び出しが次の呼び出しを塞がないための予備です。
 
 スレッドプールを停止するのは`async with`文を抜けるときだけです。抜けたあとのインスタンスは再利用できません。
 
@@ -684,7 +684,7 @@ async with momonga.AsyncMomonga(rbid, pwd, dev,
     mo.xmit_timeout = 60  # 送信ブロッキングが1分続いたら諦める
 ```
 
-`get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルされても専用スレッドは1秒以内に解放されます。読み取り済みの通知は次の呼び出しに引き継がれます。
+`get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められます。読み取り済みの通知は次の呼び出しに引き継がれます。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残ります。予備のワーカーがあるので次の読み取りは待たされません。
 
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None, max_workers: int = 4)
 AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
