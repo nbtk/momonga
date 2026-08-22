@@ -434,9 +434,11 @@ class MomongaSkWrapper:
 
     def skterm(self,
                lock_timeout: int | float = -1,
+               deadline: float | None = None,
                ) -> None:
         logger.debug('Trying to terminate the session...')
-        res = self.exec_command(['SKTERM'], ['EVENT 27', 'EVENT 28'], lock_timeout=lock_timeout)
+        res = self.exec_command(['SKTERM'], ['EVENT 27', 'EVENT 28'],
+                                lock_timeout=lock_timeout, deadline=deadline)
         if res[-1].startswith('EVENT 28'):
             logger.warning('There was no session to terminate.')
 

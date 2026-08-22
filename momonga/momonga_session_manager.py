@@ -36,7 +36,7 @@ _STOP_RECEIVER = _StopReceiver()
 
 _REJOIN_LOCK_LIMIT = 120
 
-_SKTERM_LOCK_LIMIT = 30
+_SKTERM_LIMIT = 30
 
 _RECEIVER_JOIN_LIMIT = 30
 
@@ -172,7 +172,7 @@ class MomongaSessionManager:
             try:
                 self.session_established = False
                 logger.info('Terminating the PANA session...')
-                self.skw.skterm(lock_timeout=_SKTERM_LOCK_LIMIT)
+                self.skw.skterm(deadline=time.monotonic() + _SKTERM_LIMIT)
             except Exception as e:
                 logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
             finally:

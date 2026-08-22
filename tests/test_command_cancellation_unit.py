@@ -167,7 +167,7 @@ class TestCloseDoesNotWaitOutAStuckReceiver(unittest.TestCase):
 
         # the real limits are 120 s and 30 s; the shape is what is under test
         with patch('momonga.momonga_session_manager._REJOIN_LOCK_LIMIT', 0.2), \
-             patch('momonga.momonga_session_manager._SKTERM_LOCK_LIMIT', 0.2):
+             patch('momonga.momonga_session_manager._SKTERM_LIMIT', 0.2):
             started = time.monotonic()
             sm.close()
             elapsed = time.monotonic() - started

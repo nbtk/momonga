@@ -93,6 +93,45 @@ class TestTheWrapperCloseIsBounded(unittest.TestCase):
         skw._ser.close.assert_called_once()
 
 
+class TestAModuleIgnoringSktermDoesNotHoldClose(unittest.TestCase):
+    """_SKTERM_LIMIT used to bound only the wait for the command lock. The wait
+    for the module's own EVENT 27 ran on the SK command limit, so a module that
+    simply never answers held close() for five minutes."""
+
+    def _make_sm(self):
+        skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
+        skw._ser = MagicMock()
+        skw._ser.closed = False
+        skw._writeline = lambda line, payload=None: None   # SKTERM goes unanswered
+        sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
+        sm.session_established = True
+        sm.smart_meter_addr = 'FE80::1'
+        sm.skw = skw
+        return sm
+
+    def test_close_gives_up_on_the_terminate_and_finishes(self):
+        sm = self._make_sm()
+        started = time.monotonic()
+        with patch('momonga.momonga_session_manager._SKTERM_LIMIT', 0.3):
+            sm.close()
+        self.assertLess(time.monotonic() - started, 5)  # not the sk command limit
+
+    def test_the_limit_is_what_decides_how_long(self):
+        sm = self._make_sm()
+        started = time.monotonic()
+        with patch('momonga.momonga_session_manager._SKTERM_LIMIT', 1.0):
+            sm.close()
+        self.assertGreaterEqual(time.monotonic() - started, 0.9)
+
+    def test_an_answered_terminate_is_still_quick(self):
+        sm = self._make_sm()
+        sm.skw._writeline = lambda line, payload=None: (
+            sm.skw.subscribers['cmd_exec_q'].put('EVENT 27 FE80::1 0'))
+        started = time.monotonic()
+        sm.close()
+        self.assertLess(time.monotonic() - started, 1)
+
+
 class TestARejoinLockCloseIsNotAnError(unittest.TestCase):
 
     def _make_sm(self):
