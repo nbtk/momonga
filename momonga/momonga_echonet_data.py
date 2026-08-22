@@ -251,7 +251,7 @@ class EchonetDataParser:
         return day
 
     @classmethod
-    def parse_instantaneous_power(cls, edt: bytes) -> float:
+    def parse_instantaneous_power(cls, edt: bytes) -> int:
         power = int.from_bytes(edt, 'big', signed=True)
         return power
 

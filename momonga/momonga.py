@@ -636,7 +636,7 @@ class Momonga:
         res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_day_for_historical_data_1(res.edt)
 
-    def get_instantaneous_power(self) -> float:
+    def get_instantaneous_power(self) -> int:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_power)
         res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_power(res.edt)

@@ -224,7 +224,7 @@ class AsyncMomonga:
     async def get_day_for_historical_data_1(self) -> int:
         return await self._run(self._sync.get_day_for_historical_data_1)
 
-    async def get_instantaneous_power(self) -> float:
+    async def get_instantaneous_power(self) -> int:
         return await self._run(self._sync.get_instantaneous_power)
 
     async def get_instantaneous_current(self) -> dict[str, float]:

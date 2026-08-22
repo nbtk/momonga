@@ -481,7 +481,7 @@ e.g.
 ### Arguments
 - Void
 ### Return Value
-- float: 瞬時電力測定値(W)
+- int: 瞬時電力測定値(W)
 
 ## momonga.get_instantaneous_current()
 瞬時電流計測値を取得する。
@@ -546,7 +546,7 @@ e.g.
 ```
 
 ## momonga.get_historical_cumulative_energy_3(timestamp: datetime.datetime | None = None, num_of_data_points: int = 10)
-積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 1 分毎のデータで過去最大6時間分取得する。
+積算履歴収集日時、収集コマ数ならびに積算電力量の計測結果履歴を、正・逆 1 分毎のデータで過去最大10分間ぶん取得する。
 ### Arguments
 - timestamp: 収集日時 (Noneのときは現時刻)
 - num_of_data_points: 収集コマ数 1~10
@@ -602,8 +602,8 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
     )
 ```
 
-## momonga.request_to_get()
-複数のEchonetプロパティを一括送信するためのインタフェース
+## momonga.request_to_get(properties: set[EchonetPropertyCode])
+複数のEchonetプロパティを一括取得するためのインタフェース。1回のリクエストにまとめて送信する。
 ### Arguments
 - properties: EchonetPropertyCodeの集合
 ### Return Value
@@ -672,16 +672,16 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
 放棄された処理はそのリクエストが終わるまで汎用プールの枠を占有します。占有時間は`Momonga`側の設定で決まります。
 
-- reopen_delaysを指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約1時間
+- reopen_delaysを指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分
 - **reopen_delaysに`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わりません**
 
-`asyncio`で使うなら`xmit_timeout`を短めに設定し、`max_workers`には余裕を持たせることを推奨します。有限のreopen_delaysを使えば占有時間の上限も有限になります。
+占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせてください。終わりのないreopen_delaysを避ければ、占有時間の上限も有限になります。
 
 e.g.
 ```python3
 async with momonga.AsyncMomonga(rbid, pwd, dev,
                                 reopen_delays=[600.0, 600.0, 600.0]) as mo:
-    mo.xmit_timeout = 120  # 送信ブロッキングが2分続いたら諦める
+    mo.xmit_timeout = 60  # 送信ブロッキングが1分続いたら諦める
 ```
 
 `get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルされても専用スレッドは1秒以内に解放されます。読み取り済みの通知は次の呼び出しに引き継がれます。
@@ -691,7 +691,7 @@ AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Mo
 ### Arguments
 - max_workers: 汎用プールのワーカー数。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本、open/close/reopen用に1本、予備2本）
 
-momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficientは読み取りのみです。
+momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficient、momonga.lqi、momonga.rssiは読み取りのみです。
 
 `async with`文による使用を推奨します。
 
