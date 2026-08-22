@@ -119,6 +119,82 @@ class TestCommandsFailAtOnce(unittest.TestCase):
                 skw.exec_command(['SKVER'], timeout=30)
 
 
+class TestAPublisherThatLostThePortStaysQuiet(unittest.TestCase):
+    """close() bounds the join, so a stuck publisher can outlive the session
+    it belonged to and must not speak for the one that replaced it."""
+
+    @staticmethod
+    def _start_wedged(skw, release):
+        def wedged():
+            release.wait(30)
+            raise serial.SerialException('the port went away')
+        skw._ser.readline.side_effect = wedged
+        th = threading.Thread(target=skw.received_packet_publisher, daemon=True)
+        skw._publisher_th = th
+        th.start()
+        time.sleep(0.1)
+        return th
+
+    def _outlive_a_close(self):
+        skw = _make_skw()
+        release = threading.Event()
+        th = self._start_wedged(skw, release)
+        with patch('momonga.momonga_sk_wrapper._PUBLISHER_JOIN_LIMIT', 0.2):
+            skw.close()
+        self.assertTrue(th.is_alive())  # it outlived the close
+        skw._ser = MagicMock()          # what the next open() does first
+        skw._ser.closed = False
+        skw.publisher_exception = None
+        skw._publisher_th_breaker = False
+        return skw, release, th
+
+    def test_its_death_is_not_blamed_on_the_next_session(self):
+        skw, release, th = self._outlive_a_close()
+        release.set()
+        th.join(5)
+        self.assertIsNone(skw.publisher_exception)
+
+    def test_it_does_not_queue_a_stop_for_the_next_session(self):
+        skw, release, th = self._outlive_a_close()
+        release.set()
+        th.join(5)
+        self.assertTrue(skw.subscribers['cmd_exec_q'].empty())
+
+    def test_a_command_run_afterwards_is_not_refused(self):
+        skw, release, th = self._outlive_a_close()
+        release.set()
+        th.join(5)
+        skw._raise_if_publisher_died()  # must not raise
+
+    def test_it_stops_reading_once_another_publisher_owns_the_port(self):
+        skw = _make_skw()
+        reads = []
+        skw._ser.readline.side_effect = lambda: reads.append(1) or b'EVENT 21 FE80::1 0 00\r\n'
+        th = threading.Thread(target=skw.received_packet_publisher, daemon=True)
+        skw._publisher_th = th
+        th.start()
+        time.sleep(0.1)
+
+        skw._ser = MagicMock()  # a new port takes over
+        th.join(5)
+
+        self.assertFalse(th.is_alive())  # the old one let go
+
+
+class TestTheCurrentPublisherStillReports(unittest.TestCase):
+
+    def test_a_publisher_that_still_owns_the_port_reports_its_death(self):
+        skw = _make_skw()
+        skw._ser.readline.side_effect = serial.SerialException('device disconnected')
+        th = threading.Thread(target=skw.received_packet_publisher, daemon=True)
+        skw._publisher_th = th
+        th.start()
+        th.join(5)
+
+        self.assertIsInstance(skw.publisher_exception, serial.SerialException)
+        self.assertIs(skw.subscribers['cmd_exec_q'].get_nowait(), PUBLISHER_STOPPED)
+
+
 class _DyingQueue(queue.Queue):
     """Kills the publisher while the command is draining, so its news lands mid-drain."""
 

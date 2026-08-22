@@ -213,9 +213,10 @@ class MomongaSkWrapper:
 
     def received_packet_publisher(self) -> None:
         logger.debug('A received packet publisher has been started.')
+        my_ser = self._ser  # open() swaps this in, which is how a stale publisher knows
         try:
             while True:
-                if self._publisher_th_breaker:
+                if self._publisher_th_breaker or self._ser is not my_ser:
                     break
                 line = self._readline(timeout=1)
                 if line == '':
@@ -224,9 +225,12 @@ class MomongaSkWrapper:
                     q.put(line)  # will dispatch the line to each subscriber
         except Exception as e:
             logger.error('An exception was raised from the publisher thread. %s: %s' % (type(e).__name__, e))
-            self.publisher_exception = e
-            for q in list(self.subscribers.values()):
-                q.put(PUBLISHER_STOPPED)
+            if self._ser is my_ser:
+                self.publisher_exception = e
+                for q in list(self.subscribers.values()):
+                    q.put(PUBLISHER_STOPPED)
+            else:
+                logger.debug('The publisher that raised it no longer owns the port. Ignoring.')
 
         logger.debug('The received packet publisher has been stopped.')
 
