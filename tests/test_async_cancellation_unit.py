@@ -15,6 +15,7 @@ from momonga.momonga_exception import MomongaRuntimeError
 from momonga.momonga_session_manager import MomongaSessionManager
 
 POLL = 'momonga.momonga_async._NOTIFICATION_POLL'
+from momonga.momonga import _INFC_RES_XMIT_LIMIT
 from momonga.momonga_async import _NOTIFICATION_POLL as POLL_SECONDS
 
 
@@ -364,6 +365,10 @@ class TestTheReplyBudgetIsNotThePollSlice(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_short_timeout_still_bounds_the_reply(self):
         self.assertLessEqual(await self._budget_for(0.5), 0.5)
+
+    async def test_no_timeout_at_all_gives_the_reply_everything(self):
+        # the caller set no deadline, so the poll slice must not become one
+        self.assertGreaterEqual(await self._budget_for(None), _INFC_RES_XMIT_LIMIT)
 
 
 class TestShutdownIsNotBlockedByAbandonedRequests(unittest.IsolatedAsyncioTestCase):

@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import functools
+import math
 import time
 
 from concurrent.futures import ThreadPoolExecutor
@@ -132,8 +133,8 @@ class AsyncMomonga:
             if deadline is not None:
                 poll = min(poll, max(0.0, deadline - time.monotonic()))
             # the poll slice is this loop's business; the reply may use what the
-            # caller actually allowed
-            reply_budget = (None if deadline is None
+            # caller actually allowed, which is everything when they set no timeout
+            reply_budget = (math.inf if deadline is None
                             else max(0.0, deadline - time.monotonic()))
             reading = self._run(self._sync._read_notification, poll, reply_budget,
                                 executor=self._notif_executor)
