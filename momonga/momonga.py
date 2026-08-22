@@ -222,18 +222,25 @@ class Momonga:
             cur += pdc
 
             if edt is not None:
-                try:
-                    parser = PARSER_MAP[epc]
-                    if parser in ENERGY_PARSERS:
-                        properties[epc] = parser(edt, self.energy_unit, self.energy_coefficient)
-                    else:
-                        properties[epc] = parser(edt)
-                except KeyError:
-                    properties[epc] = edt
+                properties[epc] = self._parse_or_keep_raw(epc, edt)
             else:
                 properties[epc] = None
 
         return {'esv': EchonetServiceCode(esv), 'properties': properties}
+
+    def _parse_or_keep_raw(self, epc: EchonetPropertyCode | int, edt: bytes) -> Any:
+        parser = PARSER_MAP.get(epc)
+        if parser is None:
+            return edt
+        try:
+            if parser in ENERGY_PARSERS:
+                return parser(edt, self.energy_unit, self.energy_coefficient)
+            return parser(edt)
+        except Exception as e:
+            logger.warning('Could not read EPC %02X out of a notification (%d bytes). '
+                           'Keeping the raw value. %s: %s'
+                           % (epc, len(edt), type(e).__name__, e))
+            return edt
 
     def _send_infc_res(self,
                         infc_data: bytes,
@@ -753,9 +760,16 @@ class Momonga:
             except KeyError:
                 raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc)
 
-            if parser in ENERGY_PARSERS:
-                parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
-            else:
-                parsed_results[r.epc] = parser(r.edt)
+            try:
+                if parser in ENERGY_PARSERS:
+                    parsed_results[r.epc] = parser(r.edt, self.energy_unit, self.energy_coefficient)
+                else:
+                    parsed_results[r.epc] = parser(r.edt)
+            except MomongaError:
+                raise
+            except Exception as e:
+                raise MomongaResponseNotExpected(
+                    'Could not read EPC %02X out of the response (%s bytes). %s: %s'
+                    % (r.epc, 'no' if r.edt is None else len(r.edt), type(e).__name__, e)) from e
 
         return parsed_results
