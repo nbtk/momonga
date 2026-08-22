@@ -661,7 +661,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 # AsyncMomonga
 `AsyncMomonga`は`Momonga`の全メソッドを`asyncio`で利用できるラッパークラスです。`Momonga`のブロッキング処理はインスタンスごとに持つスレッドプールで実行されるため、イベントループをブロックしません。プロセスで共有されるデフォルトのexecutorは使いません。
 
-スレッドプールは2つに分かれています。`get_notification()`と`notifications()`は専用の1スレッドで動き、それ以外のメソッドは汎用プールを使います。リクエストが何本詰まっていても通知の`timeout`が守られるようにするためです。
+スレッドプールは3つに分かれています。`get_notification()`と`notifications()`は専用の1スレッド、`open()`/`close()`/`reopen()`はもう1つの専用スレッド、それ以外のメソッドは汎用プールを使います。リクエストが何本詰まっていても、通知の`timeout`が守られ、セッションの開閉が待たされないようにするためです。
 
 スレッドプールを停止するのは`async with`文を抜けるときだけです。抜けたあとのインスタンスは再利用できません。
 
@@ -675,7 +675,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 - reopen_delaysを指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分
 - **reopen_delaysに`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わりません**
 
-占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせてください。終わりのないreopen_delaysを避ければ、占有時間の上限も有限になります。
+占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせてください。終わりのないreopen_delaysを避ければ、占有時間の上限も有限になります。汎用プールが放棄されたリクエストで埋まっても、`async with`文からの退出は専用スレッドで実行されるので待たされません。
 
 e.g.
 ```python3
@@ -689,7 +689,7 @@ async with momonga.AsyncMomonga(rbid, pwd, dev,
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None, max_workers: int = 4)
 AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
 ### Arguments
-- max_workers: 汎用プールのワーカー数。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本、open/close/reopen用に1本、予備2本）
+- max_workers: 汎用プールのワーカー数。通知の読み取りとセッションの開閉は専用スレッドで動くのでこの数には含まれない。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本と、放棄されたリクエストのための予備3本）
 
 momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficient、momonga.lqi、momonga.rssiは読み取りのみです。
 

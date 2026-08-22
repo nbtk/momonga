@@ -15,6 +15,7 @@ from momonga.momonga_exception import MomongaRuntimeError
 from momonga.momonga_session_manager import MomongaSessionManager
 
 POLL = 'momonga.momonga_async._NOTIFICATION_POLL'
+from momonga.momonga_async import _NOTIFICATION_POLL as POLL_SECONDS
 
 
 def _make_amo():
@@ -40,13 +41,13 @@ class _Traced:
     def __init__(self, amo):
         self.entered = 0
         self.left = 0
-        self._real = amo._sync.get_notification
-        amo._sync.get_notification = self
+        self._real = amo._sync._read_notification
+        amo._sync._read_notification = self
 
-    def __call__(self, timeout=None):
+    def __call__(self, timeout=None, reply_budget=None):
         self.entered += 1
         try:
-            return self._real(timeout=timeout)
+            return self._real(timeout, reply_budget)
         finally:
             self.left += 1
 
@@ -91,10 +92,10 @@ class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestC
 
     @staticmethod
     def _slow_read(amo, notif):
-        def read(timeout=None):
+        def read(timeout=None, reply_budget=None):
             time.sleep(0.2)  # long enough for the caller to give up first
             return notif
-        amo._sync.get_notification = read
+        amo._sync._read_notification = read
 
     async def test_the_next_call_gets_what_the_cancelled_one_took(self):
         amo, _sm = _make_amo()
@@ -123,7 +124,7 @@ class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestC
         await asyncio.sleep(0.4)
 
         self.assertIs(await amo.get_notification(timeout=0), taken)
-        amo._sync.get_notification = lambda timeout=None: None
+        amo._sync._read_notification = lambda timeout=None, reply_budget=None: None
         self.assertIsNone(await amo.get_notification(timeout=0))
 
     async def test_a_cancelled_read_that_took_nothing_keeps_nothing(self):
@@ -204,7 +205,7 @@ class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
     async def test_work_does_not_run_on_the_default_executor(self):
         amo, _sm = _make_amo()
         names = []
-        amo._sync.get_notification = lambda timeout=None: names.append(
+        amo._sync._read_notification = lambda timeout=None, reply_budget=None: names.append(
             threading.current_thread().name)
 
         await amo.get_notification(timeout=0)
@@ -278,7 +279,7 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_saturated_pool_does_not_starve_the_reader(self):
         amo, _sm = _make_amo()
-        amo._sync.get_notification = lambda timeout=None: None
+        amo._sync._read_notification = lambda timeout=None, reply_budget=None: None
         release = threading.Event()
         busy = self._saturate(amo, release)
         await asyncio.sleep(0.2)
@@ -293,7 +294,7 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
     async def test_a_read_does_not_take_a_worker_the_requests_need(self):
         amo, _sm = _make_amo()
         names = []
-        amo._sync.get_notification = lambda timeout=None: names.append(
+        amo._sync._read_notification = lambda timeout=None, reply_budget=None: names.append(
             threading.current_thread().name)
 
         await amo.get_notification(timeout=0)
@@ -333,6 +334,72 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(amo._executor._shutdown)
         self.assertTrue(amo._notif_executor._shutdown)
+
+
+class TestTheReplyBudgetIsNotThePollSlice(unittest.IsolatedAsyncioTestCase):
+    """Reads are sliced into polls of a second so a cancelled await frees the
+    worker quickly. That slice is this loop's business - the INFC_Res the read
+    may have to send belongs to the timeout the caller actually asked for."""
+
+    @staticmethod
+    def _infc_frame():
+        f = MagicMock()
+        f.data = (b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'
+                  + b'\x74' + b'\x01' + b'\xe7\x04\x00\x00\x03\xe8')
+        return f
+
+    async def _budget_for(self, timeout):
+        amo, sm = _make_amo()
+        seen = []
+        sm.xmitter = lambda payload, timeout=None: seen.append(timeout)
+        sm.notif_q.put(self._infc_frame())
+        await amo.get_notification(timeout=timeout)
+        amo._executor.shutdown(wait=False)
+        amo._notif_executor.shutdown(wait=False)
+        amo._life_executor.shutdown(wait=False)
+        return seen[0]
+
+    async def test_a_long_timeout_gives_the_reply_room(self):
+        self.assertGreater(await self._budget_for(60), POLL_SECONDS)
+
+    async def test_a_short_timeout_still_bounds_the_reply(self):
+        self.assertLessEqual(await self._budget_for(0.5), 0.5)
+
+
+class TestShutdownIsNotBlockedByAbandonedRequests(unittest.IsolatedAsyncioTestCase):
+    """open/close/reopen run on a thread of their own, so requests nobody is
+    waiting for any more cannot keep the context manager from exiting."""
+
+    async def test_leaving_finishes_with_the_general_pool_full(self):
+        amo, _sm = _make_amo()
+        amo._sync.open = lambda: amo._sync
+        closed = threading.Event()
+        amo._sync.close = lambda: closed.set()
+        hold = threading.Event()
+        amo._sync.get_instantaneous_power = lambda: hold.wait(30)
+
+        tasks = [asyncio.ensure_future(amo.get_instantaneous_power())
+                 for _ in range(amo._executor._max_workers)]
+        await asyncio.sleep(0.3)
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        try:
+            await asyncio.wait_for(amo.__aexit__(None, None, None), timeout=5)
+        finally:
+            hold.set()
+        self.assertTrue(closed.is_set())
+
+    async def test_lifecycle_runs_on_its_own_thread(self):
+        amo, _sm = _make_amo()
+        names = []
+        amo._sync.close = lambda: names.append(threading.current_thread().name)
+        await amo.close()
+        amo._executor.shutdown(wait=False)
+        amo._notif_executor.shutdown(wait=False)
+        amo._life_executor.shutdown(wait=False)
+        self.assertTrue(names[0].startswith('momonga-life'), names[0])
 
 
 class TestTheSyncSettingsAreReachable(unittest.IsolatedAsyncioTestCase):

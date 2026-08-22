@@ -261,12 +261,18 @@ class MomongaSkWrapper:
                      timeout: int | float | None = _SK_COMMAND_LIMIT,
                      payload: bytes | None = None,
                      lock_timeout: int | float = -1,
+                     deadline: float | None = None,
                      ) -> list[str]:
+        if deadline is not None:
+            lock_timeout = max(0.0, deadline - time.monotonic())
         if not self._cmd_lock.acquire(timeout=lock_timeout):
             raise MomongaSkCommandBusy('Another SK command is still running: %s'
                                        % (_mask_secrets(' '.join(
                                            c for c in command if c is not None))))
         try:
+            if deadline is not None:
+                left = max(0.0, deadline - time.monotonic())
+                timeout = left if timeout is None else min(timeout, left)
             return self._exec_command_locked(command, wait_until, timeout, payload)
         finally:
             self._cmd_lock.release()
@@ -443,12 +449,14 @@ class MomongaSkWrapper:
                  side: int = 0,
                  timeout: int | float | None = _SK_COMMAND_LIMIT,
                  lock_timeout: int | float = -1,
+                 deadline: float | None = None,
                  ) -> None:
         self.exec_command(
             self.device_strategy.sksendto_args(handle, ip6_addr, port, sec, side, len(data)),
             payload=data,
             timeout=timeout,
             lock_timeout=lock_timeout,
+            deadline=deadline,
         )
 
     def detect_device(self):

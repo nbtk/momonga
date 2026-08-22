@@ -172,6 +172,12 @@ class Momonga:
         return not self._reopen_done.is_set() and not getattr(self._local, 'reopening', False)
 
     def get_notification(self, timeout: int | float | None = None) -> dict | None:
+        return self._read_notification(timeout, None)
+
+    def _read_notification(self,
+                            timeout: int | float | None,
+                            reply_budget: int | float | None,
+                            ) -> dict | None:
         deadline = None if timeout is None else time.monotonic() + timeout
 
         if not self.is_open:
@@ -206,7 +212,8 @@ class Momonga:
             return None
 
         if esv == EchonetServiceCode.infc:
-            self._send_infc_res(data, self._remaining(deadline))
+            self._send_infc_res(data, self._remaining(deadline)
+                                if reply_budget is None else reply_budget)
 
         properties = {}
         cur = 12
@@ -397,9 +404,14 @@ class Momonga:
         while not self.session_manager.recv_q.empty():
             self.session_manager.recv_q.get()  # drops stored data
 
-        deadline = None if self.xmit_timeout is None else time.monotonic() + self.xmit_timeout
+        xmit_budget = self.xmit_timeout
         for _ in range(self.xmit_retries):
-            self.session_manager.xmitter(tx_payload, timeout=self._remaining(deadline))
+            xmit_started = time.monotonic()
+            try:
+                self.session_manager.xmitter(tx_payload, timeout=xmit_budget)
+            finally:
+                if xmit_budget is not None:
+                    xmit_budget = max(0.0, xmit_budget - (time.monotonic() - xmit_started))
             while True:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)

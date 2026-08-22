@@ -357,14 +357,15 @@ class TestAsyncMomonga(unittest.IsolatedAsyncioTestCase):
         self.mock_sync.get_measured_cumulative_energy.assert_called_once_with(True)
 
     async def test_get_notification_none_on_timeout(self):
-        self.mock_sync.get_notification.return_value = None
+        self.mock_sync._read_notification.return_value = None
         result = await self.async_mo.get_notification(timeout=0)
         self.assertIsNone(result)
-        self.mock_sync.get_notification.assert_called_once_with(0)
+        # timeout=0 leaves nothing for the reply either
+        self.mock_sync._read_notification.assert_called_once_with(0, 0.0)
 
     async def test_get_notification_returns_dict(self):
         fake = {'esv': EchonetServiceCode.inf, 'properties': {}}
-        self.mock_sync.get_notification.return_value = fake
+        self.mock_sync._read_notification.return_value = fake
         result = await self.async_mo.get_notification(timeout=5)
         self.assertEqual(result, fake)
 
@@ -372,12 +373,12 @@ class TestAsyncMomonga(unittest.IsolatedAsyncioTestCase):
         fake = {'esv': EchonetServiceCode.inf, 'properties': {}}
         call_n = 0
 
-        def side_effect(timeout):
+        def side_effect(timeout=None, reply_budget=None):
             nonlocal call_n
             call_n += 1
             return None if call_n % 2 == 1 else fake
 
-        self.mock_sync.get_notification.side_effect = side_effect
+        self.mock_sync._read_notification.side_effect = side_effect
 
         collected = []
         async for notif in self.async_mo.notifications(timeout=1):

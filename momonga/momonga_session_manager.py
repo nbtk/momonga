@@ -14,7 +14,7 @@ from .momonga_exception import (MomongaSkScanFailure,
                                 MomongaSkCommandExecutionFailure,
 )
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
-from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED, _SK_COMMAND_LIMIT
+from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 
 logger = logging.getLogger(__name__)
 
@@ -327,10 +327,7 @@ class MomongaSessionManager:
                 if deadline is None:
                     self.skw.sksendto(self.smart_meter_addr, data)
                 else:
-                    self.skw.sksendto(
-                        self.smart_meter_addr, data,
-                        timeout=_capped_wait(deadline, _SK_COMMAND_LIMIT),
-                        lock_timeout=max(0.0, deadline - time.monotonic()))
+                    self.skw.sksendto(self.smart_meter_addr, data, deadline=deadline)
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:

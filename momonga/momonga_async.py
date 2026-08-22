@@ -33,6 +33,8 @@ class AsyncMomonga:
                                             thread_name_prefix='momonga')
         self._notif_executor = ThreadPoolExecutor(max_workers=1,
                                                   thread_name_prefix='momonga-notif')
+        self._life_executor = ThreadPoolExecutor(max_workers=1,
+                                                 thread_name_prefix='momonga-life')
 
     def _run(self, fn, *args, executor: ThreadPoolExecutor | None = None) -> asyncio.Future:
         loop = asyncio.get_running_loop()
@@ -95,24 +97,25 @@ class AsyncMomonga:
         return self._sync.rssi
 
     async def __aenter__(self) -> Self:
-        await self._run(self._sync.open)
+        await self._run(self._sync.open, executor=self._life_executor)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         try:
-            await self._run(self._sync.close)
+            await self._run(self._sync.close, executor=self._life_executor)
         finally:
             self._executor.shutdown(wait=False)
             self._notif_executor.shutdown(wait=False)
+            self._life_executor.shutdown(wait=False)
 
     async def open(self) -> None:
-        await self._run(self._sync.open)
+        await self._run(self._sync.open, executor=self._life_executor)
 
     async def close(self) -> None:
-        await self._run(self._sync.close)
+        await self._run(self._sync.close, executor=self._life_executor)
 
     async def reopen(self) -> None:
-        await self._run(self._sync.reopen)
+        await self._run(self._sync.reopen, executor=self._life_executor)
 
     async def get_notification(self,
                                timeout: int | float | None = None,
@@ -128,7 +131,11 @@ class AsyncMomonga:
             poll = _NOTIFICATION_POLL
             if deadline is not None:
                 poll = min(poll, max(0.0, deadline - time.monotonic()))
-            reading = self._run(self._sync.get_notification, poll,
+            # the poll slice is this loop's business; the reply may use what the
+            # caller actually allowed
+            reply_budget = (None if deadline is None
+                            else max(0.0, deadline - time.monotonic()))
+            reading = self._run(self._sync._read_notification, poll, reply_budget,
                                 executor=self._notif_executor)
             try:
                 notif = await asyncio.shield(reading)
