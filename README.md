@@ -102,6 +102,15 @@ PANAセッションを確立できなかったときに送出される。Bルー
 ## momonga.MomongaNeedToReopen
 スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される。
 
+## momonga.MomongaXmitTimeout
+momonga.xmit_timeoutで指定した秒数のあいだにパケットを送信できなかったときに送出される。`MomongaNeedToReopen`のサブクラスなので、そちらを捕捉しているコードはそのまま動く。
+
+## momonga.MomongaSkCommandBusy
+別のSKコマンドが実行中で、制限時間内にコマンドを開始できなかったときに送出される。`MomongaNeedToReopen`のサブクラスなので、そちらを捕捉しているコードはそのまま動く。
+
+## momonga.MomongaSkCommandCancelled
+momonga.close()がセッションを閉じるために、実行中のSKコマンドを打ち切ったときに送出される。`MomongaNeedToReopen`のサブクラスなので、そちらを捕捉しているコードはそのまま動く。
+
 ## momonga.MomongaTimeoutError
 `momonga.open()`の実行中にWi-SUNモジュールが応答しなかったときに送出される。デバイスファイルのパスと、モジュールが正しく接続されているかを確認すること。
 
@@ -215,6 +224,8 @@ momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、reopen_delaysを指定していれば自動再接続の対象になる。既定値は3600。
 
 この上限はリクエスト全体に対して1回分で、momonga.xmit_retriesの回数だけ繰り返されることはない。`None`を指定すると上限なしになる。
+
+momonga.open()が内部で発行するリクエスト（積算電力量の単位と係数の取得）にも同じ上限が適用される。極端に短い値を設定するとmomonga.open()自体が失敗するので注意すること。
 
 ## momonga.internal_xmit_interval
 momongaが続けて送信するときに空ける秒数。既定値は5。
