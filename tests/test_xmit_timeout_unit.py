@@ -15,6 +15,7 @@ from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_mo(gate_open=True):
@@ -32,7 +33,7 @@ def _make_mo(gate_open=True):
     return mo, sm
 
 
-class TestOneBudgetPerRequest(unittest.TestCase):
+class TestOneBudgetPerRequest(TimeBoxedTestCase):
 
     def test_the_budget_bounds_the_request_not_each_retry(self):
         mo, sm = _make_mo(gate_open=False)
@@ -45,6 +46,29 @@ class TestOneBudgetPerRequest(unittest.TestCase):
 
         # unbounded the first gate wait alone is 60 s; per retry it would be 12 s
         self.assertLess(elapsed, 3)
+
+    def test_what_each_retry_is_handed_is_what_the_last_one_left(self):
+        # the wall clock above only separates one budget from twelve by a
+        # hair when xmit_retries is small, so read the budgets themselves:
+        # not subtracting what an attempt spent gives every one the full
+        # figure, and the request quietly runs for retries x xmit_timeout
+        mo, sm = _make_mo(gate_open=False)
+        mo.xmit_timeout, mo.xmit_retries = 1, 3
+        handed = []
+
+        SPENT = 0.1
+
+        def record(payload, timeout=None):
+            handed.append(timeout)
+            time.sleep(SPENT)  # the send goes out; no reply ever comes back
+
+        sm.xmitter = record
+        with self.assertRaises(MomongaNeedToReopen):
+            mo.get_instantaneous_power()
+
+        self.assertEqual(len(handed), 3)
+        for spent_before, left in zip(handed, handed[1:]):
+            self.assertLessEqual(left, spent_before - SPENT)
 
     def test_no_budget_restores_the_full_gate_wait(self):
         mo, sm = _make_mo(gate_open=False)
@@ -72,7 +96,7 @@ class TestOneBudgetPerRequest(unittest.TestCase):
         self.assertEqual(len(waits), 60 * mo.xmit_retries)  # what the budget is for
 
 
-class TestTheLockWaitAndTheCommandWaitShareOneBudget(unittest.TestCase):
+class TestTheLockWaitAndTheCommandWaitShareOneBudget(TimeBoxedTestCase):
     """exec_command restarts its own clock once it holds the lock, so passing the
     same figure as both waits would let one send spend the budget twice."""
 
@@ -127,7 +151,7 @@ class TestTheLockWaitAndTheCommandWaitShareOneBudget(unittest.TestCase):
         self.assertIsNone(sm.skw.sksendto.call_args.kwargs.get('deadline'))
 
 
-class TestTheBudgetCoversTransmittingOnly(unittest.TestCase):
+class TestTheBudgetCoversTransmittingOnly(TimeBoxedTestCase):
     """The budget is for getting the packet out. Waiting for the meter to answer
     is what recv_timeout and xmit_retries are for, and must not spend it."""
 
@@ -181,7 +205,7 @@ class TestTheBudgetCoversTransmittingOnly(unittest.TestCase):
         self.assertNotIsInstance(caught.exception, MomongaXmitTimeout)
 
 
-class TestTheBudgetReachesRecovery(unittest.TestCase):
+class TestTheBudgetReachesRecovery(TimeBoxedTestCase):
 
     def test_a_spent_budget_is_caught_by_the_reopen_handler(self):
         mo, sm = _make_mo(gate_open=False)
@@ -200,7 +224,7 @@ class TestTheBudgetReachesRecovery(unittest.TestCase):
         self.assertEqual(len(reopened), 1)
 
 
-class TestTheResponseWaitIsUntouched(unittest.TestCase):
+class TestTheResponseWaitIsUntouched(TimeBoxedTestCase):
 
     def test_an_open_gate_still_gives_the_documented_figure(self):
         mo, sm = _make_mo(gate_open=True)
@@ -214,7 +238,7 @@ class TestTheResponseWaitIsUntouched(unittest.TestCase):
         self.assertAlmostEqual(elapsed, 3 * 0.2, delta=0.5)
 
 
-class TestTheSettingIsReachableFromAsync(unittest.TestCase):
+class TestTheSettingIsReachableFromAsync(TimeBoxedTestCase):
 
     def test_async_reads_and_writes_it(self):
         mo = AsyncMomonga('', '', '/dev/ttyUSB0')

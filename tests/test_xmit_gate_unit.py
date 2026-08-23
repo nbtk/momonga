@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_session_manager import MomongaSessionManager, _STOP_RECEIVER
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_sm():
@@ -41,7 +42,7 @@ def _run(sm, *events):
 # Initial state
 # ---------------------------------------------------------------------------
 
-class TestXmitGateInitial(unittest.TestCase):
+class TestXmitGateInitial(TimeBoxedTestCase):
 
     def test_initially_not_restricted(self):
         sm = _make_sm()
@@ -52,7 +53,7 @@ class TestXmitGateInitial(unittest.TestCase):
 # Session gate
 # ---------------------------------------------------------------------------
 
-class TestSessionGate(unittest.TestCase):
+class TestSessionGate(TimeBoxedTestCase):
 
     def test_session_lifetime_blocks(self):
         sm = _make_sm()
@@ -91,7 +92,7 @@ class TestSessionGate(unittest.TestCase):
 # Rate gate
 # ---------------------------------------------------------------------------
 
-class TestRateGate(unittest.TestCase):
+class TestRateGate(TimeBoxedTestCase):
 
     def test_rate_limit_exceeded_blocks(self):
         sm = _make_sm()
@@ -119,7 +120,7 @@ class TestRateGate(unittest.TestCase):
 # Both gates must be open before transmission is allowed.
 # ---------------------------------------------------------------------------
 
-class TestXmitGateInterleaving(unittest.TestCase):
+class TestXmitGateInterleaving(TimeBoxedTestCase):
 
     def test_32_29_still_blocked_after_33(self):
         # Rate released but session still blocked.
@@ -184,7 +185,7 @@ class TestXmitGateInterleaving(unittest.TestCase):
 # Force open (used by close())
 # ---------------------------------------------------------------------------
 
-class TestForceOpenGates(unittest.TestCase):
+class TestForceOpenGates(TimeBoxedTestCase):
 
     def test_force_clears_session_and_rate(self):
         sm = _make_sm()
@@ -197,6 +198,90 @@ class TestForceOpenGates(unittest.TestCase):
         sm = _make_sm()
         sm._force_open_gates()
         self.assertFalse(sm._is_restricted_to_xmit())
+
+
+class TestClosingLetsGoOfWhoeverIsWaiting(TimeBoxedTestCase):
+    """Every test above reads the gates through _is_restricted_to_xmit, so all
+    of them pass with close() no longer forcing them open - and a sender parked
+    on the gate when the session ends waits out its whole budget for a session
+    that is gone."""
+
+    def test_a_sender_parked_on_a_shut_gate_is_woken_by_close(self):
+        sm = _make_sm()
+        _run(sm, 'EVENT 29 FE80::1 0')     # session gate shut
+        self.assertTrue(sm._is_restricted_to_xmit())
+        woken = threading.Event()
+
+        def waiting_to_send():
+            sm._xmit_allowed.wait(20)
+            woken.set()
+
+        threading.Thread(target=waiting_to_send, daemon=True).start()
+        sm.session_established = False
+        sm.close()
+
+        self.assertTrue(woken.wait(5))
+        self.assertFalse(sm._is_restricted_to_xmit())
+
+    def test_closing_reopens_both_gates_not_just_one(self):
+        sm = _make_sm()
+        _run(sm, 'EVENT 29 FE80::1 0', 'EVENT 32 FE80::1 0')
+        sm.session_established = False
+
+        sm.close()
+
+        self.assertTrue(sm._session_available)
+        self.assertTrue(sm._rate_ok)
+
+
+class TestClosingLeavesNoSubscriberBehind(TimeBoxedTestCase):
+
+    def test_the_receiver_queue_is_unregistered(self):
+        sm = _make_sm()
+        sm.skw.subscribers = {}
+        sm.skw.subscribers['pkt_sbsc_q'] = sm._pkt_sbsc_q
+        sm.session_established = False
+
+        sm.close()
+
+        self.assertNotIn('pkt_sbsc_q', sm.skw.subscribers)
+
+
+class TestAShutGateSwallowsTheTransmitEvents(TimeBoxedTestCase):
+    """EVENT 21 and 02 are answers to a send. With the gate shut there is no
+    send they can belong to, so letting them through leaves a stale result in
+    recv_q for whatever request runs next."""
+
+    def test_a_tx_result_arriving_on_a_shut_gate_is_dropped(self):
+        sm = _make_sm()
+        _run(sm, 'EVENT 29 FE80::1 0', 'EVENT 21 FE80::1 0 00')
+
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_a_neighbor_advertisement_on_a_shut_gate_is_dropped(self):
+        sm = _make_sm()
+        _run(sm, 'EVENT 32 FE80::1 0', 'EVENT 02 FE80::1 0')
+
+        self.assertTrue(sm.recv_q.empty())
+
+    def test_the_same_events_are_kept_while_the_gate_is_open(self):
+        sm = _make_sm()
+        _run(sm, 'EVENT 21 FE80::1 0 00')
+
+        self.assertFalse(sm.recv_q.empty())
+
+
+class TestClosingLetsGoOfTheReceiver(TimeBoxedTestCase):
+
+    def test_the_thread_is_not_still_referenced_afterwards(self):
+        sm = _make_sm()
+        sm.session_established = False
+        sm._receiver_th = threading.Thread(target=lambda: None, daemon=True)
+        sm._receiver_th.start()
+
+        sm.close()
+
+        self.assertIsNone(sm._receiver_th)
 
 
 if __name__ == '__main__':

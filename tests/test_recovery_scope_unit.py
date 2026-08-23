@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import momonga
 from momonga.momonga import EchonetServiceCode
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_mo(delays=(256.0, 1024.0)):
@@ -36,7 +37,30 @@ def _run(mo, request_side_effect, reopen_side_effect=None):
     return result, raised, len(calls), reopen.call_count
 
 
-class TestAPermanentFailureIsNotRetried(unittest.TestCase):
+class TestAPermanentFailureIsNotRetried(TimeBoxedTestCase):
+
+    def test_a_permanent_failure_on_the_first_try_never_reopens(self):
+        # everything below starts with a lost session, so the only branch these
+        # covered was the permanent error that arrives after a reopen. Widening
+        # the initial catch to MomongaError puts a plain unsupported EPC through
+        # the whole recovery schedule and hands the caller a reopen error for it
+        mo = _make_mo()
+        _r, raised, requests, reopens = _run(
+            mo, lambda n: momonga.MomongaResponseNotPossible('EPC unsupported'))
+
+        self.assertIsInstance(raised, momonga.MomongaResponseNotPossible)
+        self.assertNotIsInstance(raised, momonga.MomongaNeedToReopen)
+        self.assertEqual(requests, 1)
+        self.assertEqual(reopens, 0)
+
+    def test_a_bad_argument_on_the_first_try_never_reopens(self):
+        mo = _make_mo()
+        _r, raised, requests, reopens = _run(
+            mo, lambda n: momonga.MomongaValueError('bad argument'))
+
+        self.assertIsInstance(raised, momonga.MomongaValueError)
+        self.assertEqual(requests, 1)
+        self.assertEqual(reopens, 0)
 
     def test_an_unsupported_epc_after_a_reopen_reaches_the_caller(self):
         mo = _make_mo()
@@ -68,7 +92,7 @@ class TestAPermanentFailureIsNotRetried(unittest.TestCase):
         self.assertEqual(requests, 2)
 
 
-class TestASessionFailureIsStillRetried(unittest.TestCase):
+class TestASessionFailureIsStillRetried(TimeBoxedTestCase):
 
     def test_a_lost_session_uses_every_delay(self):
         mo = _make_mo()

@@ -16,6 +16,7 @@ from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaNeedToReopen
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
+from tests._timebox import TimeBoxedTestCase
 
 WRITELINE = '_writeline'
 
@@ -34,7 +35,7 @@ def _make_sm(skw):
     return sm
 
 
-class TestPublisherTellsItsSubscribers(unittest.TestCase):
+class TestPublisherTellsItsSubscribers(TimeBoxedTestCase):
 
     def test_every_subscriber_queue_is_woken(self):
         skw = _make_skw()
@@ -47,7 +48,7 @@ class TestPublisherTellsItsSubscribers(unittest.TestCase):
         self.assertIs(skw.subscribers['cmd_exec_q'].get_nowait(), PUBLISHER_STOPPED)
 
 
-class TestReceiverStopsWithIt(unittest.TestCase):
+class TestReceiverStopsWithIt(TimeBoxedTestCase):
 
     def test_receiver_records_the_stop_and_ends_the_session(self):
         skw = _make_skw()
@@ -89,7 +90,7 @@ class TestReceiverStopsWithIt(unittest.TestCase):
         self.assertEqual(result, [None])
 
 
-class TestCommandsFailAtOnce(unittest.TestCase):
+class TestCommandsFailAtOnce(TimeBoxedTestCase):
 
     def test_a_waiting_command_does_not_sit_out_the_limit(self):
         skw = _make_skw()
@@ -119,7 +120,7 @@ class TestCommandsFailAtOnce(unittest.TestCase):
                 skw.exec_command(['SKVER'], timeout=30)
 
 
-class TestAPublisherThatLostThePortStaysQuiet(unittest.TestCase):
+class TestAPublisherThatLostThePortStaysQuiet(TimeBoxedTestCase):
     """close() bounds the join, so a stuck publisher can outlive the session
     it belonged to and must not speak for the one that replaced it."""
 
@@ -181,7 +182,7 @@ class TestAPublisherThatLostThePortStaysQuiet(unittest.TestCase):
         self.assertFalse(th.is_alive())  # the old one let go
 
 
-class TestTheCurrentPublisherStillReports(unittest.TestCase):
+class TestTheCurrentPublisherStillReports(TimeBoxedTestCase):
 
     def test_a_publisher_that_still_owns_the_port_reports_its_death(self):
         skw = _make_skw()
@@ -211,7 +212,7 @@ class _DyingQueue(queue.Queue):
         return super().empty()
 
 
-class TestADeadPublisherSurvivesTheQueueDrain(unittest.TestCase):
+class TestADeadPublisherSurvivesTheQueueDrain(TimeBoxedTestCase):
 
     def test_a_death_racing_the_drain_is_not_swallowed(self):
         skw = _make_skw()
@@ -224,6 +225,46 @@ class TestADeadPublisherSurvivesTheQueueDrain(unittest.TestCase):
 
         self.assertLess(time.monotonic() - started, 1)  # not the command's own timeout
         writeline.assert_not_called()
+
+
+class TestOpeningStartsFromAKnownState(TimeBoxedTestCase):
+    """_outlive_a_close() above sets publisher_exception to None by hand and
+    calls it "what the next open() does first", which leaves open() itself
+    unchecked: a stale exception carried into a healthy session makes the first
+    command raise for something that happened before it."""
+
+    @staticmethod
+    def _open_and_close(skw):
+        with patch.object(MomongaSkWrapper, '_clear_buf'), \
+             patch.object(MomongaSkWrapper, '_exec_ropt', return_value=1), \
+             patch.object(MomongaSkWrapper, 'detect_device'), \
+             patch.object(MomongaSkWrapper, 'received_packet_publisher'), \
+             patch('momonga.momonga_sk_wrapper.serial.Serial'):
+            skw.open()
+            skw.close()
+
+    def test_open_clears_an_exception_left_by_the_last_publisher(self):
+        skw = _make_skw()
+        skw.publisher_exception = serial.SerialException('the session before')
+
+        self._open_and_close(skw)
+
+        self.assertIsNone(skw.publisher_exception)
+
+    def test_open_clears_the_stop_flag_the_last_close_set(self):
+        skw = _make_skw()
+        skw._publisher_th_breaker = True
+
+        with patch.object(MomongaSkWrapper, '_clear_buf'), \
+             patch.object(MomongaSkWrapper, '_exec_ropt', return_value=1), \
+             patch.object(MomongaSkWrapper, 'detect_device'), \
+             patch.object(MomongaSkWrapper, 'received_packet_publisher'), \
+             patch('momonga.momonga_sk_wrapper.serial.Serial'):
+            skw.open()
+            try:
+                self.assertFalse(skw._publisher_th_breaker)
+            finally:
+                skw.close()
 
 
 if __name__ == '__main__':

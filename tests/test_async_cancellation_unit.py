@@ -18,6 +18,7 @@ POLL = 'momonga.momonga_async._NOTIFICATION_POLL'
 from momonga.momonga import _INFC_RES_XMIT_LIMIT
 from momonga.momonga_async import (_NOTIFICATION_POLL as POLL_SECONDS,
                                    _RESERVED_WORKERS)
+from tests._timebox import TimeBoxedAsyncTestCase
 
 
 def _make_amo():
@@ -65,7 +66,7 @@ class _Traced:
         return self.entered - self.left
 
 
-class TestACancelledReadReleasesItsWorker(unittest.IsolatedAsyncioTestCase):
+class TestACancelledReadReleasesItsWorker(TimeBoxedAsyncTestCase):
 
     async def test_the_worker_is_not_held_past_one_poll(self):
         amo, _sm = _make_amo()
@@ -97,13 +98,20 @@ class TestACancelledReadReleasesItsWorker(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(got)
 
 
-class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestCase):
+class TestANotificationTakenByACancelledReadIsKept(TimeBoxedAsyncTestCase):
 
     @staticmethod
     def _slow_read(amo, notif):
+        """Hands the notification over once and never again.
+
+        A stub that keeps returning it cannot tell being handed the one the
+        cancelled read took from simply reading a second one, so dropping the
+        handover entirely left these tests green."""
+        remaining = [notif]
+
         def read(timeout=None, reply_budget=None):
             time.sleep(0.2)  # long enough for the caller to give up first
-            return notif
+            return remaining.pop() if remaining else None
         amo._sync._read_notification = read
 
     async def test_the_next_call_gets_what_the_cancelled_one_took(self):
@@ -133,7 +141,6 @@ class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestC
         await asyncio.sleep(0.4)
 
         self.assertIs(await amo.get_notification(timeout=0), taken)
-        amo._sync._read_notification = lambda timeout=None, reply_budget=None: None
         self.assertIsNone(await amo.get_notification(timeout=0))
 
     async def test_a_cancelled_read_that_took_nothing_keeps_nothing(self):
@@ -150,7 +157,37 @@ class TestANotificationTakenByACancelledReadIsKept(unittest.IsolatedAsyncioTestC
         self.assertIsNone(amo._orphaned)
 
 
-class TestWhatIsHeldBelongsToOneSession(unittest.IsolatedAsyncioTestCase):
+class TestOnlyASuccessfulReadIsKept(TimeBoxedAsyncTestCase):
+
+    async def test_a_read_that_was_itself_cancelled_leaves_nothing(self):
+        amo, _sm = _make_amo()
+        reading = asyncio.get_running_loop().create_future()
+        reading.cancel()
+
+        amo._keep_what_was_read(reading)
+
+        self.assertIsNone(amo._orphaned)
+
+    async def test_a_read_that_raised_leaves_nothing(self):
+        amo, _sm = _make_amo()
+        reading = asyncio.get_running_loop().create_future()
+        reading.set_exception(RuntimeError('the port went away'))
+
+        amo._keep_what_was_read(reading)
+
+        self.assertIsNone(amo._orphaned)
+
+    async def test_a_read_that_returned_nothing_leaves_nothing(self):
+        amo, _sm = _make_amo()
+        reading = asyncio.get_running_loop().create_future()
+        reading.set_result(None)
+
+        amo._keep_what_was_read(reading)
+
+        self.assertIsNone(amo._orphaned)
+
+
+class TestWhatIsHeldBelongsToOneSession(TimeBoxedAsyncTestCase):
 
     async def test_a_closed_momonga_is_refused_rather_than_handed_it(self):
         amo, _sm = _make_amo()
@@ -170,7 +207,7 @@ class TestWhatIsHeldBelongsToOneSession(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(amo._orphaned)
 
 
-class TestTheTimeoutContractIsUnchanged(unittest.IsolatedAsyncioTestCase):
+class TestTheTimeoutContractIsUnchanged(TimeBoxedAsyncTestCase):
 
     async def test_zero_makes_exactly_one_attempt(self):
         amo, _sm = _make_amo()
@@ -209,7 +246,7 @@ class TestTheTimeoutContractIsUnchanged(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(got)
 
 
-class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
+class TestTheSharedPoolIsLeftAlone(TimeBoxedAsyncTestCase):
 
     async def test_work_does_not_run_on_the_default_executor(self):
         amo, _sm = _make_amo()
@@ -278,7 +315,7 @@ class TestTheSharedPoolIsLeftAlone(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen, ['MomongaRuntimeError'])
 
 
-class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
+class TestTheReaderHasItsOwnThread(TimeBoxedAsyncTestCase):
 
     @staticmethod
     def _saturate(amo, release):
@@ -346,7 +383,7 @@ class TestTheReaderHasItsOwnThread(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(amo._notif_executor._shutdown)
 
 
-class TestTheReplyBudgetIsNotThePollSlice(unittest.IsolatedAsyncioTestCase):
+class TestTheReplyBudgetIsNotThePollSlice(TimeBoxedAsyncTestCase):
     """Reads are sliced into polls of a second so a cancelled await frees the
     worker quickly. That slice is this loop's business - the INFC_Res the read
     may have to send belongs to the timeout the caller actually asked for."""
@@ -373,7 +410,7 @@ class TestTheReplyBudgetIsNotThePollSlice(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(await self._budget_for(None), _INFC_RES_XMIT_LIMIT)
 
 
-class TestShutdownIsNotBlockedByAbandonedRequests(unittest.IsolatedAsyncioTestCase):
+class TestShutdownIsNotBlockedByAbandonedRequests(TimeBoxedAsyncTestCase):
     """open/close/reopen run on a thread of their own, so requests nobody is
     waiting for any more cannot keep the context manager from exiting."""
 
@@ -409,7 +446,7 @@ class TestShutdownIsNotBlockedByAbandonedRequests(unittest.IsolatedAsyncioTestCa
         self.assertTrue(names[0].startswith('momonga-life'), names[0])
 
 
-class TestAnAbandonedCallCannotBlockTheNextOne(unittest.IsolatedAsyncioTestCase):
+class TestAnAbandonedCallCannotBlockTheNextOne(TimeBoxedAsyncTestCase):
     """The dedicated pools keep a spare worker. Without it the call that was
     given up on owns the only thread and the next one queues behind it."""
 
@@ -456,7 +493,7 @@ class TestAnAbandonedCallCannotBlockTheNextOne(unittest.IsolatedAsyncioTestCase)
         self.assertLess(time.monotonic() - started, 3)
 
 
-class TestTheSyncSettingsAreReachable(unittest.IsolatedAsyncioTestCase):
+class TestTheSyncSettingsAreReachable(TimeBoxedAsyncTestCase):
 
     async def test_the_tunables_read_and_write_through(self):
         amo, _sm = _make_amo()
