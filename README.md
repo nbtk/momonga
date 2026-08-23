@@ -139,7 +139,7 @@ while True:
                 try:
                     res = mo.get_instantaneous_power()
                 except momonga.MomongaResponseNotExpected as e:
-                    # 応答ひとつが読めなかっただけ。セッションは生きている
+                    # one response that could not be read, not a lost session
                     print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
                 else:
                     print('%0.1fW' % res)
@@ -148,9 +148,9 @@ while True:
             momonga.MomongaSkJoinFailure,
             momonga.MomongaTimeoutError,
             momonga.MomongaNeedToReopen) as e:
-        # セッションを張り直せば直るもの。MomongaXmitTimeout・
-        # MomongaSkCommandBusy・MomongaSkCommandCancelledは
-        # MomongaNeedToReopenのサブクラスなのでここに含まれる
+        # what a new session fixes. MomongaXmitTimeout, MomongaSkCommandBusy
+        # and MomongaSkCommandCancelled are subclasses of MomongaNeedToReopen,
+        # so they land here too
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         continue
 ```
@@ -262,9 +262,9 @@ momongaが続けて送信するときに空ける秒数。既定値は5。
 e.g.
 ```python3
 mo = momonga.Momonga(rbid, pwd, dev)
-mo.recv_timeout = 30  # 応答の遅いスマートメーターに合わせて延ばす
-mo.xmit_retries = 3   # 早めに諦めてreopen_delaysの再接続に任せる
-mo.xmit_timeout = 300 # 送信ブロッキングが5分続いたら諦める
+mo.recv_timeout = 30  # longer, for a meter that answers slowly
+mo.xmit_retries = 3   # give up sooner and let reopen_delays rebuild the session
+mo.xmit_timeout = 300 # give up after five minutes of blocked transmission
 ```
 
 ## momonga.open()
@@ -699,7 +699,7 @@ e.g.
 ```python3
 async with momonga.AsyncMomonga(rbid, pwd, dev,
                                 reopen_delays=[600.0, 600.0, 600.0]) as mo:
-    mo.xmit_timeout = 60  # 送信ブロッキングが1分続いたら諦める
+    mo.xmit_timeout = 60  # give up after a minute of blocked transmission
 ```
 
 `get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められます。読み取り済みの通知は次の呼び出しに引き継がれます。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残ります。予備のワーカーがあるので次の読み取りは待たされません。
