@@ -119,6 +119,9 @@ momonga.close()がセッションを閉じるために、実行中のSKコマン
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.get_properties_to_set_values()、momonga.get_properties_to_get_values()で取得できる。
 
+## momonga.MomongaResponseNotExpected
+スマートメーターの応答が読めなかったときに送出される。宣言された長さがプロパティに足りない、プロパティコードが要求と一致しない、といった場合。セッションが失われたわけではないので、次のリクエストは通ることが多い。通知（`get_notification()`）ではこの例外は送出されず、読めなかったプロパティの値が生のバイト列のまま返り、警告がログに出る。
+
 ## Exception Handling Example
 ```python3
 import momonga
@@ -133,15 +136,26 @@ while True:
     try:
         with momonga.Momonga(rbid, pwd, dev) as mo:
             while True:
-                res = mo.get_instantaneous_power()
-                print('%0.1fW' % res)
+                try:
+                    res = mo.get_instantaneous_power()
+                except momonga.MomongaResponseNotExpected as e:
+                    # 応答ひとつが読めなかっただけ。セッションは生きている
+                    print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
+                else:
+                    print('%0.1fW' % res)
                 time.sleep(60)
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
+            momonga.MomongaTimeoutError,
             momonga.MomongaNeedToReopen) as e:
+        # セッションを張り直せば直るもの。MomongaXmitTimeout・
+        # MomongaSkCommandBusy・MomongaSkCommandCancelledは
+        # MomongaNeedToReopenのサブクラスなのでここに含まれる
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         continue
 ```
+
+`MomongaResponseNotPossible`と`MomongaRuntimeError`を捕捉していないのは意図的です。前者はスマートメーターがそのEPCをサポートしていないという意味で、後者は使い方の誤りなので、どちらも再接続では直りません。握りつぶすと原因が見えないまま無限ループになります。
 
 # Transmission Restriction
 下記のイベントが発生したときMomongaはスマートメーターに対するコマンドの送信をブロッキングします。
@@ -152,7 +166,7 @@ while True:
 
 # Notification
 スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知します（INF/INFC）。
-Momongaはこれらの通知を`get_notification()`または`notifications()`で受け取れます。
+Momongaはこれらの通知を`get_notification()`で受け取れます。`AsyncMomonga`では`notifications()`も使えます。
 
 INFCを受信した場合、Momongaは自動的にINFC_Resを送信します。この送信はベストエフォートで、送信ブロッキング中などで15秒以内に送出できないときは送信を諦めます。通知そのものの受け取りは`timeout`に指定した時間を超えません。
 
@@ -360,7 +374,7 @@ e.g.
 ### Arguments
 - Void
 ### Return Value
-- set: 状変アナウンスプロパティマップ。このセットに含まれるEPCの値変化をスマートメーターが自動通知する。通知の受け取りには`get_notification()`または`notifications()`を使用する
+- set: 状変アナウンスプロパティマップ。このセットに含まれるEPCの値変化をスマートメーターが自動通知する。通知の受け取りには`get_notification()`（`AsyncMomonga`では`notifications()`も）を使用する
 ```python3
 {<EchonetPropertyCode.operation_status: 128>,
  <EchonetPropertyCode.installation_location: 129>,
@@ -613,6 +627,8 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
 e.g.
 ```python3
+import time
+
 from momonga import EchonetPropertyCode as EPC
 
 with momonga.Momonga(rbid, pwd, dev) as mo:

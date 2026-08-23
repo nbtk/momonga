@@ -10,9 +10,14 @@ dev = os.environ.get('MOMONGA_DEV_PATH')
 
 
 def read_forever(mo):
+    """A response that cannot be read is not a session that has been lost."""
     while True:
-        res = mo.get_instantaneous_power()
-        print('%0.1fW' % res)
+        try:
+            res = mo.get_instantaneous_power()
+        except momonga.MomongaResponseNotExpected as e:
+            print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
+        else:
+            print('%0.1fW' % res)
         time.sleep(60)
 
 
@@ -24,6 +29,7 @@ def manual_recovery():
                 read_forever(mo)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
+                momonga.MomongaTimeoutError,
                 momonga.MomongaNeedToReopen) as e:
             print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
             continue
@@ -39,6 +45,7 @@ def automatic_recovery():
                 read_forever(mo)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
+                momonga.MomongaTimeoutError,
                 momonga.MomongaNeedToReopen) as e:
             print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
             continue
