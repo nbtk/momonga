@@ -16,6 +16,7 @@ from momonga.momonga_exception import (MomongaNeedToReopen, MomongaXmitTimeout,
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, _SK_COMMAND_LIMIT
+from tests._timebox import TimeBoxedTestCase
 
 
 def _infc_frame() -> SkParsedRxUdp:
@@ -36,7 +37,7 @@ def _make_sm() -> MomongaSessionManager:
     return sm
 
 
-class TestGetNotificationHonoursTimeout(unittest.TestCase):
+class TestGetNotificationHonoursTimeout(TimeBoxedTestCase):
 
     def test_returns_within_timeout_while_gate_is_closed(self):
         mo = Momonga('', '', '/dev/ttyUSB0')
@@ -81,7 +82,7 @@ def _make_mo_with_a_real_wrapper():
     return mo, sm, skw
 
 
-class TestTheWholeSendIsBounded(unittest.TestCase):
+class TestTheWholeSendIsBounded(TimeBoxedTestCase):
 
     def _elapsed(self, mo, timeout=0.3):
         started = time.monotonic()
@@ -115,7 +116,7 @@ class TestTheWholeSendIsBounded(unittest.TestCase):
         self.assertEqual(exec_command.call_args.kwargs['lock_timeout'], -1)
 
 
-class TestInfcResBudget(unittest.TestCase):
+class TestInfcResBudget(TimeBoxedTestCase):
 
     def _capture_budget(self, timeout):
         mo = Momonga('', '', '/dev/ttyUSB0')
@@ -133,7 +134,7 @@ class TestInfcResBudget(unittest.TestCase):
         self.assertEqual(self._capture_budget(0.5), 0.5)
 
 
-class TestXmitterBudget(unittest.TestCase):
+class TestXmitterBudget(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_gate_wait_is_capped_by_the_budget(self, _sleep):
@@ -173,7 +174,7 @@ class TestXmitterBudget(unittest.TestCase):
         self.assertEqual(sm.skw.sksendto.call_count, 1)
 
 
-class TestASpentBudgetStaysCatchable(unittest.TestCase):
+class TestASpentBudgetStaysCatchable(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_the_handler_every_caller_already_has_still_catches_it(self, _sleep):
@@ -188,7 +189,7 @@ class TestASpentBudgetStaysCatchable(unittest.TestCase):
         self.assertFalse(issubclass(MomongaNeedToReopen, MomongaXmitTimeout))
 
 
-class TestASpentBudgetIsNamedWhereverItRunsOut(unittest.TestCase):
+class TestASpentBudgetIsNamedWhereverItRunsOut(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_a_budget_spent_on_the_send_is_still_a_timeout(self, _sleep):
@@ -251,7 +252,7 @@ class _CaptureLogs(logging.Handler):
         return [r.getMessage() for r in self.records if r.levelname == level]
 
 
-class TestASpentBudgetIsNotReportedAsALostSession(unittest.TestCase):
+class TestASpentBudgetIsNotReportedAsALostSession(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_a_spent_budget_does_not_advise_reopening(self, _sleep):

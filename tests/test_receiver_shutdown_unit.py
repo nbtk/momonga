@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_session_manager import MomongaSessionManager
+from tests._timebox import TimeBoxedTestCase
 
 JOIN_LIMIT = 'momonga.momonga_session_manager._RECEIVER_JOIN_LIMIT'
 
@@ -47,7 +48,7 @@ def _start_receiver_stuck_in_the_callback(sm):
     return release
 
 
-class TestCloseGivesUpOnAStuckReceiver(unittest.TestCase):
+class TestCloseGivesUpOnAStuckReceiver(TimeBoxedTestCase):
 
     def test_close_returns_while_the_callback_is_still_running(self):
         sm = _make_sm()
@@ -87,7 +88,7 @@ class TestCloseGivesUpOnAStuckReceiver(unittest.TestCase):
         self.assertNotIn('on_meter_frame', '\n'.join(caught.output))
 
 
-class TestTheNextSessionIsNotSharedWithIt(unittest.TestCase):
+class TestTheNextSessionIsNotSharedWithIt(TimeBoxedTestCase):
 
     def test_open_hands_the_new_receiver_a_queue_of_its_own(self):
         sm = _make_sm()

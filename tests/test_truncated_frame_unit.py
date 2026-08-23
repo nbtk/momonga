@@ -13,6 +13,7 @@ from momonga.momonga_echonet_data import EchonetProperty
 from momonga.momonga_echonet_enum import EchonetPropertyCode
 from momonga.momonga_exception import MomongaResponseNotExpected
 from momonga.momonga_response import SkParsedRxUdp
+from tests._timebox import TimeBoxedTestCase
 
 EXTRACT = '_extract_response_payload'
 HEADER = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'  # EHD TID SEOJ DEOJ
@@ -37,7 +38,7 @@ def _make_mo():
     return mo
 
 
-class TestTruncatedNotification(unittest.TestCase):
+class TestTruncatedNotification(TimeBoxedTestCase):
 
     def _get(self, frame):
         mo = _make_mo()
@@ -76,7 +77,7 @@ class TestTruncatedNotification(unittest.TestCase):
         mo.session_manager.xmitter.assert_not_called()
 
 
-class TestTruncatedResponse(unittest.TestCase):
+class TestTruncatedResponse(TimeBoxedTestCase):
 
     def _extract(self, data, tid=1, epc=EchonetPropertyCode.instantaneous_power):
         return getattr(Momonga, EXTRACT)(data, tid, [EchonetProperty(epc)])

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 
 class _CaptureLogs(logging.Handler):
@@ -46,7 +47,7 @@ def _stuck_publisher(skw):
     time.sleep(0.1)
 
 
-class TestTheWrapperCloseIsBounded(unittest.TestCase):
+class TestTheWrapperCloseIsBounded(TimeBoxedTestCase):
 
     def _make_skw(self):
         skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
@@ -93,7 +94,7 @@ class TestTheWrapperCloseIsBounded(unittest.TestCase):
         skw._ser.close.assert_called_once()
 
 
-class TestAModuleIgnoringSktermDoesNotHoldClose(unittest.TestCase):
+class TestAModuleIgnoringSktermDoesNotHoldClose(TimeBoxedTestCase):
     """_SKTERM_LIMIT used to bound only the wait for the command lock. The wait
     for the module's own EVENT 27 ran on the SK command limit, so a module that
     simply never answers held close() for five minutes."""
@@ -132,7 +133,7 @@ class TestAModuleIgnoringSktermDoesNotHoldClose(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1)
 
 
-class TestARejoinLockCloseIsNotAnError(unittest.TestCase):
+class TestARejoinLockCloseIsNotAnError(TimeBoxedTestCase):
 
     def _make_sm(self):
         sm = MomongaSessionManager('', '', '/dev/ttyUSB0')

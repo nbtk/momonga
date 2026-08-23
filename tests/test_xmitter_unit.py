@@ -13,6 +13,7 @@ from momonga.momonga_exception import (
     MomongaNeedToReopen,
 )
 from momonga.momonga_session_manager import MomongaSessionManager
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_sm():
@@ -24,7 +25,7 @@ def _make_sm():
     return sm
 
 
-class TestXmitterSuccess(unittest.TestCase):
+class TestXmitterSuccess(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_sends_when_gate_open(self, _sleep):
@@ -39,7 +40,7 @@ class TestXmitterSuccess(unittest.TestCase):
         self.assertEqual(sm.skw.sksendto.call_count, 1)
 
 
-class TestXmitterGateTimeout(unittest.TestCase):
+class TestXmitterGateTimeout(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_gate_never_opens_raises(self, _sleep):
@@ -67,7 +68,7 @@ class TestXmitterGateTimeout(unittest.TestCase):
         sm.skw.sksendto.assert_called_once()
 
 
-class TestXmitterSendFailure(unittest.TestCase):
+class TestXmitterSendFailure(TimeBoxedTestCase):
 
     @patch('momonga.momonga_session_manager.time.sleep')
     def test_sk_failure_retries_up_to_limit(self, _sleep):

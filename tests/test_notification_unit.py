@@ -12,13 +12,14 @@ from momonga.momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
 from momonga.momonga_device_strategy import BP35C2Strategy
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import _STOP_RECEIVER
+from tests._timebox import TimeBoxedTestCase
 
 
 # ---------------------------------------------------------------------------
 # EchonetDataParser
 # ---------------------------------------------------------------------------
 
-class TestEchonetDataParser(unittest.TestCase):
+class TestEchonetDataParser(TimeBoxedTestCase):
 
     def test_parse_operation_status_on(self):
         self.assertTrue(EchonetDataParser.parse_operation_status(b'\x30'))
@@ -176,7 +177,7 @@ class TestEchonetDataParser(unittest.TestCase):
 # EchonetDataBuilder
 # ---------------------------------------------------------------------------
 
-class TestEchonetDataBuilder(unittest.TestCase):
+class TestEchonetDataBuilder(TimeBoxedTestCase):
 
     def test_build_day_for_historical_data_1(self):
         self.assertEqual(EchonetDataBuilder.build_edata_to_set_day_for_historical_data_1(3), b'\x03')
@@ -237,7 +238,7 @@ def _make_echonet_frame(esv: int, epc: int, edt: bytes) -> bytes:
             + edt)
 
 
-class TestGetNotification(unittest.TestCase):
+class TestGetNotification(TimeBoxedTestCase):
 
     def _make_momonga(self):
         mo = Momonga('', '', '/dev/ttyUSB0')
@@ -407,7 +408,7 @@ class TestAsyncMomonga(unittest.IsolatedAsyncioTestCase):
 # Receiver ERXUDP routing (SEOJ filter)
 # ---------------------------------------------------------------------------
 
-class TestReceiverRouting(unittest.TestCase):
+class TestReceiverRouting(TimeBoxedTestCase):
 
     def _make_session_manager(self):
         from momonga.momonga_session_manager import MomongaSessionManager

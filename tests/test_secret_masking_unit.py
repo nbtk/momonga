@@ -14,6 +14,7 @@ from momonga.momonga_exception import (
     MomongaSkCommandInvalidArgument,
 )
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 RBID = '00112233445566778899AABBCCDDEEFF'
 PWD = 'mySecretPass'
@@ -26,7 +27,7 @@ def _make_skw():
     return skw
 
 
-class TestOutboundLog(unittest.TestCase):
+class TestOutboundLog(TimeBoxedTestCase):
 
     def _write(self, skw, *command):
         # exec_command() drains the queue first, so answer from inside the write
@@ -50,7 +51,7 @@ class TestOutboundLog(unittest.TestCase):
         self.assertIn("b'SKSREG S2 21\\r\\n'", log)
 
 
-class TestInboundLog(unittest.TestCase):
+class TestInboundLog(TimeBoxedTestCase):
 
     def test_echoed_password_is_not_logged(self):
         # open() does not disable echoback
@@ -65,7 +66,7 @@ class TestInboundLog(unittest.TestCase):
         self.assertIn('SKSETPWD ****', log)
 
 
-class TestExceptionMessages(unittest.TestCase):
+class TestExceptionMessages(TimeBoxedTestCase):
 
     def test_password_is_not_in_a_fail_response(self):
         skw = _make_skw()

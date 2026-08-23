@@ -10,6 +10,7 @@ from momonga.momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
 from momonga.momonga_response import (
     SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line,
 )
+from tests._timebox import TimeBoxedTestCase
 
 C2 = BP35C2Strategy()
 A1 = BP35A1Strategy()
@@ -33,7 +34,7 @@ def _a1_erxudp(data_hex: str) -> str:
 # EVENT parsing
 # ---------------------------------------------------------------------------
 
-class TestParseSkLineEvent(unittest.TestCase):
+class TestParseSkLineEvent(TimeBoxedTestCase):
 
     def test_bp35c2_tx_done_with_side_and_param(self):
         result = parse_sk_line('EVENT 21 FE80::1 0 01', C2)
@@ -80,7 +81,7 @@ class TestParseSkLineEvent(unittest.TestCase):
 # ERXUDP parsing
 # ---------------------------------------------------------------------------
 
-class TestParseSkLineErxudp(unittest.TestCase):
+class TestParseSkLineErxudp(TimeBoxedTestCase):
 
     def test_bp35c2_fields(self):
         result = parse_sk_line(_c2_erxudp('1081'), C2)
@@ -136,7 +137,7 @@ class TestParseSkLineErxudp(unittest.TestCase):
 # Non-EVENT / non-ERXUDP lines
 # ---------------------------------------------------------------------------
 
-class TestParseSkLineOther(unittest.TestCase):
+class TestParseSkLineOther(TimeBoxedTestCase):
 
     def test_ok_returns_none(self):
         self.assertIsNone(parse_sk_line('OK', C2))

@@ -8,6 +8,7 @@ import unittest
 from itertools import repeat
 
 from momonga.momonga import Momonga
+from tests._timebox import TimeBoxedTestCase
 
 
 def _schedule_of(reopen_delays, recoveries=3, cap=5):
@@ -25,7 +26,7 @@ def _schedule_of(reopen_delays, recoveries=3, cap=5):
     return rounds
 
 
-class TestEveryRecoveryStartsOver(unittest.TestCase):
+class TestEveryRecoveryStartsOver(TimeBoxedTestCase):
 
     def test_list(self):
         self.assertEqual(_schedule_of([600.0, 600.0, 600.0]), [3, 3, 3])

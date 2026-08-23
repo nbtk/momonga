@@ -25,6 +25,7 @@ from momonga.momonga_exception import MomongaError
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 INFC = (b'\x10\x81\x00\x00\x02\x88\x01\x05\xff\x01' + b'\x74\x01'
         + b'\xe7\x04\x00\x00\x03\xe8')
@@ -40,7 +41,7 @@ def _reply_for(tid):
             + b'\xe7\x04' + edt)
 
 
-class TestManyThreadsOnOneMomonga(unittest.TestCase):
+class TestManyThreadsOnOneMomonga(TimeBoxedTestCase):
 
     def setUp(self):
         self.timers = []

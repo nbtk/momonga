@@ -13,6 +13,7 @@ import serial
 
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandUnsupported
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 WRITELINE = '_writeline'
 
@@ -23,7 +24,7 @@ def _make_skw():
     return skw
 
 
-class TestExecCommandSerialization(unittest.TestCase):
+class TestExecCommandSerialization(TimeBoxedTestCase):
 
     def test_second_caller_waits_for_the_first(self):
         skw = _make_skw()
@@ -93,7 +94,7 @@ class TestExecCommandSerialization(unittest.TestCase):
         self.assertFalse(skw._cmd_lock.locked())
 
 
-class TestExecCommandLimit(unittest.TestCase):
+class TestExecCommandLimit(TimeBoxedTestCase):
 
     def test_silent_module_raises_need_to_reopen(self):
         skw = _make_skw()
@@ -146,7 +147,7 @@ class TestExecCommandLimit(unittest.TestCase):
         self.assertEqual(res, ['EVENT 21 FE80::1 0 00', 'OK'])
 
 
-class TestPublisherSurvival(unittest.TestCase):
+class TestPublisherSurvival(TimeBoxedTestCase):
 
     def test_non_utf8_bytes_do_not_kill_the_publisher(self):
         # an ERXUDP payload in binary mode (WOPT 00) reaching decode()
@@ -175,7 +176,7 @@ class TestPublisherSurvival(unittest.TestCase):
         self.assertIsInstance(skw.publisher_exception, serial.SerialException)
 
 
-class TestPublisherDeathIsReported(unittest.TestCase):
+class TestPublisherDeathIsReported(TimeBoxedTestCase):
 
     def test_command_fails_immediately_when_publisher_is_dead(self):
         skw = _make_skw()

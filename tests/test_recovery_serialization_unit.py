@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaRuntimeError
+from tests._timebox import TimeBoxedTestCase
 
 REQUEST = '_request'
 # these tests patch time.sleep on the time module itself
@@ -23,7 +24,7 @@ def _make_mo(reopen_delays):
     return mo
 
 
-class TestConcurrentRecovery(unittest.TestCase):
+class TestConcurrentRecovery(TimeBoxedTestCase):
 
     def test_a_session_someone_else_rebuilt_is_not_rebuilt_again(self):
         mo = _make_mo([0.0])
@@ -91,7 +92,7 @@ class TestConcurrentRecovery(unittest.TestCase):
         self.assertEqual(overlapped, [])
 
 
-class TestRecoveryDoesNotRecurse(unittest.TestCase):
+class TestRecoveryDoesNotRecurse(TimeBoxedTestCase):
 
     def test_requests_made_while_reopening_do_not_recover(self):
         mo = _make_mo([0.0, 0.0, 0.0])
@@ -130,7 +131,7 @@ class TestRecoveryDoesNotRecurse(unittest.TestCase):
         self.assertFalse(getattr(mo._local, 'reopening', False))
 
 
-class TestRequestsDuringAReopen(unittest.TestCase):
+class TestRequestsDuringAReopen(TimeBoxedTestCase):
 
     def test_a_request_hands_the_reopen_to_the_recovery_loop(self):
         mo = _make_mo(None)

@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaRuntimeError
 from momonga.momonga_session_manager import MomongaSessionManager, SESSION_ENDED
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_sm():
@@ -30,7 +31,7 @@ def _make_mo(sm):
     return mo
 
 
-class TestCloseWakesTheReader(unittest.TestCase):
+class TestCloseWakesTheReader(TimeBoxedTestCase):
 
     def test_close_releases_a_blocked_reader(self):
         sm = _make_sm()
@@ -64,7 +65,7 @@ class TestCloseWakesTheReader(unittest.TestCase):
 NOTIF_FRAME = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01\x73\x01\xe7\x04\x00\x00\x00\x64'
 
 
-class TestReopenWakesTheReader(unittest.TestCase):
+class TestReopenWakesTheReader(TimeBoxedTestCase):
 
     def test_reader_moves_to_the_queue_of_the_new_session(self):
         old = _make_sm()
@@ -124,7 +125,7 @@ class TestReopenWakesTheReader(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1)  # not waited out
 
 
-class TestReceiverDeathIsReported(unittest.TestCase):
+class TestReceiverDeathIsReported(TimeBoxedTestCase):
 
     def test_blocked_reader_is_woken_when_the_receiver_dies(self):
         sm = _make_sm()

@@ -27,6 +27,7 @@ from momonga.momonga_exception import MomongaError
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 _HEAD = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01'
 GOOD_INF = _HEAD + b'\x73\x01' + b'\xe7\x04\x00\x00\x03\xe8'
@@ -66,7 +67,11 @@ CALLS = {
 BOUND = 8  # every limit below is well under this
 
 
-class TestNothingEscapesItsBound(unittest.TestCase):
+class TestNothingEscapesItsBound(TimeBoxedTestCase):
+
+    # the whole matrix in one test, ~17 s here; a CI runner is slower and a
+    # box it can trip on its own is worse than no box at all
+    MAX_SECONDS = 120
 
     def _build(self, fault):
         skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)

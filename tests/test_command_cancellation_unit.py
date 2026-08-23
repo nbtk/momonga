@@ -15,6 +15,7 @@ from momonga.momonga_exception import (MomongaNeedToReopen, MomongaSkCommandBusy
                                        MomongaSkCommandCancelled)
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 WRITELINE = '_writeline'
 
@@ -38,7 +39,7 @@ def _make_sm(skw, session_established):
     return sm
 
 
-class TestAWaitingCommandIsCutLoose(unittest.TestCase):
+class TestAWaitingCommandIsCutLoose(TimeBoxedTestCase):
 
     def test_a_command_waiting_on_the_module_is_released(self):
         skw = _make_skw()
@@ -87,7 +88,7 @@ class TestAWaitingCommandIsCutLoose(unittest.TestCase):
         self.assertEqual(len(attempts), 1)
 
 
-class TestALockedOutCommandGivesUp(unittest.TestCase):
+class TestALockedOutCommandGivesUp(TimeBoxedTestCase):
 
     def test_a_bounded_command_does_not_wait_out_the_holder(self):
         skw = _make_skw()
@@ -125,7 +126,7 @@ class TestALockedOutCommandGivesUp(unittest.TestCase):
         self.assertTrue(released.is_set())  # it waited for the holder
 
 
-class TestACancellationIsNotRetried(unittest.TestCase):
+class TestACancellationIsNotRetried(TimeBoxedTestCase):
 
     def test_xmitter_gives_up_on_the_first_cancelled_send(self):
         skw = _make_skw()
@@ -141,7 +142,7 @@ class TestACancellationIsNotRetried(unittest.TestCase):
         self.assertEqual(skw._ser.write.call_count, 0)
 
 
-class TestCloseDoesNotWaitOutAStuckReceiver(unittest.TestCase):
+class TestCloseDoesNotWaitOutAStuckReceiver(TimeBoxedTestCase):
 
     def test_close_finishes_while_the_receiver_sits_in_skjoin(self):
         skw = _make_skw()
@@ -191,7 +192,7 @@ class TestCloseDoesNotWaitOutAStuckReceiver(unittest.TestCase):
         self.assertEqual(sent, ['SKTERM'])
 
 
-class TestCancellingNothingIsNotAWarning(unittest.TestCase):
+class TestCancellingNothingIsNotAWarning(TimeBoxedTestCase):
 
     def _levels(self, skw):
         records = []
@@ -240,7 +241,7 @@ class _CancellingQueue(queue.Queue):
         return super().empty()
 
 
-class TestACancellationSurvivesTheQueueDrain(unittest.TestCase):
+class TestACancellationSurvivesTheQueueDrain(TimeBoxedTestCase):
 
     def test_a_cancellation_racing_the_drain_is_not_swallowed(self):
         skw = _make_skw()
@@ -255,7 +256,7 @@ class TestACancellationSurvivesTheQueueDrain(unittest.TestCase):
         writeline.assert_not_called()
 
 
-class TestOpenClearsTheCancellation(unittest.TestCase):
+class TestOpenClearsTheCancellation(TimeBoxedTestCase):
 
     def test_a_cancelled_wrapper_takes_commands_again_after_open(self):
         skw = _make_skw()

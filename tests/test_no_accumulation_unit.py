@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 from momonga.momonga import Momonga
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 CYCLES = 200
 
@@ -40,7 +41,9 @@ def _fake_port_open(self):
     return self
 
 
-class TestReconnectingDoesNotPileUp(unittest.TestCase):
+class TestReconnectingDoesNotPileUp(TimeBoxedTestCase):
+
+    MAX_SECONDS = 60  # CYCLES open/close rounds, ~6 s here and slower on CI
 
     def setUp(self):
         patches = [

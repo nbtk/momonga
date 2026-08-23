@@ -19,7 +19,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
     ],
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=['tests', 'tests.*']),
     install_requires=[
         'pyserial~=3.5',
     ],

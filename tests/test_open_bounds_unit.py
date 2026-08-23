@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from momonga.momonga_exception import MomongaError, MomongaTimeoutError
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
+from tests._timebox import TimeBoxedTestCase
 
 WRAPPER = 'momonga.momonga_sk_wrapper'
 
@@ -24,7 +25,7 @@ def _make_skw():
     return skw
 
 
-class TestAFailedOpenLeavesNothingRunning(unittest.TestCase):
+class TestAFailedOpenLeavesNothingRunning(TimeBoxedTestCase):
 
     def _open_with_failing(self, method):
         skw = _make_skw()
@@ -56,7 +57,7 @@ class TestAFailedOpenLeavesNothingRunning(unittest.TestCase):
         skw._ser.close.assert_called_once()
 
 
-class TestTheOpenReadsAreBounded(unittest.TestCase):
+class TestTheOpenReadsAreBounded(TimeBoxedTestCase):
 
     def test_a_chattering_device_does_not_hold_clear_buf(self):
         skw = _make_skw()
@@ -98,7 +99,7 @@ class TestTheOpenReadsAreBounded(unittest.TestCase):
         self.assertEqual(skw._exec_ropt(), 1)
 
 
-class TestTheReceiverDoesNotWaitOutAClose(unittest.TestCase):
+class TestTheReceiverDoesNotWaitOutAClose(TimeBoxedTestCase):
 
     def test_it_gives_up_rejoining_while_the_lock_is_held(self):
         skw = _make_skw()

@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
 from momonga.momonga_response import SkParsedRxUdp
+from tests._timebox import TimeBoxedTestCase
 
 INF_FRAME = b'\x10\x81\x00\x01\x02\x88\x01\x05\xff\x01\x73\x01\xe7\x04\x00\x00\x03\xe8'
 OTHER_OBJECT = b'\x10\x81\x00\x01\x0e\xf0\x01\x05\xff\x01\x73\x01\xe7\x04\x00\x00\x03\xe8'
@@ -27,7 +28,7 @@ def _make_mo():
     return mo
 
 
-class TestItFollowsTheLastFrame(unittest.TestCase):
+class TestItFollowsTheLastFrame(TimeBoxedTestCase):
 
     def test_nothing_is_reported_before_a_frame_arrives(self):
         mo = _make_mo()
@@ -59,7 +60,7 @@ class TestItFollowsTheLastFrame(unittest.TestCase):
         self.assertIsNone(mo.rssi)
 
 
-class TestANewSessionStartsWithout(unittest.TestCase):
+class TestANewSessionStartsWithout(TimeBoxedTestCase):
 
     def test_open_forgets_what_the_old_session_saw(self):
         mo = _make_mo()
@@ -71,7 +72,7 @@ class TestANewSessionStartsWithout(unittest.TestCase):
         self.assertIsNone(mo.rssi)
 
 
-class TestItIsReadableFromAsync(unittest.TestCase):
+class TestItIsReadableFromAsync(TimeBoxedTestCase):
 
     def test_async_reads_through_to_the_wrapped_momonga(self):
         mo = AsyncMomonga('', '', '/dev/ttyUSB0')

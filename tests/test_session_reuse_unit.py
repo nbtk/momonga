@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 from momonga.momonga_exception import MomongaNeedToReopen
 from momonga.momonga_session_manager import MomongaSessionManager
+from tests._timebox import TimeBoxedTestCase
 
 
 def _make_sm():
@@ -24,7 +25,7 @@ def _kill_the_receiver(sm):
     sm._receiver()
 
 
-class TestReceiverExceptionIsNotCarriedOver(unittest.TestCase):
+class TestReceiverExceptionIsNotCarriedOver(TimeBoxedTestCase):
 
     def test_a_dead_receiver_does_not_outlive_its_session(self):
         sm = _make_sm()

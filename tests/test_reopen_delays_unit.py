@@ -2,9 +2,10 @@ import unittest
 from unittest.mock import patch
 
 import momonga
+from tests._timebox import TimeBoxedTestCase
 
 
-class TestReopenDelays(unittest.TestCase):
+class TestReopenDelays(TimeBoxedTestCase):
     def setUp(self) -> None:
         self.instance = momonga.Momonga('rbid', 'pwd', '/dev/null', reopen_delays=[256.0, 1024.0])
 

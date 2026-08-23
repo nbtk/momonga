@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from momonga.momonga import Momonga
 from momonga.momonga_exception import MomongaResponseNotPossible
+from tests._timebox import TimeBoxedTestCase
 
 INIT = '_init_energy_unit'
 
@@ -39,7 +40,7 @@ def _trace(mo, coefficient_supported):
     return events
 
 
-class TestTransmissionSpacing(unittest.TestCase):
+class TestTransmissionSpacing(TimeBoxedTestCase):
 
     def test_the_two_requests_are_spaced_apart(self):
         events = _trace(_make_mo(), coefficient_supported=True)
