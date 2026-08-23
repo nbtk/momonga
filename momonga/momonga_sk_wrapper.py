@@ -344,7 +344,12 @@ class MomongaSkWrapper:
                                             ' Close Momonga and open it again.')
 
     def _raise_fail_response(self, command: str, r: str) -> None:
-        error_code = int(r[7:10])
+        try:
+            error_code = int(r[7:10])
+        except ValueError:
+            raise MomongaSkCommandUnknownError(
+                'Unreadable failure response "%s": %s' % (r, command)) from None
+
         if 1 <= error_code <= 3:
             raise MomongaSkCommandUnknownError('Unknown error code %s: %s' % (error_code, command))
         elif error_code == 4:
