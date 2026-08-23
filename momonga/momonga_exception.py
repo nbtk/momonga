@@ -62,11 +62,11 @@ class MomongaSkCommandCancelled(MomongaNeedToReopen):
     pass
 
 
-class MomongaXmitTimeout(MomongaNeedToReopen, TimeoutError):
+class MomongaXmitTimeout(MomongaNeedToReopen):
     pass
 
 
-class MomongaSkCommandBusy(MomongaNeedToReopen, TimeoutError):
+class MomongaSkCommandBusy(MomongaNeedToReopen):
     pass
 
 

@@ -114,6 +114,8 @@ momonga.close()がセッションを閉じるために、実行中のSKコマン
 ## momonga.MomongaTimeoutError
 `momonga.open()`の実行中にWi-SUNモジュールが応答しなかったときに送出される。デバイスファイルのパスと、モジュールが正しく接続されているかを確認すること。
 
+この例外は`TimeoutError`のサブクラスでもある。Python 3.11以降`asyncio.TimeoutError`は`TimeoutError`と同じクラスなので、`await`を`asyncio.wait_for()`で囲んで`asyncio.TimeoutError`を捕捉していると、自分が指定した待ち時間が尽きた場合と区別できない。区別が必要なら`MomongaTimeoutError`を先に捕捉すること。なお`MomongaXmitTimeout`と`MomongaSkCommandBusy`は`TimeoutError`を継承していないので、この問題は起きない。
+
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.get_properties_to_set_values()、momonga.get_properties_to_get_values()で取得できる。
 
