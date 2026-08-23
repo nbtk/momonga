@@ -3,9 +3,26 @@ import inspect
 from collections.abc import Callable
 
 from .momonga_echonet_enum import EchonetPropertyCode
-from .momonga_exception import MomongaRuntimeError, MomongaValueError
+from .momonga_exception import (MomongaResponseNotExpected, MomongaRuntimeError,
+                                MomongaValueError)
 
 _CUMULATIVE_ENERGY_MISSING = 0xFFFFFFFE
+
+
+def _require_edt(edt: bytes | None, at_least: int, what: str) -> None:
+    """Refuse an EDT too short for the property it claims to carry.
+
+    int.from_bytes of a short slice is a number, not an error, so a meter that
+    declares a shorter PDC than the property needs reads as a plausible wrong
+    value: three bytes of a four-byte cumulative energy comes back 256 times
+    small, and a truncated historical series comes back padded with readings
+    of zero. Neither the raw-value fallback in get_notification nor the one in
+    request_to_get can see that, because both are looking for an exception.
+    """
+    if edt is None or len(edt) < at_least:
+        raise MomongaResponseNotExpected(
+            'The EDT for %s is %s bytes long but %d are needed.'
+            % (what, 'no' if edt is None else len(edt), at_least))
 
 
 class EchonetProperty:
@@ -27,6 +44,7 @@ class EchonetPropertyWithData:
 class EchonetDataParser:
     @classmethod
     def parse_operation_status(cls, edt: bytes) -> bool | None:
+        _require_edt(edt, 1, 'an operation status')
         status = int.from_bytes(edt, 'big')
         if status == 0x30:  # turned on
             status = True
@@ -39,6 +57,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_installation_location(cls, edt: bytes) -> str:
+        _require_edt(edt, 1, 'an installation location')
         code = edt[0]
         if code == 0x00:
             location = 'location not set'
@@ -78,6 +97,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_standard_version_information(cls, edt: bytes) -> str:
+        _require_edt(edt, 4, 'a standard version')
         version = ''
         if edt[0] > 0:
             version += chr(edt[0])
@@ -87,6 +107,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_fault_status(cls, edt: bytes) -> bool | None:
+        _require_edt(edt, 1, 'a fault status')
         status_code = int.from_bytes(edt, 'big')
         if status_code == 0x41:
             status = True  # fault occurred
@@ -99,20 +120,24 @@ class EchonetDataParser:
 
     @classmethod
     def parse_manufacturer_code(cls, edt: bytes) -> bytes:
+        _require_edt(edt, 3, 'a manufacturer code')
         return edt
 
     @classmethod
     def parse_serial_number(cls, edt: bytes) -> str:
+        _require_edt(edt, 1, 'a serial number')
         return edt.decode()
 
     @classmethod
     def parse_current_time_setting(cls, edt: bytes) -> datetime.time:
+        _require_edt(edt, 2, 'a time setting')
         hour = edt[0]
         minute = edt[1]
         return datetime.time(hour=hour, minute=minute, second=0)
 
     @classmethod
     def parse_current_date_setting(cls, edt: bytes) -> datetime.date:
+        _require_edt(edt, 4, 'a date setting')
         year = int.from_bytes(edt[0:2], 'big')
         month = edt[2]
         day = edt[3]
@@ -120,7 +145,12 @@ class EchonetDataParser:
 
     @classmethod
     def parse_property_map(cls, edt: bytes) -> set[EchonetPropertyCode | int]:
+        _require_edt(edt, 1, 'a property map')
         num_of_properties = edt[0]
+        # under 16 the codes are listed one per byte; from 16 they arrive as a
+        # 16-byte bitmap, so the count says how long the EDT has to be
+        _require_edt(edt, 1 + (num_of_properties if num_of_properties < 16 else 16),
+                     'a property map of %d properties' % num_of_properties)
         property_map = edt[1:]
         properties = set()
         if num_of_properties < 16:
@@ -148,6 +178,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_route_b_id(cls, edt: bytes) -> dict[str, bytes]:
+        _require_edt(edt, 4, 'a route B id')
         manufacturer_code = edt[1:4]
         authentication_id = edt[4:]
         return {'manufacturer code': manufacturer_code, 'authentication id': authentication_id}
@@ -159,6 +190,7 @@ class EchonetDataParser:
             energy_unit: int | float,
             energy_coefficient: int,
     ) -> dict[str, datetime.datetime | dict[str, int | float | None]]:
+        _require_edt(edt, 15, 'a one minute cumulative energy')
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
 
@@ -182,11 +214,13 @@ class EchonetDataParser:
 
     @classmethod
     def parse_coefficient_for_cumulative_energy(cls, edt: bytes) -> int:
+        _require_edt(edt, 4, 'a cumulative energy coefficient')
         coefficient = int.from_bytes(edt, 'big')
         return coefficient
 
     @classmethod
     def parse_number_of_effective_digits_for_cumulative_energy(cls, edt: bytes) -> int:
+        _require_edt(edt, 1, 'a number of effective digits')
         digits = int.from_bytes(edt, 'big')
         return digits
 
@@ -197,6 +231,7 @@ class EchonetDataParser:
             energy_unit: int | float,
             energy_coefficient: int,
     ) -> int | float:
+        _require_edt(edt, 4, 'a cumulative energy')
         cumulative_energy = int.from_bytes(edt, 'big')
         cumulative_energy *= energy_unit
         cumulative_energy *= energy_coefficient
@@ -204,6 +239,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_unit_for_cumulative_energy(cls, edt: bytes) -> int | float:
+        _require_edt(edt, 1, 'a cumulative energy unit')
         unit_index = int.from_bytes(edt, 'big')
         unit_map = {0x00: 1,
                     0x01: 0.1,
@@ -227,6 +263,7 @@ class EchonetDataParser:
             energy_unit: int | float,
             energy_coefficient: int,
     ) -> list[dict[str, datetime.datetime | int | float | None]]:
+        _require_edt(edt, 2 + 48 * 4, 'a historical cumulative energy 1')
         day = int.from_bytes(edt[0:2], 'big')
         timestamp = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
         timestamp -= datetime.timedelta(days=day)
@@ -247,16 +284,19 @@ class EchonetDataParser:
 
     @classmethod
     def parse_day_for_historical_data_1(cls, edt: bytes) -> int:
+        _require_edt(edt, 1, 'a day for historical data 1')
         day = int.from_bytes(edt, 'big')
         return day
 
     @classmethod
     def parse_instantaneous_power(cls, edt: bytes) -> int:
+        _require_edt(edt, 4, 'an instantaneous power')
         power = int.from_bytes(edt, 'big', signed=True)
         return power
 
     @classmethod
     def parse_instantaneous_current(cls, edt: bytes) -> dict[str, float]:
+        _require_edt(edt, 4, 'an instantaneous current')
         r_phase_current = int.from_bytes(edt[0:2], 'big', signed=True)
         t_phase_current = int.from_bytes(edt[2:4], 'big', signed=True)
         r_phase_current *= 0.1  # to Ampere
@@ -270,6 +310,7 @@ class EchonetDataParser:
             energy_unit: int | float,
             energy_coefficient: int,
     ) -> dict[str, datetime.datetime | int | float]:
+        _require_edt(edt, 11, 'a cumulative energy at a fixed time')
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
         cumulative_energy = int.from_bytes(edt[7:], 'big')
@@ -285,8 +326,11 @@ class EchonetDataParser:
             energy_coefficient: int,
     ) -> list[dict[str, datetime.datetime |
                          dict[str, int | float | None]]]:
-        year = int.from_bytes(edt[0:2], 'big')
+        _require_edt(edt, 7, 'a historical cumulative energy 2')
         num_of_data_points = edt[6]
+        _require_edt(edt, 7 + num_of_data_points * 8,
+                     'a historical cumulative energy 2 of %d points' % num_of_data_points)
+        year = int.from_bytes(edt[0:2], 'big')
         energy_data_points = edt[7:]
         timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
         historical_cumulative_energy = []
@@ -316,6 +360,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_time_for_historical_data_2(cls, edt: bytes) -> dict[str, datetime.datetime | None | int]:
+        _require_edt(edt, 7, 'a time for historical data 2')
         year = int.from_bytes(edt[0:2], 'big')
         if year == 0xFFFF:
             timestamp = None
@@ -334,8 +379,11 @@ class EchonetDataParser:
             energy_coefficient: int,
     ) -> list[dict[str, datetime.datetime |
                         dict[str, dict[str, int | float | None]]]]:
-        year = int.from_bytes(edt[0:2], 'big')
+        _require_edt(edt, 7, 'a historical cumulative energy 3')
         num_of_data_points = edt[6]
+        _require_edt(edt, 7 + num_of_data_points * 8,
+                     'a historical cumulative energy 3 of %d points' % num_of_data_points)
+        year = int.from_bytes(edt[0:2], 'big')
         energy_data_points = edt[7:]
         timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
         historical_cumulative_energy = []
@@ -365,6 +413,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_time_for_historical_data_3(cls, edt: bytes) -> dict[str, datetime.datetime | None | int]:
+        _require_edt(edt, 7, 'a time for historical data 3')
         year = int.from_bytes(edt[0:2], 'big')
         if year == 0xFFFF:
             timestamp = None

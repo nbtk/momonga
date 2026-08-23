@@ -16,6 +16,7 @@ from momonga.momonga_echonet_enum import EchonetPropertyCode as EPC
 from momonga.momonga_exception import MomongaResponseNotExpected, MomongaRuntimeError
 from momonga.momonga_echonet_data import EchonetPropertyWithData
 from momonga.momonga_response import SkParsedRxUdp
+from tests._timebox import TimeBoxedTestCase
 
 FIXED_TIME_OK = b'\x07\xea\x08\x16\x11\x00\x00\x00\x03\x92\xbe'
 
@@ -38,7 +39,7 @@ def _read(epc, edt):
     return mo.get_notification(timeout=1)
 
 
-class TestAShortNotificationDoesNotKillTheReader(unittest.TestCase):
+class TestAShortNotificationDoesNotKillTheReader(TimeBoxedTestCase):
 
     def test_a_property_too_short_to_read_comes_back_raw(self):
         result = _read(EPC.cumulative_energy_measured_at_fixed_time, b'\x07')
@@ -58,8 +59,21 @@ class TestAShortNotificationDoesNotKillTheReader(unittest.TestCase):
         result = _read(0x01, b'\xab\xcd')
         self.assertEqual(result['properties'][0x01], b'\xab\xcd')
 
+    def test_a_failure_that_is_not_a_momonga_error_is_caught_too(self):
+        # the length checks in the parsers raise MomongaResponseNotExpected, so
+        # narrowing this catch to MomongaError still handles a short EDT. What
+        # it stops handling is everything else: a month of 13 is a ValueError
+        # out of datetime, and it would take the reader loop down with it
+        full_length_but_impossible = b'\x07\xea\x0d\x16\x11\x00\x00\x00\x03\x92\xbe'
 
-class TestRequestToGetSaysWhatWentWrong(unittest.TestCase):
+        result = _read(EPC.cumulative_energy_measured_at_fixed_time,
+                       full_length_but_impossible)
+
+        self.assertEqual(result['properties'][EPC.cumulative_energy_measured_at_fixed_time],
+                         full_length_but_impossible)
+
+
+class TestRequestToGetSaysWhatWentWrong(TimeBoxedTestCase):
 
     def _request_to_get(self, epc, edt):
         mo = Momonga('', '', '/dev/ttyUSB0')
