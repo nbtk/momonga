@@ -202,10 +202,10 @@ class TestScanningStopsWidening(TimeBoxedTestCase):
 
     def test_the_figures_the_readme_quotes(self):
         for retries, minutes in ((3, 2.0), (4, 3.2), (5, 4.3), (6, 5.5),
-                                 (8, 7.8), (10, 10.1)):
+                                 (8, 7.8), (10, 10.1), (15, 15.8)):
             with self.subTest(scan_retries=retries):
                 self.assertAlmostEqual(self._scan_seconds(retries) / 60, minutes,
-                                       delta=0.2)
+                                       delta=0.1)
 
 
 class TestJoiningCostsTheSameEachTime(TimeBoxedTestCase):
@@ -214,6 +214,13 @@ class TestJoiningCostsTheSameEachTime(TimeBoxedTestCase):
 
     def test_it_grows_with_the_count(self):
         self.assertEqual(self.JOIN_SECONDS * 6, self.JOIN_SECONDS * 3 * 2)
+
+    def test_the_figures_the_readme_quotes(self):
+        for retries, minutes in ((3, 2.0), (4, 2.7), (5, 3.3), (6, 4.0),
+                                 (8, 5.3), (10, 6.7), (15, 10.0)):
+            with self.subTest(join_retries=retries):
+                self.assertAlmostEqual(retries * self.JOIN_SECONDS / 60, minutes,
+                                       delta=0.1)
 
 
 class TestTheAsyncWrapperTakesThemToo(TimeBoxedTestCase):

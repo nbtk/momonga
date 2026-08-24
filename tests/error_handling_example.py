@@ -124,16 +124,13 @@ def no_handler_at_all():
     exits non-zero on the uncaught exception and comes back with a new
     interpreter and a new handle on the serial port.
 
-    join_retries is raised and scan_retries deliberately is not. On the link
-    this was measured against, joining is where connecting goes wrong: over
-    ten months, 95 runs of three join attempts ended in failure against 30
-    runs of three scans, and the worst outage needed the caller round its loop
-    45 times, every one of them a join. A scan that came back empty three
-    times has not found the meter's beacon in this minute, and the widest
-    window is already 69 s; waiting and scanning again is a different thing
-    from scanning longer now, and here the supervisor is what does the
-    waiting. Raising it is not wrong - 5 costs 4.3 minutes rather than 2 - it
-    just buys less.
+    Both counts are raised, because on a link where connecting is hard either
+    half can be the one that needs the attempts. What they cost differs, and
+    that is what to size them by: a join attempt is about 40 s every time, so
+    join_retries is 40 s each; a scan runs 17.5 s, then 34.7 s, then 69.1 s
+    and stays there, so the first three cost 2 minutes and each one after
+    costs 69 s. The numbers here give open() about 15 minutes before it gives
+    up and the supervisor starts a new process.
 
     The trade is that a single unreadable response - MomongaResponseNotExpected,
     rare but not impossible - also ends the process, and restarting costs a
@@ -141,7 +138,8 @@ def no_handler_at_all():
     is noisy enough for it to matter.
     """
     with momonga.Momonga(rbid, pwd, dev,
-                         reopen_delays=backoff, join_retries=15) as mo:
+                         reopen_delays=backoff,
+                         scan_retries=6, join_retries=15) as mo:
         while True:
             res = mo.get_instantaneous_power()
             print('no data' if res is None else '%0.1fW' % res)
