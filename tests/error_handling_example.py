@@ -71,11 +71,10 @@ def manual_recovery():
             # MomongaXmitTimeout, MomongaSkCommandBusy and
             # MomongaSkCommandCancelled are subclasses and land here too
             report(e)
-        except (momonga.MomongaSkScanFailure,
-                momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError,
-                momonga.MomongaIOError) as e:
-            # the meter is not answering at all
+        except momonga.MomongaConnectionFailure as e:
+            # there is no session to lose yet. MomongaSkScanFailure,
+            # MomongaSkJoinFailure, MomongaTimeoutError and MomongaIOError are
+            # the four ways that happens and all land here
             report(e)
             time.sleep(CONNECT_RETRY_DELAY)
 
@@ -89,17 +88,14 @@ def automatic_recovery():
     only be the same schedule written twice.
 
     What is left is the failures reopen_delays does not cover. A session that
-    could never be established is a MomongaSkScanFailure or a
-    MomongaSkJoinFailure out of open(), and open() is outside its scope.
+    could never be established is a MomongaConnectionFailure out of open(),
+    and open() is outside its scope.
     """
     while True:
         try:
             with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff) as mo:
                 read_forever(mo)
-        except (momonga.MomongaSkScanFailure,
-                momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError,
-                momonga.MomongaIOError) as e:
+        except momonga.MomongaConnectionFailure as e:
             report(e)
             time.sleep(CONNECT_RETRY_DELAY)
 

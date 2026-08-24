@@ -30,11 +30,15 @@ class MomongaSkCommandFailedToExecute(MomongaSkCommandExecutionFailure):
     pass
 
 
-class MomongaSkScanFailure(MomongaError):
+class MomongaConnectionFailure(MomongaError):
     pass
 
 
-class MomongaSkJoinFailure(MomongaError):
+class MomongaSkScanFailure(MomongaConnectionFailure):
+    pass
+
+
+class MomongaSkJoinFailure(MomongaConnectionFailure):
     pass
 
 
@@ -46,11 +50,11 @@ class MomongaValueError(MomongaError, ValueError):
     pass
 
 
-class MomongaTimeoutError(MomongaError, TimeoutError):
+class MomongaTimeoutError(MomongaConnectionFailure, TimeoutError):
     pass
 
 
-class MomongaIOError(MomongaError, OSError):
+class MomongaIOError(MomongaConnectionFailure, OSError):
     pass
 
 

@@ -93,6 +93,16 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 # Exception
 主な例外は下記です。
 
+## momonga.MomongaConnectionFailure
+まだセッションが無い、つまり`momonga.open()`が接続を確立できなかったときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
+
+- `MomongaSkScanFailure` — PANが見つからない
+- `MomongaSkJoinFailure` — PANAセッションを確立できない
+- `MomongaTimeoutError` — Wi-SUNモジュールが応答しない
+- `MomongaIOError` — デバイスファイルやUSBドングルの失敗
+
+セッションが確立したあとに落ちた場合は`MomongaNeedToReopen`のほうである。`reopen_delays`が扱うのはそちらで、`momonga.open()`は対象外。
+
 ## momonga.MomongaSkScanFailure
 PANをスキャンしたが見つからなかったときに送出される。スマートメーターと通信できるロケーションか、またBルートIDが正しく設定されているかを確認し、再試行すること。
 
@@ -149,14 +159,12 @@ while True:
                 else:
                     print('no data' if res is None else '%0.1fW' % res)
                 time.sleep(60)
-    except (momonga.MomongaSkScanFailure,
-            momonga.MomongaSkJoinFailure,
-            momonga.MomongaTimeoutError,
-            momonga.MomongaIOError,
+    except (momonga.MomongaConnectionFailure,
             momonga.MomongaNeedToReopen) as e:
-        # what a new session fixes. MomongaXmitTimeout, MomongaSkCommandBusy
-        # and MomongaSkCommandCancelled are subclasses of MomongaNeedToReopen,
-        # so they land here too
+        # a session that could not be built, and one that was lost.
+        # MomongaSkScanFailure, MomongaSkJoinFailure, MomongaTimeoutError and
+        # MomongaIOError are the first; MomongaXmitTimeout,
+        # MomongaSkCommandBusy and MomongaSkCommandCancelled are the second
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         continue
 ```
@@ -259,7 +267,7 @@ Momongaクラスのインスタンス化。
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
-- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`、`MomongaIOError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
+- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。接続そのものの失敗（`MomongaConnectionFailure`とその4つのサブクラス）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
 - scan_retries: PANのスキャンを繰り返す回数。1以上。使い切ると`MomongaSkScanFailure`を送出する
 - join_retries: PANAセッションの確立を試みる回数。1以上。1回あたり最大約40秒。使い切ると`MomongaSkJoinFailure`を送出する
 

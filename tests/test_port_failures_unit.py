@@ -142,6 +142,11 @@ class TestWhereItSitsInTheHierarchy(TimeBoxedTestCase):
     def test_it_is_exported(self):
         self.assertIs(momonga.MomongaIOError, MomongaIOError)
 
+    def test_it_is_one_of_the_connection_failures(self):
+        # so a caller waiting to reconnect names one thing, not four
+        self.assertTrue(issubclass(MomongaIOError,
+                                   momonga.MomongaConnectionFailure))
+
     def test_a_momonga_error_is_not_wrapped_again(self):
         # the guard that stops _port double wrapping what it already produced
         skw = _wrapper(readline=MomongaIOError('already ours'))

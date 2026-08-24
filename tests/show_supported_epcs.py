@@ -33,10 +33,7 @@ def main():
             print_props(mo.get_properties_to_set_values(), "SET")
             print_props(mo.get_properties_for_status_notification(), "Status Change Notification")
             
-    except (momonga.MomongaSkScanFailure,
-            momonga.MomongaSkJoinFailure,
-            momonga.MomongaTimeoutError,
-            momonga.MomongaIOError,
+    except (momonga.MomongaConnectionFailure,
             momonga.MomongaNeedToReopen) as e:
         print(f"Connection Failed - {type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(1)
