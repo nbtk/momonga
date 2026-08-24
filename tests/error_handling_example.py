@@ -121,6 +121,11 @@ def no_handler_at_all():
     costs 69 s. The numbers here give open() about 15 minutes before it gives
     up and the supervisor starts a new process.
 
+    That is also the whole of the wait. A supervisor restarts at once unless
+    told otherwise - systemd's RestartSec defaults to 100 ms - so these two
+    counts are what decides how often a link that is down gets tried again,
+    not the restart policy.
+
     Two things are given up for that.
 
     One unreadable response ends the process too. MomongaResponseNotExpected is
