@@ -81,8 +81,22 @@ class TestAMissingReadingIsNoneNotZero(TimeBoxedTestCase):
 class TestTheParserBranchesThatNeedTheRightByte(TimeBoxedTestCase):
 
     def test_an_installation_location_carrying_free_form_information(self):
-        self.assertEqual(Parser.parse_installation_location(b'\x01\xab\xcd'),
-                         'location information: abcd')
+        edt = b'\x01' + bytes(range(16))   # the spec sizes this form at 17 bytes
+
+        self.assertEqual(Parser.parse_installation_location(edt),
+                         'location information: ' + bytes(range(16)).hex())
+
+    def test_a_position_code_without_the_position_is_refused(self):
+        # 0x01 says a position follows; one byte of it says nothing, and used
+        # to come back as 'location information: ' with an empty hex string
+        with self.assertRaises(MomongaResponseNotExpected):
+            Parser.parse_installation_location(b'\x01')
+        with self.assertRaises(MomongaResponseNotExpected):
+            Parser.parse_installation_location(b'\x01\xab\xcd')
+
+    def test_the_one_byte_form_is_untouched(self):
+        self.assertEqual(Parser.parse_installation_location(b'\x61'),
+                         'garden/perimeter 1')
 
     def test_the_codes_reserved_for_later_say_so(self):
         for code in (0x02, 0x07, 0x80, 0xFE):

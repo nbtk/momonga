@@ -64,6 +64,9 @@ class EchonetDataParser:
         if code == 0x00:
             location = 'location not set'
         elif code == 0x01:
+            # this code says the position follows, and the spec sizes the
+            # property at seventeen bytes when it does
+            _require_edt(edt, 17, 'an installation location carrying a position')
             location = 'location information: ' + edt[1:].hex()
         elif 0x02 <= code <= 0x07:  # reserved for future use
             location = 'not implemented'
