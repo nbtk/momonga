@@ -14,6 +14,11 @@ dev = os.environ.get('MOMONGA_DEV_PATH')
 # Losing a session and never having one are different failures, and only the
 # first is what reopen_delays paces. Scanning again the instant a scan failed
 # spends radio time and changes nothing, so the second waits.
+#
+# The other half of that is scan_retries and join_retries, which decide how
+# hard open() tries before it reports a failure at all. Raising join_retries
+# is what stops a link that needs many attempts from re-scanning a PAN it has
+# already found on every round of this loop.
 CONNECT_RETRY_DELAY = 600.0
 
 

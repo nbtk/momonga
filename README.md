@@ -25,7 +25,7 @@ $ pip install momonga
 ```
 
 # Simple Example
-下記のコードはPANAセッションを確立し、瞬時電力計測値を取得して表示します。PANのスキャンは最大で約２分、セッション確立は最大で約１分かかります。
+下記のコードはPANAセッションを確立し、瞬時電力計測値を取得して表示します。既定値ではPANのスキャンに最大で約２分、PANAセッションの確立に最大で約２分かかります（scan_retries、join_retriesで変わります）。
 BルートID、パスワード、デバイスファイルへのパスは適宜変更してください。
 ```python3
 import momonga
@@ -222,7 +222,6 @@ Momongaクラスのインスタンス化。
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
 - reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
-
 - scan_retries: PANのスキャンを繰り返す回数。1回ごとにスキャン時間を延ばす（約17秒、35秒、69秒…）。使い切ると`MomongaSkScanFailure`を送出する
 - join_retries: PANAセッションの確立を試みる回数。1回あたり最大約40秒。使い切ると`MomongaSkJoinFailure`を送出する
 
@@ -294,7 +293,7 @@ mo.xmit_timeout = 300 # give up after five minutes of blocked transmission
 ## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　
 
-所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。reopen_delaysで再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
+所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。既定値での上限はスキャンが約2分（17秒＋35秒＋69秒）、確立が約2分（40秒×3回）で、scan_retriesとjoin_retriesを増やせばそのぶん延びる。reopen_delaysで再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
 ### Arguments
 - Void
 ### Return Value
@@ -729,7 +728,7 @@ async with momonga.AsyncMomonga(rbid, pwd, dev,
 
 `get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められます。読み取り済みの通知は次の呼び出しに引き継がれます。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残ります。予備のワーカーがあるので次の読み取りは待たされません。
 
-## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | None = None, max_workers: int = 4)
+## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None, max_workers: int = 4, scan_retries: int = 3, join_retries: int = 3)
 AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
 ### Arguments
 - max_workers: 汎用プールのワーカー数。通知の読み取りとセッションの開閉は専用スレッドで動くのでこの数には含まれない。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本と、放棄されたリクエストのための予備3本）
