@@ -234,11 +234,13 @@ momonga.Momonga(rbid, pwd, dev, reopen_delays=[600.0, 600.0, 600.0])
 momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
 
 # back off: a minute, then two, then five, then every ten indefinitely
-momonga.Momonga(rbid, pwd, dev,
-                reopen_delays=chain([60.0, 120.0, 300.0], repeat(600.0)))
+def backoff():
+    return chain([60.0, 120.0, 300.0], repeat(600.0))
+
+momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff)
 ```
 
-列はセッションごとに使い切られる。イテレータを渡す場合、ひとつのインスタンスの中では再接続のたびに先頭から再生されるが、**同じイテレータを別のインスタンスに渡すと前回の続きから始まる**。上のバックオフを複数のセッションで使うなら、インスタンスごとに`chain(...)`を作り直すこと。
+`reopen_delays`は再接続のたびに列の先頭から使われる。リストでも、一度しか回せないイテレータでも同じで、後者は内部で再生される。ただしその再生はひとつのインスタンスの中だけで成り立つ。**同じイテレータを別のインスタンスに渡すと前回の続きから始まる**ので、上のバックオフを`chain(...)`のまま渡すと最初のセッションだけ傾斜し、以降は10分固定になる。呼び出し可能オブジェクトを渡せば毎回新しい列が作られ、インスタンスをまたいでも傾斜が保たれる。
 
 待機を入れて再試行したいだけなら、それはこの引数で表現できる。呼び出し側で`MomongaNeedToReopen`を捕捉して待ってから作り直すのは、同じ列を二度書いているのと変わらない。捕捉する価値があるのは、そのあとで待つ以外のことをするとき（プロセスを終了してsystemdやDockerに再起動させる、通報する、など）である。
 

@@ -4,7 +4,7 @@ import queue
 import threading
 import time
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TypedDict, Any, Self
 
 from .momonga_echonet_data import (EchonetProperty,
@@ -54,7 +54,7 @@ class Momonga:
                  dev: str,
                  baudrate: int = 115200,
                  reset_dev: bool = True,
-                 reopen_delays: Iterable[float] | None = None,
+                 reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None,
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
@@ -66,9 +66,15 @@ class Momonga:
         self.lqi: int | None = None
         self.rssi: float | None = None
         self.is_open: bool = False
-        if reopen_delays is not None and iter(reopen_delays) is reopen_delays:
+        # A one-shot iterator would be spent after the first outage, so it is
+        # wrapped to replay. That only holds inside this instance: hand the
+        # same iterator to a second Momonga and it carries on from where this
+        # one left it. Pass a callable to say "a fresh schedule each time" and
+        # have it hold everywhere.
+        if (reopen_delays is not None and not callable(reopen_delays)
+                and iter(reopen_delays) is reopen_delays):
             reopen_delays = _ReplayableIterator(reopen_delays)
-        self.reopen_delays: Iterable[float] | None = reopen_delays
+        self.reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = reopen_delays
         self._request_lock: threading.Lock = threading.Lock()
         self._reopen_lock: threading.Lock = threading.Lock()
         self._reopen_done: threading.Event = threading.Event()
@@ -486,7 +492,9 @@ class Momonga:
             last_error: MomongaNeedToReopen = self._as_reopen_error(initial_err)
             logger.warning('Session needs reopen, attempting recovery.')
 
-        for delay in self.reopen_delays:
+        schedule = (self.reopen_delays() if callable(self.reopen_delays)
+                    else self.reopen_delays)
+        for delay in schedule:
             delay = float(delay)
             if delay < 0:
                 raise MomongaValueError('reopen_delays must not contain negative values.')

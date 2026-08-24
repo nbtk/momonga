@@ -20,11 +20,11 @@ CONNECT_RETRY_DELAY = 600.0
 def backoff():
     """A minute, then two, then five, then every ten for as long as it takes.
 
-    Built fresh for each session on purpose. reopen_delays replays a schedule
-    from its head at every new outage, but only within the Momonga it was
-    given to - hand the same chain object to a second one and it carries on
-    from wherever the first left it, which for this schedule means starting at
-    ten minutes and never ramping again.
+    Handed to Momonga as the function, not its result: reopen_delays calls it
+    for a fresh schedule, so every outage ramps from the bottom no matter how
+    many sessions have been built. Passing chain(...) itself would work for
+    the first Momonga and quietly stop ramping for the ones after it, since a
+    chain object carries on from wherever the last one left it.
     """
     return chain([60.0, 120.0, 300.0], repeat(600.0))
 
@@ -78,7 +78,7 @@ def automatic_recovery():
     """
     while True:
         try:
-            with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff()) as mo:
+            with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff) as mo:
                 read_forever(mo)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,

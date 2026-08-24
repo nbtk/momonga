@@ -5,7 +5,7 @@ import math
 import time
 
 from concurrent.futures import ThreadPoolExecutor
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Callable, Iterable
 from typing import Any, Self
 
 from .momonga import Momonga
@@ -28,7 +28,7 @@ class AsyncMomonga:
                  dev: str,
                  baudrate: int = 115200,
                  reset_dev: bool = True,
-                 reopen_delays: Iterable[float] | None = None,
+                 reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None,
                  max_workers: int = _DEFAULT_MAX_WORKERS,
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays)
