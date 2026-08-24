@@ -1,12 +1,15 @@
-"""Three ways to keep reading a meter, differing in who does the retrying.
+"""Keeping a meter read when things fail, three ways.
 
-    manual        you rebuild the session on every failure
-    automatic     the library rebuilds it, and you handle the first connect
-    none          the library rebuilds it endlessly and there is nothing
-                  left to catch
+    manual        you rebuild the session yourself
+    automatic     reopen_delays rebuilds it; connecting is still yours
+    none          reopen_delays never gives up, so nothing is left to catch
+
+Which exception means what is in the README under Exception. What is here is
+what to do about each.
 
 Run:
-  python tests/error_handling_example.py [manual|automatic|none]
+  MOMONGA_ROUTEB_ID=... MOMONGA_ROUTEB_PASSWORD=... MOMONGA_DEV_PATH=... \
+    python tests/error_handling_example.py [manual|automatic|none]
 """
 import momonga
 import time
@@ -20,27 +23,15 @@ rbid = os.environ.get('MOMONGA_ROUTEB_ID')
 pwd = os.environ.get('MOMONGA_ROUTEB_PASSWORD')
 dev = os.environ.get('MOMONGA_DEV_PATH')
 
-
-# Losing a session and never having one are different failures, and only the
-# first is what reopen_delays paces. Scanning again the instant a scan failed
-# spends radio time and changes nothing, so the second waits.
-#
-# The other half of that is scan_retries and join_retries, which decide how
-# hard open() tries before it reports a failure at all. Raising join_retries
-# is what stops a link that needs many attempts from re-scanning a PAN it has
-# already found on every round of this loop.
+# A connect that failed has just spent minutes scanning or joining. Going
+# straight round again spends radio time and changes nothing.
 CONNECT_RETRY_DELAY = 600.0
 
 
 def backoff():
-    """A minute, then two, then five, then every ten for as long as it takes.
-
-    Handed to Momonga as the function, not its result: reopen_delays calls it
-    for a fresh schedule, so every outage ramps from the bottom no matter how
-    many sessions have been built. Passing chain(...) itself would work for
-    the first Momonga and quietly stop ramping for the ones after it, since a
-    chain object carries on from wherever the last one left it.
-    """
+    """A fresh schedule per session: a minute, two, five, then every ten."""
+    # passed to Momonga as the function, not its result - one chain object
+    # given to a second Momonga carries on from where the first left it
     return chain([60.0, 120.0, 300.0], repeat(600.0))
 
 
@@ -49,50 +40,35 @@ def report(e):
 
 
 def read_forever(mo):
-    """A response that cannot be read is not a session that has been lost."""
+    """Read every minute, surviving a response that cannot be read."""
     while True:
         try:
             res = mo.get_instantaneous_power()
         except momonga.MomongaResponseNotExpected as e:
-            report(e)
+            report(e)  # one frame that could not be read, not a lost session
         else:
             print('no data' if res is None else '%0.1fW' % res)
         time.sleep(60)
 
 
 def manual_recovery():
-    """Build a new session yourself every time Momonga asks for one."""
+    """No reopen_delays, so every failure arrives here."""
     while True:
         try:
             with momonga.Momonga(rbid, pwd, dev) as mo:
                 read_forever(mo)
         except momonga.MomongaNeedToReopen as e:
-            # the session is unusable and the module is not - it is answering,
-            # it just could not carry this. A new session is worth building at
-            # once. MomongaXmitTimeout, MomongaSkCommandBusy and
-            # MomongaSkCommandCancelled all land here
-            report(e)
+            report(e)  # the module is answering; a new session is worth having
         except momonga.MomongaConnectionFailure as e:
-            # what the session sits on failed: the scan, the join, the module
-            # answering at all, or the device file. Waiting is what may change
-            # that, and none of it is about when - a dongle can be pulled years
-            # in, and open() itself issues requests, so either group can arrive
-            # from either place
-            report(e)
+            report(e)  # the module, the port or the radio is not
             time.sleep(CONNECT_RETRY_DELAY)
 
 
 def automatic_recovery():
-    """Put the backoff in reopen_delays, and there is nothing left to catch.
+    """reopen_delays rebuilds the session; connecting is still yours.
 
     A schedule ending in repeat() never runs out, so MomongaNeedToReopen never
-    reaches the caller - the library keeps rebuilding the session on its own,
-    waiting longer each time. Catching it here to wait and try again would
-    only be the same schedule written twice.
-
-    What is left is the failures reopen_delays does not cover. A session that
-    could never be established is a MomongaConnectionFailure out of open(),
-    and open() is outside its scope.
+    arrives here. open() is outside its scope, so MomongaConnectionFailure does.
     """
     while True:
         try:
@@ -104,45 +80,21 @@ def automatic_recovery():
 
 
 def no_handler_at_all():
-    """The arguments can be set so that there is nothing left to catch.
+    """Let the arguments do all of it, and let a supervisor restart.
 
-    A reopen_delays that never runs out means no MomongaNeedToReopen ever
-    reaches here; the library keeps rebuilding the session, waiting longer
-    each time. What is left is a first connect that fails anyway, and under
-    systemd or `docker run --restart=always` the right answer to that is to
-    stop: the process exits non-zero on the uncaught exception and comes back
-    with a new interpreter and a new handle on the serial port.
+    Nothing is caught: an uncaught exception exits non-zero, and systemd or
+    `docker run --restart=always` starts a new process with a new handle on the
+    port. The retry counts are the whole of the wait - RestartSec defaults to
+    100 ms - and these give open() about 15 minutes before it gives up.
 
-    Both counts are raised, because on a link where connecting is hard either
-    half can be the one that needs the attempts. What they cost differs, and
-    that is what to size them by: a join attempt is about 40 s every time, so
-    join_retries is 40 s each; a scan runs 17.5 s, then 34.7 s, then 69.1 s
-    and stays there, so the first three cost 2 minutes and each one after
-    costs 69 s. The numbers here give open() about 15 minutes before it gives
-    up and the supervisor starts a new process.
-
-    That is also the whole of the wait. A supervisor restarts at once unless
-    told otherwise - systemd's RestartSec defaults to 100 ms - so these two
-    counts are what decides how often a link that is down gets tried again,
-    not the restart policy.
-
-    Two things are given up for that.
-
-    One unreadable response ends the process too. MomongaResponseNotExpected is
-    rare but not impossible, and a restart costs a scan and a join, which is a
-    lot to pay for one bad frame. The loop below is read_forever() with its one
-    try/except taken out, so calling read_forever(mo) instead is how to put
-    that single handler back and leave everything else as it is.
-
-    And a schedule that never runs out means a meter that has gone for good is
-    retried quietly for as long as the process lives, with nothing outside it
-    learning. Bound reopen_delays instead if somebody is watching for the
-    process to stop.
+    What that costs: one unreadable response ends the process too, and a meter
+    gone for good is retried silently for as long as the process lives. Call
+    read_forever(mo) for the first; bound reopen_delays for the second.
     """
     with momonga.Momonga(rbid, pwd, dev,
                          reopen_delays=backoff,
                          scan_retries=6, join_retries=15) as mo:
-        while True:
+        while True:  # read_forever() without its one handler
             res = mo.get_instantaneous_power()
             print('no data' if res is None else '%0.1fW' % res)
             time.sleep(60)
@@ -154,7 +106,12 @@ EXAMPLES = {'manual': manual_recovery,
 
 
 if __name__ == '__main__':
-    name = sys.argv[1] if len(sys.argv) > 1 else 'manual'
+    if not all((rbid, pwd, dev)):
+        print('Please set MOMONGA_ROUTEB_ID, MOMONGA_ROUTEB_PASSWORD, and '
+              'MOMONGA_DEV_PATH environment variables.', file=sys.stderr)
+        sys.exit(1)
+
+    name = sys.argv[1] if len(sys.argv) > 1 else 'automatic'
     if name not in EXAMPLES:
         print('usage: %s [%s]' % (sys.argv[0], '|'.join(EXAMPLES)), file=sys.stderr)
         sys.exit(1)
