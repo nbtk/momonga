@@ -26,6 +26,10 @@ def read_forever(mo):
 # spends radio time and changes nothing, so the second waits.
 CONNECT_RETRY_DELAY = 600.0
 
+# What a spent reopen schedule means: half an hour of rebuilding got
+# nowhere, so this is an outage rather than a blip.
+OUTAGE_DELAY = 3600.0
+
 
 def report(e):
     print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
@@ -51,13 +55,27 @@ def manual_recovery():
 
 
 def automatic_recovery():
-    """Let reopen_delays rebuild the session.
+    """Let reopen_delays rebuild the session, and decide what a spent
+    schedule means.
 
-    It covers requests only. A session that could never be established in the
-    first place is not a MomongaNeedToReopen and never reaches that machinery,
-    which is why the two handlers below are not the same: by the time the
-    first one runs all three delays have been spent, and when the second one
-    runs nothing has waited at all.
+    reopen_delays covers requests only. A session that could never be
+    established in the first place is not a MomongaNeedToReopen and never
+    reaches that machinery, which is why the two handlers below are not the
+    same: by the time the first runs all three delays have been spent, and
+    when the second runs nothing has waited at all.
+
+    Catching MomongaNeedToReopen is only worth doing if what happens next
+    differs from what already happened. reopen() builds a new session manager
+    and a new wrapper, which is everything a fresh Momonga would build, so
+    starting one over changes nothing by itself - it just makes the retrying
+    endless, and there is a plainer way to ask for that:
+
+        momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
+
+    with which this handler is never reached at all. A bounded schedule earns
+    its keep when running out of it means something, so here it does: thirty
+    minutes of rebuilding failed, and that is reported as an outage and backed
+    off further rather than retried at the same pace.
     """
     while True:
         try:
@@ -66,6 +84,7 @@ def automatic_recovery():
                 read_forever(mo)
         except momonga.MomongaNeedToReopen as e:
             report(e)
+            time.sleep(OUTAGE_DELAY)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
                 momonga.MomongaTimeoutError) as e:
