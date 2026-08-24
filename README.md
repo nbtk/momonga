@@ -187,7 +187,7 @@ with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff,
 
 引き換えに、まれな`MomongaResponseNotExpected`（応答ひとつが読めない）でもプロセスが終わります。再起動にはスキャンとセッション確立の時間がかかるので、電波状況によってはその1つだけ捕捉するとよいでしょう。
 
-`tests/error_handling_example.py`に、この形を含む4通りが動く形で入っています。
+`tests/error_handling_example.py`に、この形を含む3通りが動く形で入っています。
 
 # Transmission Restriction
 下記のイベントが発生したときMomongaはスマートメーターに対するコマンドの送信をブロッキングします。

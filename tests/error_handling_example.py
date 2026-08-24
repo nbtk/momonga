@@ -1,3 +1,13 @@
+"""Three ways to keep reading a meter, differing in who does the retrying.
+
+    manual        you rebuild the session on every failure
+    automatic     the library rebuilds it, and you handle the first connect
+    none          the library rebuilds it endlessly and there is nothing
+                  left to catch
+
+Run:
+  python tests/error_handling_example.py [manual|automatic|none]
+"""
 import momonga
 import time
 import os
@@ -92,37 +102,15 @@ def automatic_recovery():
             time.sleep(CONNECT_RETRY_DELAY)
 
 
-def give_up_to_the_supervisor():
-    """Bound the schedule, and let something outside decide what next.
-
-    This is when catching MomongaNeedToReopen earns its place: what follows is
-    not another wait. A wait belongs in reopen_delays, where the library is
-    already doing it. Exiting does not - under systemd, or `docker run
-    --restart=always`, the process comes back with a new interpreter and a new
-    handle on the serial port, which is more than reopening gets you.
-    """
-    try:
-        with momonga.Momonga(rbid, pwd, dev,
-                             reopen_delays=[60.0, 120.0, 300.0, 600.0]) as mo:
-            read_forever(mo)
-    except (momonga.MomongaSkScanFailure,
-            momonga.MomongaSkJoinFailure,
-            momonga.MomongaTimeoutError,
-            momonga.MomongaNeedToReopen) as e:
-        report(e)
-        sys.exit(1)
-
-
 def no_handler_at_all():
     """The arguments can be set so that there is nothing left to catch.
 
     A reopen_delays that never runs out means no MomongaNeedToReopen ever
     reaches here; the library keeps rebuilding the session, waiting longer
-    each time. join_retries decides how hard the first connect tries. What is
-    left is a first connect that fails anyway, and under systemd or `docker
-    run --restart=always` the right answer to that is to stop: the process
-    exits non-zero on the uncaught exception and comes back with a new
-    interpreter and a new handle on the serial port.
+    each time. What is left is a first connect that fails anyway, and under
+    systemd or `docker run --restart=always` the right answer to that is to
+    stop: the process exits non-zero on the uncaught exception and comes back
+    with a new interpreter and a new handle on the serial port.
 
     Both counts are raised, because on a link where connecting is hard either
     half can be the one that needs the attempts. What they cost differs, and
@@ -132,10 +120,18 @@ def no_handler_at_all():
     costs 69 s. The numbers here give open() about 15 minutes before it gives
     up and the supervisor starts a new process.
 
-    The trade is that a single unreadable response - MomongaResponseNotExpected,
-    rare but not impossible - also ends the process, and restarting costs a
-    scan and a join. read_forever() is where to put that one back if the link
-    is noisy enough for it to matter.
+    Two things are given up for that.
+
+    One unreadable response ends the process too. MomongaResponseNotExpected is
+    rare but not impossible, and a restart costs a scan and a join, which is a
+    lot to pay for one bad frame. The loop below is read_forever() with its one
+    try/except taken out, so calling read_forever(mo) instead is how to put
+    that single handler back and leave everything else as it is.
+
+    And a schedule that never runs out means a meter that has gone for good is
+    retried quietly for as long as the process lives, with nothing outside it
+    learning. Bound reopen_delays instead if somebody is watching for the
+    process to stop.
     """
     with momonga.Momonga(rbid, pwd, dev,
                          reopen_delays=backoff,
@@ -148,7 +144,6 @@ def no_handler_at_all():
 
 EXAMPLES = {'manual': manual_recovery,
             'automatic': automatic_recovery,
-            'supervised': give_up_to_the_supervisor,
             'none': no_handler_at_all}
 
 
