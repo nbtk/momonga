@@ -38,7 +38,7 @@ METER = {
     EPC.standard_version_information: b'\x00\x00\x46\x00',
     EPC.fault_status:                b'\x42',
     EPC.manufacturer_code:           b'\x00\x00\x16',
-    EPC.serial_number:               b'S19Z011823',
+    EPC.serial_number:               b'S19Z011823  ',  # 12 bytes, the size the spec fixes
     EPC.current_time_setting:        b'\x0c\x22',
     EPC.current_date_setting:        b'\x07\xea\x08\x17',
     EPC.properties_for_status_notification: b'\x02\x80\xd3',
@@ -140,7 +140,7 @@ class TestTheIdentityAndStateGetters(_AMeterThatAnswers):
         self.assertEqual(self.mo.get_manufacturer_code(), b'\x00\x00\x16')
 
     def test_serial_number(self):
-        self.assertEqual(self.mo.get_serial_number(), 'S19Z011823')
+        self.assertEqual(self.mo.get_serial_number(), 'S19Z011823  ')
 
     def test_current_time_setting(self):
         self.assertEqual(self.mo.get_current_time_setting(), datetime.time(12, 34))

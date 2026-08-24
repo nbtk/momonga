@@ -125,7 +125,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_serial_number(cls, edt: bytes) -> str:
-        _require_edt(edt, 1, 'a serial number')
+        _require_edt(edt, 12, 'a serial number')
         return edt.decode()
 
     @classmethod
@@ -178,7 +178,7 @@ class EchonetDataParser:
 
     @classmethod
     def parse_route_b_id(cls, edt: bytes) -> dict[str, bytes]:
-        _require_edt(edt, 4, 'a route B id')
+        _require_edt(edt, 16, 'a route B id')
         manufacturer_code = edt[1:4]
         authentication_id = edt[4:]
         return {'manufacturer code': manufacturer_code, 'authentication id': authentication_id}

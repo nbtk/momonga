@@ -73,7 +73,9 @@ class TestEchonetDataParser(TimeBoxedTestCase):
         self.assertEqual(result, datetime.date(2006, 6, 5))
 
     def test_parse_serial_number(self):
-        self.assertEqual(EchonetDataParser.parse_serial_number(b'ABC123'), 'ABC123')
+        # 12 bytes: the size the MRA fixes for 0x8D, and what the meter sends
+        self.assertEqual(EchonetDataParser.parse_serial_number(b'ABC123456789'),
+                         'ABC123456789')
 
     def test_parse_manufacturer_code(self):
         raw = b'\x00\x01\x02'
@@ -116,10 +118,11 @@ class TestEchonetDataParser(TimeBoxedTestCase):
         self.assertEqual(EchonetDataParser.parse_standard_version_information(b'\x00\x00\x46\x01'), 'F.1')
 
     def test_parse_route_b_id(self):
-        edt = b'\x00\x11\x22\x33\xAA\xBB\xCC'
+        # 16 bytes: 0x00, a three byte maker code, then twelve free
+        edt = b'\x00\x11\x22\x33' + bytes(range(12))
         result = EchonetDataParser.parse_route_b_id(edt)
         self.assertEqual(result['manufacturer code'], b'\x11\x22\x33')
-        self.assertEqual(result['authentication id'], b'\xAA\xBB\xCC')
+        self.assertEqual(result['authentication id'], bytes(range(12)))
 
     def test_parse_day_for_historical_data_1(self):
         self.assertEqual(EchonetDataParser.parse_day_for_historical_data_1(b'\x05'), 5)

@@ -39,6 +39,8 @@ WELL_FORMED = {
     'standard_version': (Parser.parse_standard_version_information, b'\x00\x00\x46\x00', ()),
     'fault_status': (Parser.parse_fault_status, b'\x42', ()),
     'manufacturer_code': (Parser.parse_manufacturer_code, b'\x00\x00\x16', ()),
+    'serial_number': (Parser.parse_serial_number, b'S19Z011823  ', ()),
+    'route_b_id': (Parser.parse_route_b_id, b'\x00\x00\x00\x16' + bytes(range(12)), ()),
     'current_time': (Parser.parse_current_time_setting, b'\x0c\x22', ()),
     'current_date': (Parser.parse_current_date_setting, b'\x07\xea\x08\x17', ()),
     'property_map_listed': (Parser.parse_property_map, b'\x02\x80\xd3', ()),
@@ -78,9 +80,10 @@ WELL_FORMED = {
                               b'\x07\xea\x08\x17\x0c\x05\x0a', ()),
 }
 
-# these two carry a payload of no declared length - a shorter one is
-# indistinguishable from a shorter serial number or a shorter id
-NO_LENGTH_TO_CHECK = {'serial_number', 'route_b_id'}
+# nothing left without a length to check: the two that looked variable are
+# fixed in the MRA - serial number at 12 bytes, route B id at 16 - and the
+# meter on the test rig returns exactly 12 for the one it supports
+NO_LENGTH_TO_CHECK = set()
 
 
 class TestNoParserInventsAValue(TimeBoxedTestCase):
@@ -97,9 +100,8 @@ class TestNoParserInventsAValue(TimeBoxedTestCase):
             with self.subTest(parser=name):
                 parse(edt, *extra)  # must not raise
 
-    def test_the_two_without_a_declared_length_are_named(self):
-        # so that adding a length check for either is a deliberate decision
-        self.assertEqual(NO_LENGTH_TO_CHECK, {'serial_number', 'route_b_id'})
+    def test_nothing_is_left_without_a_length_to_check(self):
+        self.assertEqual(NO_LENGTH_TO_CHECK, set())
 
 
 class TestTheDeclaredCountHasToMatchTheData(TimeBoxedTestCase):
