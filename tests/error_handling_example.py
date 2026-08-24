@@ -21,34 +21,56 @@ def read_forever(mo):
         time.sleep(60)
 
 
+# Losing a session and never having one are different failures, and only the
+# first is what reopen_delays paces. Scanning again the instant a scan failed
+# spends radio time and changes nothing, so the second waits.
+CONNECT_RETRY_DELAY = 600.0
+
+
+def report(e):
+    print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
+
+
 def manual_recovery():
     """Build a new session yourself every time Momonga asks for one."""
     while True:
         try:
             with momonga.Momonga(rbid, pwd, dev) as mo:
                 read_forever(mo)
+        except momonga.MomongaNeedToReopen as e:
+            # the session went; a new one is worth building at once.
+            # MomongaXmitTimeout, MomongaSkCommandBusy and
+            # MomongaSkCommandCancelled are subclasses and land here too
+            report(e)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError,
-                momonga.MomongaNeedToReopen) as e:
-            print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
-            continue
+                momonga.MomongaTimeoutError) as e:
+            # the meter is not answering at all
+            report(e)
+            time.sleep(CONNECT_RETRY_DELAY)
 
 
 def automatic_recovery():
-    """Let reopen_delays do it. MomongaNeedToReopen reaches this handler
-    only once all three attempts have been spent."""
+    """Let reopen_delays rebuild the session.
+
+    It covers requests only. A session that could never be established in the
+    first place is not a MomongaNeedToReopen and never reaches that machinery,
+    which is why the two handlers below are not the same: by the time the
+    first one runs all three delays have been spent, and when the second one
+    runs nothing has waited at all.
+    """
     while True:
         try:
             with momonga.Momonga(rbid, pwd, dev,
                                  reopen_delays=[600.0, 600.0, 600.0]) as mo:
                 read_forever(mo)
+        except momonga.MomongaNeedToReopen as e:
+            report(e)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError,
-                momonga.MomongaNeedToReopen) as e:
-            print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
-            continue
+                momonga.MomongaTimeoutError) as e:
+            report(e)
+            time.sleep(CONNECT_RETRY_DELAY)
 
 
 EXAMPLES = {'manual': manual_recovery, 'automatic': automatic_recovery}

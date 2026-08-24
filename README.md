@@ -221,7 +221,7 @@ Momongaクラスのインスタンス化。
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
-- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。
+- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
 
 e.g.
 ```python3
