@@ -38,7 +38,7 @@ dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
         res = mo.get_instantaneous_power()
-        print('%0.1fW' % res)
+        print('no data' if res is None else '%0.1fW' % res)
         time.sleep(60)
 ```
 
@@ -86,7 +86,7 @@ dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
         res = mo.get_instantaneous_power()
-        print('%0.1fW' % res)
+        print('no data' if res is None else '%0.1fW' % res)
         time.sleep(60)
 ```
 
@@ -142,7 +142,7 @@ while True:
                     # one response that could not be read, not a lost session
                     print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
                 else:
-                    print('%0.1fW' % res)
+                    print('no data' if res is None else '%0.1fW' % res)
                 time.sleep(60)
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
@@ -163,6 +163,12 @@ while True:
 2. 送信データ量が規定値に達しWi-SUNモジュールが送信制限しているとき
 
 したがって開発者はデータ設定または取得関数を呼び出したあと即座に応答が返ってこない可能性を考慮してください。
+
+# No Data
+
+スマートメーターが値を持たないとき、ECHONETは数値のかわりに規定のコードを返します（積算電力量は0xFFFFFFFE、瞬時電力は0x7FFFFFFE、瞬時電流は相ごとに0x7FFE）。Momongaはこれらを`None`として返すので、そのまま数値として扱うと2147483646Wのような値になることはありません。
+
+したがって計測値を返す関数は`None`を返しうります。値ごとに`None`を判定してから使ってください。履歴系のように複数の値を含む結果では、値ごとに独立して`None`になります。
 
 # Notification
 スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知します（INF/INFC）。
@@ -307,7 +313,8 @@ e.g.
 with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
         res = mo.get_instantaneous_power()
-        print('%0.1fW (rssi: %s dBm)' % (res, mo.rssi))
+        reading = 'no data' if res is None else '%0.1fW' % res
+        print('%s (rssi: %s dBm)' % (reading, mo.rssi))
         time.sleep(60)
 ```
 
@@ -454,7 +461,7 @@ e.g.
 ### Arguments
 - reverse: Trueのとき逆方向の積算電力量を取得する
 ### Return Value
-- int | float: 積算電力量(kWh)
+- int | float | None: 積算電力量(kWh)。スマートメーターが値を持たないときはNone
 
 ## momonga.get_unit_for_cumulative_energy()
 積算電力量計測値、履歴の乗率を取得する。Momongaが出力する結果には適宜この値が乗じられている。
@@ -497,14 +504,14 @@ e.g.
 ### Arguments
 - Void
 ### Return Value
-- int: 瞬時電力測定値(W)
+- int | None: 瞬時電力測定値(W)。スマートメーターが値を持たないときはNone
 
 ## momonga.get_instantaneous_current()
 瞬時電流計測値を取得する。
 ### Arguments
 - Void
 ### Return Value
-- dict: R相瞬時電流(A)とT相瞬時電流(A)
+- dict: R相瞬時電流(A)とT相瞬時電流(A)。相ごとに、値を持たないときはNone
 
 e.g.
 ```python3
@@ -517,7 +524,7 @@ e.g.
 ### Arguments
 - reverse: Trueのとき逆方向の積算電力量を取得する
 ### Return Value
-- dict: 収集日時と積算電力量(kWh)
+- dict: 収集日時と積算電力量(kWh)。積算電力量は、値を持たないときはNone
 
 e.g.
 ```python3
@@ -720,7 +727,7 @@ import momonga
 async def main():
     async with momonga.AsyncMomonga(rbid, pwd, dev) as mo:
         power = await mo.get_instantaneous_power()
-        print(f'{power}W')
+        print('no data' if power is None else f'{power}W')
 
 asyncio.run(main())
 ```

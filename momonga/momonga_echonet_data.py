@@ -7,6 +7,8 @@ from .momonga_exception import (MomongaResponseNotExpected, MomongaRuntimeError,
                                 MomongaValueError)
 
 _CUMULATIVE_ENERGY_MISSING = 0xFFFFFFFE
+_INSTANTANEOUS_POWER_MISSING = 0x7FFFFFFE
+_INSTANTANEOUS_CURRENT_MISSING = 0x7FFE
 
 
 def _require_edt(edt: bytes | None, at_least: int, what: str) -> None:
@@ -230,9 +232,11 @@ class EchonetDataParser:
             edt: bytes,
             energy_unit: int | float,
             energy_coefficient: int,
-    ) -> int | float:
+    ) -> int | float | None:
         _require_edt(edt, 4, 'a cumulative energy')
         cumulative_energy = int.from_bytes(edt, 'big')
+        if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
+            return None
         cumulative_energy *= energy_unit
         cumulative_energy *= energy_coefficient
         return cumulative_energy
@@ -289,19 +293,22 @@ class EchonetDataParser:
         return day
 
     @classmethod
-    def parse_instantaneous_power(cls, edt: bytes) -> int:
+    def parse_instantaneous_power(cls, edt: bytes) -> int | None:
         _require_edt(edt, 4, 'an instantaneous power')
         power = int.from_bytes(edt, 'big', signed=True)
+        if power == _INSTANTANEOUS_POWER_MISSING:
+            return None
         return power
 
     @classmethod
-    def parse_instantaneous_current(cls, edt: bytes) -> dict[str, float]:
+    def parse_instantaneous_current(cls, edt: bytes) -> dict[str, float | None]:
         _require_edt(edt, 4, 'an instantaneous current')
-        r_phase_current = int.from_bytes(edt[0:2], 'big', signed=True)
-        t_phase_current = int.from_bytes(edt[2:4], 'big', signed=True)
-        r_phase_current *= 0.1  # to Ampere
-        t_phase_current *= 0.1  # to Ampere
-        return {'r phase current': r_phase_current, 't phase current': t_phase_current}
+        currents = []
+        for raw in (edt[0:2], edt[2:4]):
+            current = int.from_bytes(raw, 'big', signed=True)
+            currents.append(None if current == _INSTANTANEOUS_CURRENT_MISSING
+                            else current * 0.1)  # to Ampere
+        return {'r phase current': currents[0], 't phase current': currents[1]}
 
     @classmethod
     def parse_cumulative_energy_measured_at_fixed_time(
@@ -309,13 +316,16 @@ class EchonetDataParser:
             edt: bytes,
             energy_unit: int | float,
             energy_coefficient: int,
-    ) -> dict[str, datetime.datetime | int | float]:
+    ) -> dict[str, datetime.datetime | int | float | None]:
         _require_edt(edt, 11, 'a cumulative energy at a fixed time')
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
         cumulative_energy = int.from_bytes(edt[7:], 'big')
-        cumulative_energy *= energy_unit
-        cumulative_energy *= energy_coefficient
+        if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
+            cumulative_energy = None
+        else:
+            cumulative_energy *= energy_unit
+            cumulative_energy *= energy_coefficient
         return {'timestamp': timestamp, 'cumulative energy': cumulative_energy}
 
     @classmethod

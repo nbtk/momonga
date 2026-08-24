@@ -217,7 +217,7 @@ class AsyncMomonga:
 
     async def get_measured_cumulative_energy(self,
                                              reverse: bool = False,
-                                             ) -> int | float:
+                                             ) -> int | float | None:
         return await self._run(self._sync.get_measured_cumulative_energy, reverse)
 
     async def get_unit_for_cumulative_energy(self) -> int | float:
@@ -236,16 +236,16 @@ class AsyncMomonga:
     async def get_day_for_historical_data_1(self) -> int:
         return await self._run(self._sync.get_day_for_historical_data_1)
 
-    async def get_instantaneous_power(self) -> int:
+    async def get_instantaneous_power(self) -> int | None:
         return await self._run(self._sync.get_instantaneous_power)
 
-    async def get_instantaneous_current(self) -> dict[str, float]:
+    async def get_instantaneous_current(self) -> dict[str, float | None]:
         return await self._run(self._sync.get_instantaneous_current)
 
     async def get_cumulative_energy_measured_at_fixed_time(
             self,
             reverse: bool = False,
-    ) -> dict[str, datetime.datetime | int | float]:
+    ) -> dict[str, datetime.datetime | int | float | None]:
         return await self._run(self._sync.get_cumulative_energy_measured_at_fixed_time, reverse)
 
     async def get_historical_cumulative_energy_2(

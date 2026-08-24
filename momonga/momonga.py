@@ -602,7 +602,7 @@ class Momonga:
 
     def get_measured_cumulative_energy(self,
                                        reverse: bool = False,
-                                       ) -> int | float:
+                                       ) -> int | float | None:
         if reverse is False:
             epc = EchonetPropertyCode.measured_cumulative_energy
         else:
@@ -648,19 +648,19 @@ class Momonga:
         res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_day_for_historical_data_1(res.edt)
 
-    def get_instantaneous_power(self) -> int:
+    def get_instantaneous_power(self) -> int | None:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_power)
         res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_power(res.edt)
 
-    def get_instantaneous_current(self) -> dict[str, float]:
+    def get_instantaneous_current(self) -> dict[str, float | None]:
         req = EchonetProperty(EchonetPropertyCode.instantaneous_current)
         res = self._request_to_get([req])[0]
         return EchonetDataParser.parse_instantaneous_current(res.edt)
 
     def get_cumulative_energy_measured_at_fixed_time(self,
                                                      reverse: bool = False,
-                                                     ) -> dict[str, datetime.datetime | int | float]:
+                                                     ) -> dict[str, datetime.datetime | int | float | None]:
         if reverse is False:
             epc = EchonetPropertyCode.cumulative_energy_measured_at_fixed_time
         else:

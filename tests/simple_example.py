@@ -10,5 +10,5 @@ dev = os.environ.get('MOMONGA_DEV_PATH')
 with momonga.Momonga(rbid, pwd, dev) as mo:
     while True:
         res = mo.get_instantaneous_power()
-        print('%0.1fW' % res)
+        print('no data' if res is None else '%0.1fW' % res)
         time.sleep(60)

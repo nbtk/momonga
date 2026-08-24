@@ -17,7 +17,7 @@ def read_forever(mo):
         except momonga.MomongaResponseNotExpected as e:
             print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         else:
-            print('%0.1fW' % res)
+            print('no data' if res is None else '%0.1fW' % res)
         time.sleep(60)
 
 
