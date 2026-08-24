@@ -104,6 +104,54 @@ class TestTheGroupsDoNotBreakWhatWasThere(TimeBoxedTestCase):
         self.assertIs(momonga.MomongaNeedToReopen, MomongaNeedToReopen)
 
 
+class TestNeitherGroupIsAboutWhen(TimeBoxedTestCase):
+    """The two groups say which layer failed, not whether a session existed
+    yet. Both halves of that were once written down the other way round, so
+    both are pinned here."""
+
+    def test_open_issues_requests_so_a_lost_session_error_can_come_from_it(self):
+        # open() reads the cumulative energy unit, which is a request, so a
+        # MomongaNeedToReopen can arrive before the caller ever holds the object
+        import queue
+        from unittest.mock import MagicMock, patch
+        from momonga.momonga import Momonga
+
+        issued = []
+        sm = MagicMock()
+        sm.recv_q, sm.notif_q = queue.Queue(), queue.Queue()
+        mo = Momonga('', '', '/dev/ttyUSB0')
+        mo.session_manager = sm
+        mo.internal_xmit_interval = 0
+
+        def failing(_self, esv, _props):
+            issued.append(esv)
+            raise MomongaXmitTimeout('no transmit rights')
+
+        with patch.object(Momonga, '_request', failing):
+            with self.assertRaises(MomongaXmitTimeout):
+                mo.open()
+
+        self.assertEqual(len(issued), 1)
+
+    def test_a_connection_failure_can_arrive_with_a_session_established(self):
+        # a dongle pulled mid-session is a MomongaIOError, not something that
+        # only happens before connecting
+        from unittest.mock import MagicMock
+        import serial
+        from momonga.momonga_sk_wrapper import MomongaSkWrapper
+
+        skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
+        ser = MagicMock()
+        ser.closed = False
+        ser.write.side_effect = serial.SerialException('device disconnected')
+        skw._ser = ser
+
+        with self.assertRaises(MomongaIOError):
+            skw._writeline('SKVER')
+
+        self.assertTrue(issubclass(MomongaIOError, MomongaConnectionFailure))
+
+
 class TestTwoNamesCoverTheLinkFailures(TimeBoxedTestCase):
 
     def test_one_tuple_catches_every_link_failure(self):

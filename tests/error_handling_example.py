@@ -67,14 +67,17 @@ def manual_recovery():
             with momonga.Momonga(rbid, pwd, dev) as mo:
                 read_forever(mo)
         except momonga.MomongaNeedToReopen as e:
-            # the session went; a new one is worth building at once.
-            # MomongaXmitTimeout, MomongaSkCommandBusy and
-            # MomongaSkCommandCancelled are subclasses and land here too
+            # the session is unusable and the module is not - it is answering,
+            # it just could not carry this. A new session is worth building at
+            # once. MomongaXmitTimeout, MomongaSkCommandBusy and
+            # MomongaSkCommandCancelled all land here
             report(e)
         except momonga.MomongaConnectionFailure as e:
-            # there is no session to lose yet. MomongaSkScanFailure,
-            # MomongaSkJoinFailure, MomongaTimeoutError and MomongaIOError are
-            # the four ways that happens and all land here
+            # what the session sits on failed: the scan, the join, the module
+            # answering at all, or the device file. Waiting is what may change
+            # that, and none of it is about when - a dongle can be pulled years
+            # in, and open() itself issues requests, so either group can arrive
+            # from either place
             report(e)
             time.sleep(CONNECT_RETRY_DELAY)
 

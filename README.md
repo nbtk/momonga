@@ -94,14 +94,18 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 主な例外は下記です。
 
 ## momonga.MomongaConnectionFailure
-まだセッションが無い、つまり`momonga.open()`が接続を確立できなかったときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
+セッションが乗っている土台のほうが失敗したときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
 
 - `MomongaSkScanFailure` — PANが見つからない
 - `MomongaSkJoinFailure` — PANAセッションを確立できない
 - `MomongaTimeoutError` — Wi-SUNモジュールが応答しない
 - `MomongaIOError` — デバイスファイルやUSBドングルの失敗
 
-セッションが確立したあとに落ちた場合は`MomongaNeedToReopen`のほうである。`reopen_delays`が扱うのはそちらで、`momonga.open()`は対象外。
+対になるのが`MomongaNeedToReopen`で、こちらは土台は生きていてセッションだけが使えなくなった場合。張り直せば直る見込みがある。
+
+この2つの違いは「いつ起きるか」ではない。USBドングルは運転開始から何年経っていても抜ける（`MomongaIOError`）し、`momonga.open()`自身も積算電力量の単位を読むためにリクエストを発行するので、そこから`MomongaXmitTimeout`が出ることもある。どちらの群も、接続前にも接続後にも起きうる。
+
+なお`reopen_delays`が自動で扱うのは`MomongaNeedToReopen`のほうだけで、`momonga.open()`は対象外である。
 
 ## momonga.MomongaSkScanFailure
 PANをスキャンしたが見つからなかったときに送出される。スマートメーターと通信できるロケーションか、またBルートIDが正しく設定されているかを確認し、再試行すること。
