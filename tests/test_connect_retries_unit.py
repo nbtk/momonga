@@ -163,30 +163,57 @@ class TestACountBelowOneIsRefused(TimeBoxedTestCase):
         self.assertEqual((mo._scan_retries, mo._join_retries), (1, 1))
 
 
-class TestWhatEachCountCosts(TimeBoxedTestCase):
-    """Scanning doubles its window each round and joining does not, which is
-    why the two are not interchangeable advice."""
+class TestScanningStopsWidening(TimeBoxedTestCase):
+    """SKSCAN's window doubles with each step of DURATION. Widening it once per
+    retry with no stop is what turned ten retries into five hours, and only
+    three steps of it were ever exercised."""
 
-    # from the estimates in skscan: 0.0096 * (2 ** duration + 1) * 28
-    @staticmethod
-    def _scan_seconds(retries):
-        return sum(0.0096 * (2 ** (6 + i) + 1) * 28 for i in range(retries))
+    def _durations(self, retry):
+        skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
+        skw._ser = MagicMock()
+        seen = []
+
+        def exec_command(_self, command, expect=None, *args, **kwargs):
+            seen.append(int(command[3]))       # SKSCAN <mode> <mask> <duration>
+            return ['EVENT 22 FE80::1 0']      # never finds the PAN
+
+        with patch.object(MomongaSkWrapper, 'exec_command', exec_command):
+            with self.assertRaises(momonga.MomongaSkScanFailure):
+                skw.skscan(retry=retry)
+        return seen
+
+    def _scan_seconds(self, retry):
+        # the estimate skscan is written against
+        return sum(0.0096 * (2 ** d + 1) * 28 for d in self._durations(retry))
+
+    def test_the_default_three_are_unchanged(self):
+        self.assertEqual(self._durations(3), [6, 7, 8])
+
+    def test_the_widest_window_repeats_rather_than_doubling(self):
+        self.assertEqual(self._durations(6), [6, 7, 8, 8, 8, 8])
+
+    def test_the_cost_grows_with_the_count_not_faster(self):
+        three, six = self._scan_seconds(3), self._scan_seconds(6)
+
+        self.assertLess(six, three * 3)   # twice the count, under three times the wait
+
+    def test_ten_retries_are_minutes_rather_than_hours(self):
+        self.assertLess(self._scan_seconds(10) / 60, 15)
+
+    def test_the_figures_the_readme_quotes(self):
+        for retries, minutes in ((3, 2.0), (4, 3.2), (5, 4.3), (6, 5.5),
+                                 (8, 7.8), (10, 10.1)):
+            with self.subTest(scan_retries=retries):
+                self.assertAlmostEqual(self._scan_seconds(retries) / 60, minutes,
+                                       delta=0.2)
+
+
+class TestJoiningCostsTheSameEachTime(TimeBoxedTestCase):
 
     JOIN_SECONDS = 40  # skjoin's own estimate, per attempt
 
-    def test_scanning_grows_faster_than_the_count(self):
-        three, six = self._scan_seconds(3), self._scan_seconds(6)
-
-        self.assertGreater(six, three * 8)   # twice the count, eight times the wait
-
-    def test_joining_grows_with_the_count(self):
-        self.assertAlmostEqual(self.JOIN_SECONDS * 6, self.JOIN_SECONDS * 3 * 2)
-
-    def test_the_figures_the_readme_quotes(self):
-        for retries, minutes in ((3, 2.0), (4, 4.3), (5, 8.9), (6, 18), (8, 73)):
-            with self.subTest(scan_retries=retries):
-                self.assertAlmostEqual(self._scan_seconds(retries) / 60, minutes,
-                                       delta=0.5)
+    def test_it_grows_with_the_count(self):
+        self.assertEqual(self.JOIN_SECONDS * 6, self.JOIN_SECONDS * 3 * 2)
 
 
 class TestTheAsyncWrapperTakesThemToo(TimeBoxedTestCase):

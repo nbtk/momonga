@@ -56,6 +56,13 @@ _PUBLISHER_JOIN_LIMIT = 5
 
 _BUF_CLEAR_LIMIT = 10
 
+# SKSCAN's window doubles with each step of DURATION, so widening it without
+# a stop turns a handful of retries into hours. Three steps is what the
+# estimates below were written for; past that a retry repeats the widest
+# window rather than doubling it again.
+_SCAN_FIRST_DURATION = 6
+_SCAN_WIDEST_DURATION = 8
+
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
@@ -406,7 +413,7 @@ class MomongaSkWrapper:
     def skscan(self,
                retry: int = 3,
                ) -> SkScanResponse:
-        duration = 6
+        duration = _SCAN_FIRST_DURATION
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
             res = self.exec_command(self.device_strategy.skscan_command(duration), 'EVENT 22')
@@ -415,7 +422,7 @@ class MomongaSkWrapper:
             # estimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
             if 'EPANDESC' in res:
                 return SkScanResponse(res, self.device_strategy)
-            duration += 1
+            duration = min(duration + 1, _SCAN_WIDEST_DURATION)
         raise MomongaSkScanFailure('Could not find the specified PAN.')
 
     def skll64(self,
