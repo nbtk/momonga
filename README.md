@@ -222,10 +222,18 @@ Momongaクラスのインスタンス化。
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
 - reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
-- scan_retries: PANのスキャンを繰り返す回数。1回ごとにスキャン時間を延ばす（約17秒、35秒、69秒…）。使い切ると`MomongaSkScanFailure`を送出する
-- join_retries: PANAセッションの確立を試みる回数。1回あたり最大約40秒。使い切ると`MomongaSkJoinFailure`を送出する
+- scan_retries: PANのスキャンを繰り返す回数。1以上。使い切ると`MomongaSkScanFailure`を送出する
+- join_retries: PANAセッションの確立を試みる回数。1以上。1回あたり最大約40秒。使い切ると`MomongaSkJoinFailure`を送出する
 
-接続に手こずる環境ではこの2つを増やすと、`momonga.open()`を呼び直す回数が減る。既に見つけたPANを毎回スキャンし直さずに済むためで、とくにjoin_retriesが効く。増やしたぶん`momonga.open()`が失敗を返すまでの時間は延びる。
+接続に手こずる環境で増やす価値があるのは**join_retries**である。1回あたり約40秒で線形に延び、既に見つけたPANを毎回スキャンし直さずに済む。
+
+**scan_retriesは倍々に延びる**ので扱いが違う。1回ごとにスキャン時間を倍にする仕様で、`momonga.open()`が失敗を返すまでの上限は次のとおり。
+
+| scan_retries | 3（既定） | 4 | 5 | 6 | 8 | 10 |
+|---|---|---|---|---|---|---|
+| スキャンの上限 | 2.0分 | 4.3分 | 8.9分 | 18分 | 73分 | 4.9時間 |
+
+見つからないPANを長く探しても見つかるとはかぎらないので、既定の3から動かすなら4か5までに留め、粘りは呼び出し側のループに持たせるほうが制御しやすい。
 
 e.g.
 ```python3
@@ -243,8 +251,8 @@ def backoff():
 
 momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff)
 
-# try harder to connect before giving up
-momonga.Momonga(rbid, pwd, dev, scan_retries=5, join_retries=15)
+# try harder to join before giving up (scanning is left at its default)
+momonga.Momonga(rbid, pwd, dev, join_retries=15)
 ```
 
 `reopen_delays`は再接続のたびに列の先頭から使われる。リストでも、一度しか回せないイテレータでも同じで、後者は内部で再生される。ただしその再生はひとつのインスタンスの中だけで成り立つ。**同じイテレータを別のインスタンスに渡すと前回の続きから始まる**ので、上のバックオフを`chain(...)`のまま渡すと最初のセッションだけ傾斜し、以降は10分固定になる。呼び出し可能オブジェクトを渡せば毎回新しい列が作られ、インスタンスをまたいでも傾斜が保たれる。

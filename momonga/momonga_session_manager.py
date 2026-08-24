@@ -6,13 +6,13 @@ import time
 from collections.abc import Callable
 from typing import Self
 
-from .momonga_exception import (MomongaSkScanFailure,
-                                MomongaSkJoinFailure,
-                                MomongaNeedToReopen,
-                                MomongaXmitTimeout,
-                                MomongaSkCommandCancelled,
-                                MomongaSkCommandExecutionFailure,
-)
+from .momonga_exception import (MomongaNeedToReopen,
+                                       MomongaSkCommandCancelled,
+                                       MomongaSkCommandExecutionFailure,
+                                       MomongaSkJoinFailure,
+                                       MomongaSkScanFailure,
+                                       MomongaValueError,
+                                       MomongaXmitTimeout)
 from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
 from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 
@@ -66,6 +66,12 @@ class MomongaSessionManager:
         self._rbid = rbid
         self._pwd = pwd
         self._reset_dev = reset_dev
+        # Zero means never attempting to connect and reporting that the
+        # connection failed, which reads as a meter that is not there.
+        for name, value in (('scan_retries', scan_retries),
+                            ('join_retries', join_retries)):
+            if value < 1:
+                raise MomongaValueError('%s must be 1 or more, not %s' % (name, value))
         self._scan_retries = scan_retries
         self._join_retries = join_retries
 

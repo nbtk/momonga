@@ -139,6 +139,56 @@ class TestTheCommandsHonourTheCount(TimeBoxedTestCase):
                                    ['EVENT 24 FE80::1 0']), retry)
 
 
+class TestACountBelowOneIsRefused(TimeBoxedTestCase):
+    """Zero means never attempting to connect and then reporting that the
+    connection failed, which reads as a meter that is not there."""
+
+    def test_zero_and_below_are_rejected_at_construction(self):
+        for name in ('scan_retries', 'join_retries'):
+            for value in (0, -1):
+                with self.subTest(**{name: value}):
+                    with self.assertRaises(momonga.MomongaValueError):
+                        momonga.Momonga('rbid', 'pwd', '/dev/ttyUSB0', **{name: value})
+
+    def test_the_message_names_the_argument(self):
+        with self.assertRaises(momonga.MomongaValueError) as caught:
+            momonga.Momonga('rbid', 'pwd', '/dev/ttyUSB0', join_retries=0)
+
+        self.assertIn('join_retries', str(caught.exception))
+
+    def test_one_is_allowed(self):
+        mo = momonga.Momonga('rbid', 'pwd', '/dev/ttyUSB0',
+                             scan_retries=1, join_retries=1)
+
+        self.assertEqual((mo._scan_retries, mo._join_retries), (1, 1))
+
+
+class TestWhatEachCountCosts(TimeBoxedTestCase):
+    """Scanning doubles its window each round and joining does not, which is
+    why the two are not interchangeable advice."""
+
+    # from the estimates in skscan: 0.0096 * (2 ** duration + 1) * 28
+    @staticmethod
+    def _scan_seconds(retries):
+        return sum(0.0096 * (2 ** (6 + i) + 1) * 28 for i in range(retries))
+
+    JOIN_SECONDS = 40  # skjoin's own estimate, per attempt
+
+    def test_scanning_grows_faster_than_the_count(self):
+        three, six = self._scan_seconds(3), self._scan_seconds(6)
+
+        self.assertGreater(six, three * 8)   # twice the count, eight times the wait
+
+    def test_joining_grows_with_the_count(self):
+        self.assertAlmostEqual(self.JOIN_SECONDS * 6, self.JOIN_SECONDS * 3 * 2)
+
+    def test_the_figures_the_readme_quotes(self):
+        for retries, minutes in ((3, 2.0), (4, 4.3), (5, 8.9), (6, 18), (8, 73)):
+            with self.subTest(scan_retries=retries):
+                self.assertAlmostEqual(self._scan_seconds(retries) / 60, minutes,
+                                       delta=0.5)
+
+
 class TestTheAsyncWrapperTakesThemToo(TimeBoxedTestCase):
 
     def test_they_reach_the_sync_object(self):
