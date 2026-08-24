@@ -18,6 +18,7 @@ MomongaはBルートサービスを利用してスマートメーターと通信
 - 一部のWi-SUNモジュールでは`ROPT`コマンドが`FAIL ER04`を返しサポートされません。その場合MomongaはASCII出力で動作していると仮定し、`WOPT`コマンドを実行せずに処理を継続します。
 - メソッドは物理量に即して命名しており、ECHONETの英語版ドキュメントの表記とは必ずしも一致しません。対応するEPCを調べる場合はメソッド名ではなくEPCコードで検索してください。
 - 送信ブロッキングなど諸条件により応答が遅延することがあるため、`get_historical_cumulative_energy_1()`は日を跨ぐタイミングで実行すべきではありません。
+- プロパティの定義（EDTの長さ、乗率、データなしを表すコードなど）は、ECHONET ConsortiumのMachine Readable Appendix **dataVersion 1.3.2 / release R（2026-06-12、配布物名 MRA_v1.4.0）** の低圧スマート電力量メータクラス（0x0288）および機器オブジェクトスーパークラス（0x0000）に照合しています。
 
 # Installation
 ```shell
@@ -25,7 +26,7 @@ $ pip install momonga
 ```
 
 # Simple Example
-下記のコードはPANAセッションを確立し、瞬時電力計測値を取得して表示します。既定値ではPANのスキャンに最大で約２分、PANAセッションの確立に最大で約２分かかります（scan_retries、join_retriesで変わります）。
+下記のコードはPANAセッションを確立し、瞬時電力計測値を取得して表示します。既定値ではPANのスキャンに最大で約２分、PANAセッションの確立に最大で約２分かかります（`scan_retries`、`join_retries`で変わります）。
 BルートID、パスワード、デバイスファイルへのパスは適宜変更してください。
 ```python3
 import momonga
@@ -133,7 +134,7 @@ momonga.close()がセッションを閉じるために、実行中のSKコマン
 ## momonga.MomongaIOError
 シリアルデバイスそのものが失敗したときに送出される。デバイスファイルが存在しない、権限がない、USBドングルが抜けた、といった場合。pyserialの`SerialException`やOSの`FileNotFoundError`はこの例外に包まれるので、Momongaを使う側がpyserialをimportする必要はない。`__cause__`に元の例外が入っている。
 
-この例外は`OSError`のサブクラスでもある。reopen_delaysを指定していれば自動再接続の対象になる。
+この例外は`OSError`のサブクラスでもある。`reopen_delays`を指定していれば自動再接続の対象になる。
 
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.get_properties_to_set_values()、momonga.get_properties_to_get_values()で取得できる。
@@ -319,7 +320,7 @@ momonga.Momonga(rbid, pwd, dev, join_retries=15)
 スマートメーターが応答しないとき、ひとつのリクエストを諦めるまでにかかる時間はおおむねmomonga.xmit_retriesとmomonga.recv_timeoutの積になる。既定値では約144秒。ただしこれは応答を待つ時間だけで、送信ブロッキング中の待ち時間は含まない。そちらはmomonga.xmit_timeoutが上限になる。
 
 ## momonga.xmit_timeout
-ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、reopen_delaysを指定していれば自動再接続の対象になる。既定値は300。
+ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、`reopen_delays`を指定していれば自動再接続の対象になる。既定値は300。
 
 この値は、設置環境で送信ブロッキングが解けるのに要する時間より長くする必要がある。PANAセッションの自動再認証によるブロッキングは通常数秒から十数秒で解けるが、送信レート制限に当たった場合は環境によって長引くことがある。
 
@@ -352,7 +353,7 @@ mo.xmit_timeout = 300 # give up after five minutes of blocked transmission
 ## momonga.open()
 PANをスキャンし、PANAセッションの確立を行う。　
 
-所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。既定値での上限はスキャンが約2分（17秒＋35秒＋69秒）、確立が約2分（40秒×3回）で、scan_retriesとjoin_retriesを増やせばそのぶん延びる。reopen_delaysで再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
+所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。既定値での上限はスキャンが約2分（17秒＋35秒＋69秒）、確立が約2分（40秒×3回）で、`scan_retries`と`join_retries`を増やせばそのぶん延びる。`reopen_delays`で再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
 ### Arguments
 - Void
 ### Return Value
@@ -366,9 +367,9 @@ PANAセッションを終了する。
 - None
 
 ## momonga.reopen()
-PANAセッションを一度終了し、張り直す。`MomongaNeedToReopen`を受け取ったあとに手動で再接続するときに使う。reopen_delaysを指定している場合は自動で呼ばれるので、通常は直接呼ぶ必要はない。
+PANAセッションを一度終了し、張り直す。`MomongaNeedToReopen`を受け取ったあとに手動で再接続するときに使う。`reopen_delays`を指定している場合は自動で呼ばれるので、通常は直接呼ぶ必要はない。
 
-再接続のあいだmomonga.is_openはFalseになる。この間に他のスレッドから発行されたリクエストは`MomongaNeedToReopen`となり、reopen_delaysを指定していれば再接続の完了後に自動で再試行される。momonga.get_notification()は再接続の完了を待ってから新しいセッションの通知を返す。
+再接続のあいだmomonga.is_openはFalseになる。この間に他のスレッドから発行されたリクエストは`MomongaNeedToReopen`となり、`reopen_delays`を指定していれば再接続の完了後に自動で再試行される。momonga.get_notification()は再接続の完了を待ってから新しいセッションの通知を返す。
 ### Arguments
 - Void
 ### Return Value
@@ -773,10 +774,10 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
 放棄された処理はそのリクエストが終わるまで汎用プールの枠を占有します。占有時間は`Momonga`側の設定で決まります。
 
-- reopen_delaysを指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分
-- **reopen_delaysに`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わりません**
+- `reopen_delays`を指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分
+- **`reopen_delays`に`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わりません**
 
-占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせてください。終わりのないreopen_delaysを避ければ、占有時間の上限も有限になります。汎用プールが放棄されたリクエストで埋まっても、`async with`文からの退出は専用スレッドで実行されるので待たされません。
+占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせてください。終わりのない`reopen_delays`を避ければ、占有時間の上限も有限になります。汎用プールが放棄されたリクエストで埋まっても、`async with`文からの退出は専用スレッドで実行されるので待たされません。
 
 e.g.
 ```python3
@@ -788,11 +789,11 @@ async with momonga.AsyncMomonga(rbid, pwd, dev,
 `get_notification()`と`notifications()`はこの制限を受けません。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められます。読み取り済みの通知は次の呼び出しに引き継がれます。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残ります。予備のワーカーがあるので次の読み取りは待たされません。
 
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None, max_workers: int = 4, scan_retries: int = 3, join_retries: int = 3)
-AsyncMomongaクラスのインスタンス化。max_workers以外の引数は`Momonga`と同じ。
+AsyncMomongaクラスのインスタンス化。`max_workers`以外の引数は`Momonga`と同じ。
 ### Arguments
 - max_workers: 汎用プールのワーカー数。通知の読み取りとセッションの開閉は専用スレッドで動くのでこの数には含まれない。リクエストは内部で直列化されるため増やしても速くはならない。既定値は4（実行中のリクエスト1本と、放棄されたリクエストのための予備3本）
 
-momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。momonga.is_open、momonga.energy_unit、momonga.energy_coefficient、momonga.lqi、momonga.rssiは読み取りのみです。
+momonga.xmit_retries、momonga.recv_timeout、momonga.xmit_timeout、momonga.internal_xmit_intervalは`AsyncMomonga`のインスタンスにもそのまま設定できます。`momonga.is_open`、momonga.energy_unit、momonga.energy_coefficient、momonga.lqi、momonga.rssiは読み取りのみです。
 
 `async with`文による使用を推奨します。
 
