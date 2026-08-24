@@ -55,6 +55,8 @@ class Momonga:
                  baudrate: int = 115200,
                  reset_dev: bool = True,
                  reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None,
+                 scan_retries: int = 3,
+                 join_retries: int = 3,
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
@@ -85,7 +87,10 @@ class Momonga:
         self._dev: str = dev
         self._baudrate: int = baudrate
         self._reset_dev: bool = reset_dev
-        self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev)
+        self._scan_retries = scan_retries
+        self._join_retries = join_retries
+        self.session_manager = MomongaSessionManager(rbid, pwd, dev, baudrate, reset_dev,
+                                                     scan_retries, join_retries)
 
     def _init_energy_unit(self) -> None:
         logger.debug('Initializing the energy unit and coefficient.')
@@ -151,7 +156,8 @@ class Momonga:
                 logger.debug('Error closing Momonga during reopen (ignored)', exc_info=True)
 
             self.session_manager = MomongaSessionManager(
-                self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev
+                self._rbid, self._pwd, self._dev, self._baudrate, self._reset_dev,
+                self._scan_retries, self._join_retries
             )
             self.open()
         finally:

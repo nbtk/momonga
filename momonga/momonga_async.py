@@ -30,8 +30,11 @@ class AsyncMomonga:
                  reset_dev: bool = True,
                  reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None,
                  max_workers: int = _DEFAULT_MAX_WORKERS,
+                 scan_retries: int = 3,
+                 join_retries: int = 3,
                  ) -> None:
-        self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays)
+        self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays,
+                             scan_retries, join_retries)
         self._orphaned: dict | None = None
         self._orphaned_session = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers,
