@@ -225,14 +225,22 @@ Momongaクラスのインスタンス化。
 
 e.g.
 ```python3
-from itertools import repeat
+from itertools import chain, repeat
 
 # reconnect up to 3 times, 10 minutes apart
 momonga.Momonga(rbid, pwd, dev, reopen_delays=[600.0, 600.0, 600.0])
 
 # reconnect indefinitely, 10 minutes apart
 momonga.Momonga(rbid, pwd, dev, reopen_delays=repeat(600.0))
+
+# back off: a minute, then two, then five, then every ten indefinitely
+momonga.Momonga(rbid, pwd, dev,
+                reopen_delays=chain([60.0, 120.0, 300.0], repeat(600.0)))
 ```
+
+列はセッションごとに使い切られる。イテレータを渡す場合、ひとつのインスタンスの中では再接続のたびに先頭から再生されるが、**同じイテレータを別のインスタンスに渡すと前回の続きから始まる**。上のバックオフを複数のセッションで使うなら、インスタンスごとに`chain(...)`を作り直すこと。
+
+待機を入れて再試行したいだけなら、それはこの引数で表現できる。呼び出し側で`MomongaNeedToReopen`を捕捉して待ってから作り直すのは、同じ列を二度書いているのと変わらない。捕捉する価値があるのは、そのあとで待つ以外のことをするとき（プロセスを終了してsystemdやDockerに再起動させる、通報する、など）である。
 
 ## momonga.xmit_retries
 ひとつのリクエストを送り直す回数の上限。使い切ると`MomongaNeedToReopen`を送出する。既定値は12。
