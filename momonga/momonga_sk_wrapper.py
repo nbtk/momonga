@@ -7,18 +7,19 @@ import time
 from typing import Self
 
 from .momonga_exception import (MomongaError,
-                                MomongaTimeoutError,
+                                MomongaIOError,
                                 MomongaNeedToReopen,
-                                MomongaSkCommandUnknownError,
-                                MomongaSkCommandUnsupported,
+                                MomongaSkCommandBusy,
+                                MomongaSkCommandCancelled,
+                                MomongaSkCommandFailedToExecute,
                                 MomongaSkCommandInvalidArgument,
                                 MomongaSkCommandInvalidSyntax,
                                 MomongaSkCommandSerialInputError,
-                                MomongaSkCommandFailedToExecute,
-                                MomongaSkCommandCancelled,
-                                MomongaSkCommandBusy,
+                                MomongaSkCommandUnknownError,
+                                MomongaSkCommandUnsupported,
+                                MomongaSkJoinFailure,
                                 MomongaSkScanFailure,
-                                MomongaSkJoinFailure)
+                                MomongaTimeoutError)
 from .momonga_response import (DeviceStrategy,
                                SkVerResponse,
                                SkAppVerResponse,
@@ -66,6 +67,31 @@ _SCAN_WIDEST_DURATION = 8
 _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
+
+def _port(what: str):
+    """Turn a failure of the serial device itself into a MomongaError.
+
+    pyserial raises SerialException, and the OS raises FileNotFoundError or
+    PermissionError, for a port that has gone or was never there. None of
+    those is something a caller of this library was told to expect, so they
+    become MomongaIOError - which is an OSError too, so code already catching
+    that keeps working, and the recovery loop in _request_with_recovery still
+    sees it.
+    """
+    class _Wrap:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            if exc is None or isinstance(exc, MomongaError):
+                return False
+            if isinstance(exc, OSError):
+                raise MomongaIOError('%s: %s: %s'
+                                     % (what, type(exc).__name__, exc)) from exc
+            return False
+    return _Wrap()
+
+
 def _mask_secrets(text: str) -> str:
     for name in _SECRET_COMMANDS:
         index = text.find(name)
@@ -103,7 +129,8 @@ class MomongaSkWrapper:
         self.close()
 
     def open(self) -> Self:
-        self._ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
+        with _port('could not open %s' % self.dev):
+            self._ser = serial.Serial(self.dev, self.baudrate, timeout=_SK_COMMAND_LIMIT)
 
         try:
             try:
@@ -146,31 +173,35 @@ class MomongaSkWrapper:
                                ' reading the serial port and will stop when that read returns.')
             self._publisher_th = None
         if self._ser is not None and not self._ser.closed:
-            self._ser.close()
+            with _port('could not close %s' % self.dev):
+                self._ser.close()
 
     def _clear_buf(self) -> None:  # do not call this after open().
-        self._ser.write(b'\r\n')
-        self._ser.flush()
-        timeout = self._ser.timeout
-        self._ser.timeout = 2  # will wait the specified seconds.
-        deadline = time.monotonic() + _BUF_CLEAR_LIMIT
-        while self._ser.read():
-            # this loop clears garbage data if it exists.
-            if time.monotonic() >= deadline:
-                logger.warning('Gave up clearing the buffer. The Wi-SUN module keeps sending data.')
-                break
-        # to undo the timeout.
-        self._ser.timeout = timeout
+        with _port('could not clear the buffer'):
+            self._ser.write(b'\r\n')
+            self._ser.flush()
+            timeout = self._ser.timeout
+            self._ser.timeout = 2  # will wait the specified seconds.
+            deadline = time.monotonic() + _BUF_CLEAR_LIMIT
+            while self._ser.read():
+                # this loop clears garbage data if it exists.
+                if time.monotonic() >= deadline:
+                    logger.warning('Gave up clearing the buffer. The Wi-SUN module keeps sending data.')
+                    break
+            # to undo the timeout.
+            self._ser.timeout = timeout
 
     def _exec_ropt(self) -> int:  # do not call this after open().
-        self._ser.write(b'ROPT\r')
-        self._ser.flush()
+        with _port('could not send ROPT'):
+            self._ser.write(b'ROPT\r')
+            self._ser.flush()
         res = b''
         ok = b'OK '
         fail = b'FAIL'
         deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
-            b = self._ser.read()
+            with _port('could not read from %s' % self.dev):
+                b = self._ser.read()
             if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('ROPT command timed out.')
             res += b
@@ -193,12 +224,14 @@ class MomongaSkWrapper:
         if opt not in supported_opts:
             raise MomongaError('WOPT command dose not support the given option: %02d' % opt)
 
-        self._ser.write(('WOPT %02d\r' % opt).encode())
-        self._ser.flush()
+        with _port('could not send WOPT'):
+            self._ser.write(('WOPT %02d\r' % opt).encode())
+            self._ser.flush()
         res = b''
         deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
-            b = self._ser.read()
+            with _port('could not read from %s' % self.dev):
+                b = self._ser.read()
             if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('WOPT command timed out.')
             res += b
@@ -209,10 +242,11 @@ class MomongaSkWrapper:
     def _readline(self,
                    timeout: int | None = None,
                    ) -> str:
-        org_timeout = self._ser.timeout
-        self._ser.timeout = timeout
-        data_bytes = self._ser.readline()
-        self._ser.timeout = org_timeout
+        with _port('could not read from %s' % self.dev):
+            org_timeout = self._ser.timeout
+            self._ser.timeout = timeout
+            data_bytes = self._ser.readline()
+            self._ser.timeout = org_timeout
         if data_bytes != b'':
             logger.debug('<<< %s' % _mask_secrets(str(data_bytes)))
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
@@ -249,9 +283,10 @@ class MomongaSkWrapper:
             data_bytes = (line + ' ').encode() + payload
         else:
             data_bytes = (line + '\r\n').encode()
-        self._ser.write(data_bytes)
-        logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
-        self._ser.flush()
+        with _port('could not write to %s' % self.dev):
+            self._ser.write(data_bytes)
+            logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
+            self._ser.flush()
 
     def cancel_commands(self) -> None:
         running = self._cmd_lock.locked()

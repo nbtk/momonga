@@ -73,7 +73,8 @@ def manual_recovery():
             report(e)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError) as e:
+                momonga.MomongaTimeoutError,
+                momonga.MomongaIOError) as e:
             # the meter is not answering at all
             report(e)
             time.sleep(CONNECT_RETRY_DELAY)
@@ -97,7 +98,8 @@ def automatic_recovery():
                 read_forever(mo)
         except (momonga.MomongaSkScanFailure,
                 momonga.MomongaSkJoinFailure,
-                momonga.MomongaTimeoutError) as e:
+                momonga.MomongaTimeoutError,
+                momonga.MomongaIOError) as e:
             report(e)
             time.sleep(CONNECT_RETRY_DELAY)
 

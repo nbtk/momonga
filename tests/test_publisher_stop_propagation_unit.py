@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import serial
 
 from momonga.momonga import Momonga
-from momonga.momonga_exception import MomongaNeedToReopen
+from momonga.momonga_exception import MomongaIOError, MomongaNeedToReopen
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 from tests._timebox import TimeBoxedTestCase
@@ -192,7 +192,10 @@ class TestTheCurrentPublisherStillReports(TimeBoxedTestCase):
         th.start()
         th.join(5)
 
-        self.assertIsInstance(skw.publisher_exception, serial.SerialException)
+        # recorded as the library's own error, with pyserial's kept underneath
+        self.assertIsInstance(skw.publisher_exception, MomongaIOError)
+        self.assertIsInstance(skw.publisher_exception.__cause__,
+                              serial.SerialException)
         self.assertIs(skw.subscribers['cmd_exec_q'].get_nowait(), PUBLISHER_STOPPED)
 
 

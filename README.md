@@ -116,6 +116,11 @@ momonga.close()がセッションを閉じるために、実行中のSKコマン
 
 この例外は`TimeoutError`のサブクラスでもある。Python 3.11以降`asyncio.TimeoutError`は`TimeoutError`と同じクラスなので、`await`を`asyncio.wait_for()`で囲んで`asyncio.TimeoutError`を捕捉していると、自分が指定した待ち時間が尽きた場合と区別できない。区別が必要なら`MomongaTimeoutError`を先に捕捉すること。なお`MomongaXmitTimeout`と`MomongaSkCommandBusy`は`TimeoutError`を継承していないので、この問題は起きない。
 
+## momonga.MomongaIOError
+シリアルデバイスそのものが失敗したときに送出される。デバイスファイルが存在しない、権限がない、USBドングルが抜けた、といった場合。pyserialの`SerialException`やOSの`FileNotFoundError`はこの例外に包まれるので、Momongaを使う側がpyserialをimportする必要はない。`__cause__`に元の例外が入っている。
+
+この例外は`OSError`のサブクラスでもある。reopen_delaysを指定していれば自動再接続の対象になる。
+
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCはmomonga.get_properties_to_set_values()、momonga.get_properties_to_get_values()で取得できる。
 
@@ -147,6 +152,7 @@ while True:
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaTimeoutError,
+            momonga.MomongaIOError,
             momonga.MomongaNeedToReopen) as e:
         # what a new session fixes. MomongaXmitTimeout, MomongaSkCommandBusy
         # and MomongaSkCommandCancelled are subclasses of MomongaNeedToReopen,
@@ -253,7 +259,7 @@ Momongaクラスのインスタンス化。
 - dev: デバイスファイルへのパス
 - baudrate: シリアル通信のボーレート
 - reset_dev: momonga.open()を実行するときSKRESETコマンドを実行するかどうか
-- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
+- reopen_delays: `MomongaNeedToReopen` 発生時に再接続を試みるまでの待機秒数の列。`None` の場合は自動再接続しない。再接続が必要になるたびに列の先頭から使われる。最初の`momonga.open()`は対象外である。PANが見つからない、PANAセッションを確立できないといった接続そのものの失敗（`MomongaSkScanFailure`、`MomongaSkJoinFailure`、`MomongaTimeoutError`、`MomongaIOError`）はここを通らず即座に送出されるので、無人運転では呼び出し側で待ってから再試行すること。待たずに繰り返すと電波を使うだけで状況は変わらない。
 - scan_retries: PANのスキャンを繰り返す回数。1以上。使い切ると`MomongaSkScanFailure`を送出する
 - join_retries: PANAセッションの確立を試みる回数。1以上。1回あたり最大約40秒。使い切ると`MomongaSkJoinFailure`を送出する
 

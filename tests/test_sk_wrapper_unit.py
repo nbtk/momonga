@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import serial
 
-from momonga.momonga_exception import MomongaNeedToReopen, MomongaSkCommandUnsupported
+from momonga.momonga_exception import MomongaIOError, MomongaNeedToReopen, MomongaSkCommandUnsupported
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 from tests._timebox import TimeBoxedTestCase
 
@@ -173,7 +173,10 @@ class TestPublisherSurvival(TimeBoxedTestCase):
 
         skw.received_packet_publisher()
 
-        self.assertIsInstance(skw.publisher_exception, serial.SerialException)
+        # the library's own error, not pyserial's, with the original underneath
+        self.assertIsInstance(skw.publisher_exception, MomongaIOError)
+        self.assertIsInstance(skw.publisher_exception.__cause__,
+                              serial.SerialException)
 
 
 class TestPublisherDeathIsReported(TimeBoxedTestCase):

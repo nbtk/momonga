@@ -50,6 +50,10 @@ class MomongaTimeoutError(MomongaError, TimeoutError):
     pass
 
 
+class MomongaIOError(MomongaError, OSError):
+    pass
+
+
 class MomongaKeyError(MomongaError, KeyError):
     pass
 

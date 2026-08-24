@@ -36,6 +36,7 @@ def main():
     except (momonga.MomongaSkScanFailure,
             momonga.MomongaSkJoinFailure,
             momonga.MomongaTimeoutError,
+            momonga.MomongaIOError,
             momonga.MomongaNeedToReopen) as e:
         print(f"Connection Failed - {type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(1)
