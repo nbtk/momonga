@@ -157,6 +157,37 @@ while True:
 
 `MomongaResponseNotPossible`と`MomongaRuntimeError`を捕捉していないのは意図的です。前者はスマートメーターがそのEPCをサポートしていないという意味で、後者は使い方の誤りなので、どちらも再接続では直りません。握りつぶすと原因が見えないまま無限ループになります。
 
+## No Handler At All
+`reopen_delays`と`join_retries`を設定すると、捕捉すべきものが残らない書き方もできます。
+
+```python3
+import momonga
+import time
+
+from itertools import chain, repeat
+
+rbid = 'SET YOUR ROUTE B ID'
+pwd  = 'SET YOUR ROUTE B PASSWORD'
+dev  = '/dev/ttyUSB0'
+
+def backoff():
+    return chain([60.0, 120.0, 300.0], repeat(600.0))
+
+with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff, join_retries=15) as mo:
+    while True:
+        res = mo.get_instantaneous_power()
+        print('no data' if res is None else '%0.1fW' % res)
+        time.sleep(60)
+```
+
+`repeat()`で終わる列は尽きないので、`MomongaNeedToReopen`が呼び出し側に届くことはありません。ライブラリが待ち時間を延ばしながらセッションを張り直し続けます。残るのは最初の接続の失敗だけで、systemdや`docker run --restart=always`の下ではプロセスが終了コード1で落ちて再起動され、新しいインタプリタと新しいシリアルハンドルでやり直します。
+
+`join_retries`だけを上げて`scan_retries`を既定のままにしているのは意図的です。接続がうまくいかないときの内訳は環境によりますが、参加の失敗が支配的なら`join_retries`が効きます。スキャンが3回とも空振りしたということは、その時点でビーコンを拾えていないということで、最も広い窓は既に69秒です。時間を置いてスキャンし直すことと、いま長くスキャンすることは別で、この形では前者をスーパーバイザが担います。上げてはいけないわけではなく（5で2.0分が4.3分になる）、得られるものが少ないという判断です。
+
+引き換えに、まれな`MomongaResponseNotExpected`（応答ひとつが読めない）でもプロセスが終わります。再起動にはスキャンとセッション確立の時間がかかるので、電波状況によってはその1つだけ捕捉するとよいでしょう。
+
+`tests/error_handling_example.py`に、この形を含む4通りが動く形で入っています。
+
 # Transmission Restriction
 下記のイベントが発生したときMomongaはスマートメーターに対するコマンドの送信をブロッキングします。
 1. PANAセッションのライフタイムが近づきWi-SUNモジュールが自動再認証を試みているとき

@@ -113,9 +113,45 @@ def give_up_to_the_supervisor():
         sys.exit(1)
 
 
+def no_handler_at_all():
+    """The arguments can be set so that there is nothing left to catch.
+
+    A reopen_delays that never runs out means no MomongaNeedToReopen ever
+    reaches here; the library keeps rebuilding the session, waiting longer
+    each time. join_retries decides how hard the first connect tries. What is
+    left is a first connect that fails anyway, and under systemd or `docker
+    run --restart=always` the right answer to that is to stop: the process
+    exits non-zero on the uncaught exception and comes back with a new
+    interpreter and a new handle on the serial port.
+
+    join_retries is raised and scan_retries deliberately is not. On the link
+    this was measured against, joining is where connecting goes wrong: over
+    ten months, 95 runs of three join attempts ended in failure against 30
+    runs of three scans, and the worst outage needed the caller round its loop
+    45 times, every one of them a join. A scan that came back empty three
+    times has not found the meter's beacon in this minute, and the widest
+    window is already 69 s; waiting and scanning again is a different thing
+    from scanning longer now, and here the supervisor is what does the
+    waiting. Raising it is not wrong - 5 costs 4.3 minutes rather than 2 - it
+    just buys less.
+
+    The trade is that a single unreadable response - MomongaResponseNotExpected,
+    rare but not impossible - also ends the process, and restarting costs a
+    scan and a join. read_forever() is where to put that one back if the link
+    is noisy enough for it to matter.
+    """
+    with momonga.Momonga(rbid, pwd, dev,
+                         reopen_delays=backoff, join_retries=15) as mo:
+        while True:
+            res = mo.get_instantaneous_power()
+            print('no data' if res is None else '%0.1fW' % res)
+            time.sleep(60)
+
+
 EXAMPLES = {'manual': manual_recovery,
             'automatic': automatic_recovery,
-            'supervised': give_up_to_the_supervisor}
+            'supervised': give_up_to_the_supervisor,
+            'none': no_handler_at_all}
 
 
 if __name__ == '__main__':
