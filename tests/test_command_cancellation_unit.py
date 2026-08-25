@@ -13,7 +13,8 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga_exception import (MomongaNeedToReopen, MomongaSkCommandBusy,
                                        MomongaSkCommandCancelled)
-from momonga.momonga_session_manager import MomongaSessionManager
+from momonga.momonga_session_manager import (MomongaSessionManager,
+                                             _STOP_RECEIVER)
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 from tests._timebox import TimeBoxedTestCase
 
@@ -140,6 +141,84 @@ class TestACancellationIsNotRetried(TimeBoxedTestCase):
 
         self.assertLess(elapsed, 1)  # not three rounds of the retry sleep
         self.assertEqual(skw._ser.write.call_count, 0)
+
+
+class TestAReceiverWaitingOnSomeoneElsesCommandIsCutLooseToo(TimeBoxedTestCase):
+    """The case above has the receiver holding the command lock and waiting for
+    the module, which cancel_commands() reaches because that wait is on the
+    queue the cancellation arrives on. A receiver waiting *for* the lock is not
+    on that queue and never sees it - it sits there until whoever holds the
+    lock lets go, which is up to a full command limit, and holds _rejoin_lock
+    the whole time. That is the one part of running a command that cancelling
+    cannot interrupt, so waiting for the lock is done in slices with a look at
+    whether the caller still wants the command at all.
+    """
+
+    @staticmethod
+    def _let_everything_go(sm, skw, thread):
+        """Let the held command lock go before waiting on the receiver, or the
+        wait is the very block under test. Cancel first: a mocked port never
+        answers the SKJOIN the receiver sends the moment the lock is free."""
+        skw.cancel_commands()
+        if skw._cmd_lock.locked():
+            skw._cmd_lock.release()
+        sm._pkt_sbsc_q.put(_STOP_RECEIVER)
+        thread.join(5)
+
+    def _rejoining_receiver(self, sm, skw):
+        """The receiver, rejoining, with the command lock held by a user
+        thread that the module has stopped answering."""
+        skw._cmd_lock.acquire()
+        thread = threading.Thread(target=sm._receiver, daemon=True)
+        thread.start()
+        self.addCleanup(self._let_everything_go, sm, skw, thread)
+        sm._pkt_sbsc_q.put('EVENT 24 FE80::1 0')
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if sm._rejoin_lock.locked():
+                return thread
+            time.sleep(0.005)
+        self.fail('The receiver never started rejoining.')
+
+    def test_close_does_not_wait_for_the_holder_to_let_go(self):
+        skw = _make_skw()
+        sm = _make_sm(skw, session_established=True)
+        self._rejoining_receiver(sm, skw)
+
+        started = time.monotonic()
+        sm.close()
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 5)   # the holder is still holding
+
+    def test_the_rejoin_lets_go_of_its_own_lock(self):
+        skw = _make_skw()
+        sm = _make_sm(skw, session_established=True)
+        self._rejoining_receiver(sm, skw)
+
+        sm.close()
+
+        self.assertFalse(sm._rejoin_lock.locked())
+
+    def test_giving_up_that_way_is_not_reported_as_a_fault(self):
+        """The receiver is being closed, not failing."""
+        skw = _make_skw()
+        sm = _make_sm(skw, session_established=True)
+        self._rejoining_receiver(sm, skw)
+
+        sm.close()
+
+        self.assertIsNone(sm.receiver_exception)
+
+    def test_a_rejoin_nobody_is_closing_still_waits_its_turn(self):
+        """The slices are a way to look at _closing, not a shorter patience."""
+        skw = _make_skw()
+        sm = _make_sm(skw, session_established=True)
+        self._rejoining_receiver(sm, skw)
+
+        time.sleep(0.6)   # more than one slice
+
+        self.assertTrue(sm._rejoin_lock.locked())
 
 
 class TestCloseDoesNotWaitOutAStuckReceiver(TimeBoxedTestCase):

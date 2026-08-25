@@ -4,6 +4,7 @@ import queue
 import serial
 import time
 
+from collections.abc import Callable
 from typing import Self
 
 from .momonga_exception import (MomongaError,
@@ -54,6 +55,9 @@ _COMMANDS_CANCELLED = _CommandsCancelled()
 _BP35A1_SIDE_SENTINEL = 0xFFFE
 
 _SK_COMMAND_LIMIT = 300
+
+# how often a caller that can be told to stop gets to check
+_CMD_LOCK_POLL = 0.5
 
 _PUBLISHER_JOIN_LIMIT = 5
 
@@ -306,10 +310,11 @@ class MomongaSkWrapper:
                      payload: bytes | None = None,
                      lock_timeout: int | float = -1,
                      deadline: float | None = None,
+                     should_stop: Callable[[], bool] | None = None,
                      ) -> list[str]:
         if deadline is not None:
             lock_timeout = max(0.0, deadline - time.monotonic())
-        if not self._cmd_lock.acquire(timeout=lock_timeout):
+        if not self._acquire_cmd_lock(lock_timeout, should_stop):
             raise MomongaSkCommandBusy('Another SK command is still running: %s'
                                        % (_mask_secrets(' '.join(
                                            c for c in command if c is not None))))
@@ -320,6 +325,32 @@ class MomongaSkWrapper:
             return self._exec_command_locked(command, wait_until, timeout, payload)
         finally:
             self._cmd_lock.release()
+
+    def _acquire_cmd_lock(self,
+                          lock_timeout: int | float,
+                          should_stop: Callable[[], bool] | None,
+                          ) -> bool:
+        """Wait for the command lock, in slices if the caller can be told to
+        stop. Waiting on a lock is the one part of running a command that
+        cancel_commands() cannot reach, since a thread that never acquires it
+        never looks at the queue the cancellation arrives on."""
+        if should_stop is None:
+            return self._cmd_lock.acquire(timeout=lock_timeout)
+
+        give_up_at = None if lock_timeout < 0 else time.monotonic() + lock_timeout
+        while True:
+            if should_stop():
+                raise MomongaSkCommandCancelled('Stopped waiting for the command lock.')
+
+            wait = _CMD_LOCK_POLL
+            if give_up_at is not None:
+                left = give_up_at - time.monotonic()
+                if left <= 0:
+                    return False
+                wait = min(wait, left)
+
+            if self._cmd_lock.acquire(timeout=wait):
+                return True
 
     def _exec_command_locked(self,
                               command: list[str],
@@ -483,10 +514,15 @@ class MomongaSkWrapper:
     def skjoin(self,
                ip6_addr: str,
                retry: int = 3,
+               deadline: float | None = None,
+               should_stop: Callable[[], bool] | None = None,
                ) -> None:
         for _ in range(retry):
+            if should_stop is not None and should_stop():
+                raise MomongaSkCommandCancelled('Stopped trying to establish a PANA session.')
             logger.debug('Trying to establish a PANA session...')
-            res = self.exec_command(['SKJOIN', ip6_addr], ['EVENT 24', 'EVENT 25'])
+            res = self.exec_command(['SKJOIN', ip6_addr], ['EVENT 24', 'EVENT 25'],
+                                    deadline=deadline, should_stop=should_stop)
             # extimated execution time: 2s + 4s + 8s + 8s + 8s + 8s + 8s = 38s ~ 40s
             if res[-1].startswith('EVENT 25'):
                 logger.debug('A PANA Session has been established.')

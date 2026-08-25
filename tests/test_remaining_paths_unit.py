@@ -14,6 +14,7 @@ Run:
 import datetime
 import queue
 import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -351,8 +352,22 @@ class TestARefusedRejoinEndsTheSession(TimeBoxedTestCase):
 
         self._run_receiver(sm)
 
-        sm.skw.skjoin.assert_called_once_with('FE80::1')
+        sm.skw.skjoin.assert_called_once()
+        self.assertEqual(sm.skw.skjoin.call_args.args, ('FE80::1',))
         self.assertFalse(sm._rejoin_lock.locked())
+
+    def test_the_rejoin_is_bounded_and_can_be_told_to_stop(self):
+        """Without both, a rejoin holds _rejoin_lock for as long as the module
+        stays quiet - three command limits - and close() waits it out."""
+        sm = self._sm()
+
+        self._run_receiver(sm)
+
+        kwargs = sm.skw.skjoin.call_args.kwargs
+        self.assertGreater(kwargs['deadline'], time.monotonic())
+        self.assertFalse(kwargs['should_stop']())
+        sm._closing = True
+        self.assertTrue(kwargs['should_stop']())
 
     def test_a_rejoin_the_module_refuses_ends_the_receiver(self):
         sm = self._sm()

@@ -36,6 +36,11 @@ _STOP_RECEIVER = _StopReceiver()
 
 _REJOIN_LOCK_LIMIT = 120
 
+# three SKJOIN attempts at the module's own estimate of 40 s, with room
+# to spare. close() no longer waits this out - it says it is closing and
+# the rejoin gives up - so this only has to be long enough to succeed.
+_REJOIN_LIMIT = 180
+
 _SKTERM_LIMIT = 30
 
 _RECEIVER_JOIN_LIMIT = 30
@@ -246,7 +251,13 @@ class MomongaSessionManager:
                             if self.session_established:
                                 self.session_established = False
                                 try:
-                                    self.skw.skjoin(self.smart_meter_addr)
+                                    self.skw.skjoin(
+                                        self.smart_meter_addr,
+                                        deadline=time.monotonic() + _REJOIN_LIMIT,
+                                        should_stop=lambda: self._closing)
+                                except MomongaSkCommandCancelled:
+                                    logger.debug('The session is being closed;'
+                                                 ' giving up the rejoin.')
                                 except MomongaSkJoinFailure as e:
                                     logger.error('%s Close Momonga and open it again.' % (e))
                                     raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
