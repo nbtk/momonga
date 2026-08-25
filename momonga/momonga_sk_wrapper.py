@@ -378,7 +378,8 @@ class MomongaSkWrapper:
         if self.publisher_exception is not None:
             raise MomongaNeedToReopen('The packet publisher has stopped.'
                                       ' Close Momonga and open it again. %s: %s'
-                                      % (type(self.publisher_exception).__name__, self.publisher_exception))
+                                      % (type(self.publisher_exception).__name__,
+                                         self.publisher_exception)) from self.publisher_exception
 
     def _raise_if_cancelled(self) -> None:
         if self._cancelled:

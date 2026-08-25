@@ -289,7 +289,8 @@ class MomongaSessionManager:
             logger.error('Got an exception from the receiver thread. %s: %s'
                          % (type(self.receiver_exception).__name__, self.receiver_exception))
             raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s'
-                                      % (type(self.receiver_exception).__name__, self.receiver_exception))
+                                      % (type(self.receiver_exception).__name__,
+                                         self.receiver_exception)) from self.receiver_exception
 
     # Design note: the transmission gate is an optimization, not a correctness guarantee.
     # There is an intentional check-then-act race window between _xmit_allowed.wait() and
