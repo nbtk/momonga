@@ -56,8 +56,8 @@ _BP35A1_SIDE_SENTINEL = 0xFFFE
 
 _SK_COMMAND_LIMIT = 300
 
-# how often a caller that can be told to stop gets to check
-_CMD_LOCK_POLL = 0.5
+# how often a caller that can be told to stop gets to look
+_STOP_CHECK_POLL = 0.5
 
 _PUBLISHER_JOIN_LIMIT = 5
 
@@ -322,7 +322,8 @@ class MomongaSkWrapper:
             if deadline is not None:
                 left = max(0.0, deadline - time.monotonic())
                 timeout = left if timeout is None else min(timeout, left)
-            return self._exec_command_locked(command, wait_until, timeout, payload)
+            return self._exec_command_locked(command, wait_until, timeout,
+                                             payload, should_stop)
         finally:
             self._cmd_lock.release()
 
@@ -331,9 +332,9 @@ class MomongaSkWrapper:
                           should_stop: Callable[[], bool] | None,
                           ) -> bool:
         """Wait for the command lock, in slices if the caller can be told to
-        stop. Waiting on a lock is the one part of running a command that
-        cancel_commands() cannot reach, since a thread that never acquires it
-        never looks at the queue the cancellation arrives on."""
+        stop. cancel_commands() cannot reach this wait at all: a thread that
+        never acquires the lock never looks at the queue the cancellation
+        arrives on."""
         if should_stop is None:
             return self._cmd_lock.acquire(timeout=lock_timeout)
 
@@ -342,7 +343,7 @@ class MomongaSkWrapper:
             if should_stop():
                 raise MomongaSkCommandCancelled('Stopped waiting for the command lock.')
 
-            wait = _CMD_LOCK_POLL
+            wait = _STOP_CHECK_POLL
             if give_up_at is not None:
                 left = give_up_at - time.monotonic()
                 if left <= 0:
@@ -357,6 +358,7 @@ class MomongaSkWrapper:
                               wait_until: str | list[str],
                               timeout: int | float | None,
                               payload: bytes | None,
+                              should_stop: Callable[[], bool] | None,
                               ) -> list[str]:
         command = ' '.join([c for c in command if c is not None])
 
@@ -378,7 +380,7 @@ class MomongaSkWrapper:
         while True:
             remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
             try:
-                r = subscriber_q.get(timeout=remaining)
+                r = self._next_response_line(subscriber_q, remaining, should_stop)
                 if r is PUBLISHER_STOPPED:
                     self._raise_if_publisher_died()
                     raise MomongaNeedToReopen('The packet publisher has stopped.'
@@ -406,6 +408,35 @@ class MomongaSkWrapper:
                 if matched:
                     break
         return res
+
+    def _next_response_line(self,
+                            subscriber_q: queue.Queue,
+                            remaining: int | float | None,
+                            should_stop: Callable[[], bool] | None,
+                            ) -> str:
+        """One line from the module, in slices if the caller can be told to
+        stop. Unlike the lock, cancel_commands() does reach this wait - but
+        close() only sends it once it has finished waiting for the lock this
+        command holds, which is the wait it would have cut short."""
+        if should_stop is None:
+            return subscriber_q.get(timeout=remaining)
+
+        give_up_at = None if remaining is None else time.monotonic() + remaining
+        while True:
+            if should_stop():
+                raise MomongaSkCommandCancelled('Stopped waiting for the module.')
+
+            wait = _STOP_CHECK_POLL
+            if give_up_at is not None:
+                left = give_up_at - time.monotonic()
+                if left <= 0:
+                    raise queue.Empty
+                wait = min(wait, left)
+
+            try:
+                return subscriber_q.get(timeout=wait)
+            except queue.Empty:
+                continue
 
     def _raise_if_publisher_died(self) -> None:
         if self.publisher_exception is not None:

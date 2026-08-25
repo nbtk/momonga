@@ -256,6 +256,38 @@ class TestCloseDoesNotWaitOutAStuckReceiver(TimeBoxedTestCase):
         self.assertEqual(stuck, ['MomongaSkCommandCancelled'])
         self.assertFalse(sm._rejoin_lock.locked())
 
+    def test_close_does_not_need_the_limit_shortened_to_be_quick(self):
+        """The test above patches _REJOIN_LOCK_LIMIT down to 0.2 s, so it says
+        nothing about the two minutes a caller actually waits. Cancelling does
+        reach a receiver sitting on the module, but close() only sends the
+        cancellation once it has finished waiting for the lock that receiver is
+        holding - which is the wait it would have cut short. Being able to ask
+        whether anyone still wants the rejoin closes that circle.
+        """
+        skw = _make_skw()
+        sm = _make_sm(skw, session_established=True)
+        skw._writeline = _silent_module
+        thread = threading.Thread(target=sm._receiver, daemon=True)
+        thread.start()
+        self.addCleanup(self._let_go, sm, skw, thread)
+        sm._pkt_sbsc_q.put('EVENT 24 FE80::1 0')
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not sm._rejoin_lock.locked():
+            time.sleep(0.005)
+        self.assertTrue(sm._rejoin_lock.locked())
+
+        started = time.monotonic()
+        sm.close()
+
+        self.assertLess(time.monotonic() - started, 5)  # not the real 120
+        self.assertIsNone(sm.receiver_exception)
+
+    @staticmethod
+    def _let_go(sm, skw, thread):
+        skw.cancel_commands()
+        sm._pkt_sbsc_q.put(_STOP_RECEIVER)
+        thread.join(5)
+
     def test_an_ordinary_close_still_terminates_the_session(self):
         skw = _make_skw()
         sm = _make_sm(skw, session_established=True)
