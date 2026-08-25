@@ -330,8 +330,8 @@ class TestARefusedRejoinEndsTheSession(TimeBoxedTestCase):
     bounds tests hold the lock so they never enter it."""
 
     @staticmethod
-    def _sm():
-        sm = MomongaSessionManager('', '', '/dev/ttyUSB0', reset_dev=False)
+    def _sm(**kwargs):
+        sm = MomongaSessionManager('', '', '/dev/ttyUSB0', reset_dev=False, **kwargs)
         sm.smart_meter_addr = 'FE80::1'
         sm.skw = MagicMock()
         sm.skw.subscribers = {}
@@ -355,6 +355,28 @@ class TestARefusedRejoinEndsTheSession(TimeBoxedTestCase):
         sm.skw.skjoin.assert_called_once()
         self.assertEqual(sm.skw.skjoin.call_args.args, ('FE80::1',))
         self.assertFalse(sm._rejoin_lock.locked())
+
+    def test_the_count_the_caller_asked_for_reaches_the_rejoin_too(self):
+        """join_retries went to open() only. A session lost at three in the
+        morning was rebuilt on whatever the default happened to be, which is
+        the opposite of what anyone raising it was asking for."""
+        sm = self._sm(join_retries=11)
+
+        self._run_receiver(sm)
+
+        self.assertEqual(sm.skw.skjoin.call_args.kwargs['retry'], 11)
+
+    def test_the_budget_grows_with_that_count(self):
+        """A fixed budget would cut a rejoin short at whatever the default
+        number of attempts was worth."""
+        budgets = []
+        for retries in (3, 11):
+            sm = self._sm(join_retries=retries)
+            self._run_receiver(sm)
+            kwargs = sm.skw.skjoin.call_args.kwargs
+            budgets.append(kwargs['deadline'] - time.monotonic())
+
+        self.assertGreater(budgets[1], budgets[0] * 3)
 
     def test_the_rejoin_is_bounded_and_can_be_told_to_stop(self):
         """Without both, a rejoin holds _rejoin_lock for as long as the module
