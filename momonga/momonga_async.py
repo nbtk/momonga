@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import datetime
 import functools
 import logging
@@ -23,6 +24,15 @@ _DEFAULT_MAX_WORKERS = 4
 # the next one from starting
 _RESERVED_WORKERS = 2
 
+# a read that was cancelled after the meter had already handed a notification
+# over has nowhere to put it, and the meter does not send it again, so it is
+# held for the next reader. More than one can be waiting: two reads can be in
+# flight at once, and every cancel-and-start-again adds another. The meter
+# sends these at its own pace - the fixed-time reading once every 30 minutes -
+# so a queue this long is many hours of them, and filling it means nobody is
+# reading them at all.
+_ORPHAN_LIMIT = 32
+
 
 class AsyncMomonga:
     def __init__(self,
@@ -38,8 +48,7 @@ class AsyncMomonga:
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays,
                              scan_retries, join_retries)
-        self._orphaned: dict | None = None
-        self._orphaned_session = None
+        self._orphaned: collections.deque = collections.deque()
         self._executor = ThreadPoolExecutor(max_workers=max_workers,
                                             thread_name_prefix='momonga')
         self._notif_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
@@ -138,10 +147,9 @@ class AsyncMomonga:
     async def get_notification(self,
                                timeout: int | float | None = None,
                                ) -> dict | None:
-        if self._orphaned is not None:
-            notif, self._orphaned = self._orphaned, None
-            if (self._sync.is_open
-                    and self._sync.session_manager is self._orphaned_session):
+        while self._orphaned:
+            notif, session = self._orphaned.popleft()
+            if self._sync.is_open and self._sync.session_manager is session:
                 return notif
 
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -169,9 +177,15 @@ class AsyncMomonga:
         if reading.cancelled() or reading.exception() is not None:
             return
         notif = reading.result()
-        if notif is not None:
-            self._orphaned = notif
-            self._orphaned_session = self._sync.session_manager
+        if notif is None:
+            return
+
+        if len(self._orphaned) >= _ORPHAN_LIMIT:
+            self._orphaned.popleft()
+            logger.warning('Dropping the oldest of %d notifications held for reads'
+                           ' that were cancelled. Nobody is reading them.',
+                           _ORPHAN_LIMIT)
+        self._orphaned.append((notif, self._sync.session_manager))
 
     async def notifications(self,
                             timeout: int | float = 60,

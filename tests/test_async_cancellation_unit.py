@@ -154,7 +154,7 @@ class TestANotificationTakenByACancelledReadIsKept(TimeBoxedAsyncTestCase):
                 await t
             await asyncio.sleep(0.5)
 
-        self.assertIsNone(amo._orphaned)
+        self.assertEqual(len(amo._orphaned), 0)
 
 
 class TestOnlyASuccessfulReadIsKept(TimeBoxedAsyncTestCase):
@@ -166,7 +166,7 @@ class TestOnlyASuccessfulReadIsKept(TimeBoxedAsyncTestCase):
 
         amo._keep_what_was_read(reading)
 
-        self.assertIsNone(amo._orphaned)
+        self.assertEqual(len(amo._orphaned), 0)
 
     async def test_a_read_that_raised_leaves_nothing(self):
         amo, _sm = _make_amo()
@@ -175,7 +175,7 @@ class TestOnlyASuccessfulReadIsKept(TimeBoxedAsyncTestCase):
 
         amo._keep_what_was_read(reading)
 
-        self.assertIsNone(amo._orphaned)
+        self.assertEqual(len(amo._orphaned), 0)
 
     async def test_a_read_that_returned_nothing_leaves_nothing(self):
         amo, _sm = _make_amo()
@@ -184,15 +184,15 @@ class TestOnlyASuccessfulReadIsKept(TimeBoxedAsyncTestCase):
 
         amo._keep_what_was_read(reading)
 
-        self.assertIsNone(amo._orphaned)
+        self.assertEqual(len(amo._orphaned), 0)
 
 
 class TestWhatIsHeldBelongsToOneSession(TimeBoxedAsyncTestCase):
 
     async def test_a_closed_momonga_is_refused_rather_than_handed_it(self):
         amo, _sm = _make_amo()
-        amo._orphaned = {'esv': 'INF', 'properties': {}}
-        amo._orphaned_session = amo._sync.session_manager
+        amo._orphaned.append(({'esv': 'INF', 'properties': {}},
+                              amo._sync.session_manager))
         amo._sync.is_open = False
 
         with self.assertRaises(MomongaRuntimeError):
@@ -200,11 +200,11 @@ class TestWhatIsHeldBelongsToOneSession(TimeBoxedAsyncTestCase):
 
     async def test_a_rebuilt_session_does_not_inherit_it(self):
         amo, _sm = _make_amo()
-        amo._orphaned = {'esv': 'INF', 'properties': {}}
-        amo._orphaned_session = object()  # the session it was read from is gone
+        # the session it was read from is gone
+        amo._orphaned.append(({'esv': 'INF', 'properties': {}}, object()))
 
         self.assertIsNone(await amo.get_notification(timeout=0))
-        self.assertIsNone(amo._orphaned)
+        self.assertEqual(len(amo._orphaned), 0)
 
 
 class TestTheTimeoutContractIsUnchanged(TimeBoxedAsyncTestCase):

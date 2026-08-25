@@ -254,7 +254,7 @@ with momonga.Momonga(rbid, pwd, dev, reopen_delays=backoff,
 したがって計測値を返す関数は`None`を返しうる。値ごとに`None`を判定してから使うこと。履歴系のように複数の値を含む結果では、値ごとに独立して`None`になる。
 
 # Notification
-スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知します（INF/INFC）。
+スマートメーターは定時積算電力量（EPC: 0xEA/0xEB）を毎時0分・30分から5分以内に自動通知する（INF/INFC）。
 Momongaはこれらの通知を`get_notification()`で受け取れる。`AsyncMomonga`では`notifications()`も使える。
 
 INFCを受信した場合、Momongaは自動的にINFC_Resを送信する。この送信はベストエフォートで、送信ブロッキング中などで15秒以内に送出できないときは送信を諦める。通知そのものの受け取りは`timeout`に指定した時間を超えない。
@@ -801,7 +801,7 @@ async with momonga.AsyncMomonga(rbid, pwd, dev,
     mo.xmit_timeout = 60  # give up after a minute of blocked transmission
 ```
 
-`get_notification()`と`notifications()`はこの制限を受けない。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められる。読み取り済みの通知は次の呼び出しに引き継がれる。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残る。予備のワーカーがあるので次の読み取りは待たされない。
+`get_notification()`と`notifications()`はこの制限を受けない。1秒以下の単位で読み取りを区切っているため、キャンセルしても次の読み取りはすぐ始められる。読み取り済みの通知は次の呼び出しに引き継がれる。読み取りを同時に走らせた場合など、引き継がれる通知が複数になることもある。誰も読み出さないまま32件を超えると古いものから捨てられ、警告がログに出る。ただしキャンセルした読み取りがINFC_Resの送出中だった場合、そのワーカーは最大15秒残る。予備のワーカーがあるので次の読み取りは待たされない。
 
 ## momonga.AsyncMomonga(rbid: str, pwd: str, dev: str, baudrate: int = 115200, reset_dev: bool = True, reopen_delays: Iterable[float] | Callable[[], Iterable[float]] | None = None, max_workers: int = 4, scan_retries: int = 3, join_retries: int = 3)
 AsyncMomongaクラスのインスタンス化。`max_workers`以外の引数は`Momonga`と同じ。
