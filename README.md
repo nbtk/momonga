@@ -187,6 +187,10 @@ rbid = 'SET YOUR ROUTE B ID'
 pwd  = 'SET YOUR ROUTE B PASSWORD'
 dev  = '/dev/ttyUSB0' # in a case of RaspberryPi OS
 
+# a connect that failed has just spent minutes scanning or joining,
+# so going straight round again spends radio time and changes nothing
+CONNECT_RETRY_DELAY = 600.0
+
 while True:
     try:
         with momonga.Momonga(rbid, pwd, dev) as mo:
@@ -199,12 +203,16 @@ while True:
                 else:
                     print('no data' if res is None else '%0.1fW' % res)
                 time.sleep(60)
-    except (momonga.MomongaConnectionFailure,
-            momonga.MomongaNeedToReopen) as e:
-        # a session that could not be built, and one that was lost
+    except momonga.MomongaNeedToReopen as e:
+        # the module is answering; a new session is worth having at once
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
-        continue
+    except momonga.MomongaConnectionFailure as e:
+        # the module, the port or the radio is not answering
+        print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
+        time.sleep(CONNECT_RETRY_DELAY)
 ```
+
+同じ内容を含む3通りの書き方（自分で張り直す、`reopen_delays`に任せる、何も捕捉しない）を並べた実行可能な例が`tests/error_handling_example.py`にある。
 
 `MomongaResponseNotPossible`、`MomongaRuntimeError`、`MomongaSkCommandExecutionFailure`を捕捉していないのは意図的である。順に、スマートメーターがそのEPCをサポートしていない、使い方が誤っている、モジュールが渡された値を受け付けない、という意味で、どれも再接続では直らない。握りつぶすと原因が見えないまま無限ループになる。
 
