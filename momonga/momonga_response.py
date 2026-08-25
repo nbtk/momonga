@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Protocol
 
-from .momonga_exception import MomongaKeyError
+from .momonga_exception import MomongaKeyError, MomongaSkResponseNotExpected
 from .momonga_device_enum import DeviceType
 
 
@@ -89,7 +89,14 @@ def parse_sk_line(line: str, strategy: DeviceStrategy) -> SkParsedEvent | SkPars
 class MomongaSkResponseBase:
     def __init__(self, res):
         self.raw_response = res
-        self.decode()
+        try:
+            self.decode()
+        except MomongaSkResponseNotExpected:
+            raise
+        except (ValueError, LookupError) as err:
+            raise MomongaSkResponseNotExpected(
+                'Could not read the %s response: %s: %s'
+                % (type(self).__name__, type(err).__name__, err)) from err
 
     def decode(self):
         pass

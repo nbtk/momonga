@@ -18,6 +18,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkCommandUnknownError,
                                 MomongaSkCommandUnsupported,
                                 MomongaSkJoinFailure,
+                                MomongaSkResponseNotExpected,
                                 MomongaSkScanFailure,
                                 MomongaTimeoutError,
                                 MomongaValueError)
@@ -451,6 +452,7 @@ class MomongaSkWrapper:
                retry: int = 3,
                ) -> SkScanResponse:
         duration = _SCAN_FIRST_DURATION
+        unreadable = None
         for _ in range(retry):
             logger.debug('Trying to scan a PAN... Duration: %d' % duration)
             res = self.exec_command(self.device_strategy.skscan_command(duration), 'EVENT 22')
@@ -458,8 +460,18 @@ class MomongaSkWrapper:
             # estimated execution time: 0.0096s*(2^(DURATION=7)+1)*28 = 34.7s
             # estimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
             if 'EPANDESC' in res:
-                return SkScanResponse(res, self.device_strategy)
+                try:
+                    return SkScanResponse(res, self.device_strategy)
+                except MomongaSkResponseNotExpected as err:
+                    unreadable = err
+                    logger.warning('A PAN was announced but its description '
+                                   'could not be read. Scanning again. %s', err)
             duration = min(duration + 1, _SCAN_WIDEST_DURATION)
+
+        if unreadable is not None:
+            raise MomongaSkScanFailure(
+                'Found a PAN but never read a complete description of it. %s'
+                % unreadable)
         raise MomongaSkScanFailure('Could not find the specified PAN.')
 
     def skll64(self,

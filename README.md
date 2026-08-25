@@ -104,12 +104,13 @@ Momongaが送出する例外すべての基底クラス。原因を問わず「M
 引数の値が受け付けられる範囲を外れているときに送出される。`scan_retries`に0を渡した、`reopen_delays`に負の値が入っていた、`day`に0〜99の外を渡した、といった場合。`ValueError`のサブクラスでもある。`MomongaRuntimeError`と同じく呼び出し方の誤りなので、再試行ではなく渡した値を直すこと。
 
 ## momonga.MomongaConnectionFailure
-セッションが乗っている無線通信やデバイスといったインフラに問題があるときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
+セッションが乗っている無線通信やデバイスといったインフラに問題があるときに送出される例外の基底クラス。下記の5つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
 
 - `MomongaSkScanFailure` — PANが見つからない
 - `MomongaSkJoinFailure` — PANAセッションを確立できない
 - `MomongaTimeoutError` — Wi-SUNモジュールが応答しない
 - `MomongaIOError` — デバイスファイルやUSBドングルの失敗
+- `MomongaSkResponseNotExpected` — Wi-SUNモジュールの応答が読めない
 
 この基底クラス自身が直接送出されることはない。捕捉のためだけに存在する。
 
@@ -153,21 +154,28 @@ PANAセッションを確立できなかったときに送出される。Bルー
 
 この例外は`OSError`のサブクラスでもある。`reopen_delays`を指定していれば自動再接続の対象になる。
 
+## momonga.MomongaSkResponseNotExpected
+Wi-SUNモジュールの応答が読めなかったときに送出される。項目が欠けている、値が16進数として読めない、といった場合。シリアル回線のノイズや取りこぼしで起こる一過性の失敗なので、`MomongaConnectionFailure`のサブクラスであり、待ってから再試行すればよい。
+
+スマートメーターの応答が読めない場合が`MomongaResponseNotExpected`で、こちらはWi-SUNモジュールの応答が読めない場合にあたる。
+
+なおスキャン中に見つかったPANの記述が読めなかった場合は、Momonga自身がスキャンをやり直すのでこの例外は送出されない。`scan_retries`を使い切ると`MomongaSkScanFailure`になる。
+
+## momonga.MomongaKeyError
+Wi-SUNモジュールの応答から必要な項目を取り出せなかったときに送出される。値が読めない場合と区別する必要がなければ、`MomongaSkResponseNotExpected`を捕捉すればよい。`KeyError`のサブクラスでもある。
+
 ## momonga.MomongaSkCommandExecutionFailure
 Wi-SUNモジュールがコマンドを受け付けなかったとき（`FAIL ERxx`）に送出される例外の基底クラス。エラーコードごとに`MomongaSkCommandUnknownError`、`MomongaSkCommandUnsupported`、`MomongaSkCommandInvalidArgument`、`MomongaSkCommandInvalidSyntax`、`MomongaSkCommandSerialInputError`、`MomongaSkCommandFailedToExecute`のいずれかになる。
 
 パケット送信中に出たものはMomonga自身が再送で吸収し、使い切ると`MomongaNeedToReopen`になる。呼び出し側に届くのは主に`momonga.open()`の途中で、BルートIDやパスワードの書式が誤っている場合などである。
 
-上の2つの群のどちらにも属さない。再接続では直らないので、待って再試行するのではなく渡した値を確認すること。
+`MomongaConnectionFailure`と`MomongaNeedToReopen`のどちらにも属さない。再接続では直らないので、待って再試行するのではなく渡した値を確認すること。
 
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCは`momonga.get_properties_to_set_values()`、`momonga.get_properties_to_get_values()`で取得できる。
 
 ## momonga.MomongaResponseNotExpected
-スマートメーターの応答が読めなかったときに送出される。宣言された長さがプロパティに足りない、プロパティコードが要求と一致しない、といった場合。セッションが失われたわけではないので、次のリクエストは通ることが多い。通知（`get_notification()`）ではこの例外は送出されず、読めなかったプロパティの値が生のバイト列のまま返り、警告がログに出る。
-
-## momonga.MomongaKeyError
-Wi-SUNモジュールの応答から必要な項目を取り出せなかったときに送出される。`momonga.open()`中のスキャン応答が途中で切れていた、といった場合。`KeyError`のサブクラスでもある。スマートメーターの応答が読めない場合が`MomongaResponseNotExpected`で、こちらはWi-SUNモジュールの応答が読めない場合にあたる。
+スマートメーターの応答が読めなかったときに送出される。宣言された長さがプロパティに足りない、プロパティコードが要求と一致しない、といった場合。Wi-SUNモジュールの応答が読めない場合は`MomongaSkResponseNotExpected`で、そちらは待って再試行する対象だが、こちらは違う。セッションが失われたわけではないので、次のリクエストは通ることが多い。通知（`get_notification()`）ではこの例外は送出されず、読めなかったプロパティの値が生のバイト列のまま返り、警告がログに出る。
 
 ## Exception Handling Example
 ```python3
@@ -193,10 +201,7 @@ while True:
                 time.sleep(60)
     except (momonga.MomongaConnectionFailure,
             momonga.MomongaNeedToReopen) as e:
-        # a session that could not be built, and one that was lost.
-        # MomongaSkScanFailure, MomongaSkJoinFailure, MomongaTimeoutError and
-        # MomongaIOError are the first; MomongaXmitTimeout,
-        # MomongaSkCommandBusy and MomongaSkCommandCancelled are the second
+        # a session that could not be built, and one that was lost
         print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
         continue
 ```

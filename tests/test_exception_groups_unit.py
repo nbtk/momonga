@@ -27,6 +27,7 @@ from momonga.momonga_exception import (MomongaConnectionFailure, MomongaError,
                                        MomongaSkCommandBusy,
                                        MomongaSkCommandCancelled,
                                        MomongaSkJoinFailure,
+                                       MomongaSkResponseNotExpected,
                                        MomongaSkScanFailure,
                                        MomongaTimeoutError, MomongaValueError,
                                        MomongaXmitTimeout)
@@ -34,12 +35,12 @@ from tests._timebox import TimeBoxedTestCase
 
 # no session yet: wait, then try to connect again
 CONNECTING = (MomongaSkScanFailure, MomongaSkJoinFailure, MomongaTimeoutError,
-              MomongaIOError)
+              MomongaIOError, MomongaSkResponseNotExpected, MomongaKeyError)
 # a session that has gone: build a new one
 LOST = (MomongaXmitTimeout, MomongaSkCommandBusy, MomongaSkCommandCancelled)
 # neither: retrying the link does not address these
 NOT_A_LINK_PROBLEM = (MomongaResponseNotPossible, MomongaResponseNotExpected,
-                      MomongaRuntimeError, MomongaValueError, MomongaKeyError)
+                      MomongaRuntimeError, MomongaValueError)
 
 
 class TestConnectingFailuresAreOneGroup(TimeBoxedTestCase):

@@ -58,7 +58,11 @@ class MomongaIOError(MomongaConnectionFailure, OSError):
     pass
 
 
-class MomongaKeyError(MomongaError, KeyError):
+class MomongaSkResponseNotExpected(MomongaConnectionFailure):
+    pass
+
+
+class MomongaKeyError(MomongaSkResponseNotExpected, KeyError):
     pass
 
 
