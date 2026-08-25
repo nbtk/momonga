@@ -100,6 +100,9 @@ Momongaが送出する例外すべての基底クラス。原因を問わず「M
 ## momonga.MomongaRuntimeError
 `momonga.open()`を呼ぶ前にリクエストを発行したなど、使い方が誤っているときに送出される。`RuntimeError`のサブクラスでもある。再接続では直らないので、捕捉して再試行するのではなく呼び出し方を直すこと。
 
+## momonga.MomongaValueError
+引数の値が受け付けられる範囲を外れているときに送出される。`scan_retries`に0を渡した、`reopen_delays`に負の値が入っていた、`day`に0〜99の外を渡した、といった場合。`ValueError`のサブクラスでもある。`MomongaRuntimeError`と同じく呼び出し方の誤りなので、再試行ではなく渡した値を直すこと。
+
 ## momonga.MomongaConnectionFailure
 セッションが乗っている無線通信やデバイスといったインフラに問題があるときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「待ってから再試行する」で共通なので、個別に列挙せずこれを捕捉すればよい。
 
@@ -150,11 +153,21 @@ PANAセッションを確立できなかったときに送出される。Bルー
 
 この例外は`OSError`のサブクラスでもある。`reopen_delays`を指定していれば自動再接続の対象になる。
 
+## momonga.MomongaSkCommandExecutionFailure
+Wi-SUNモジュールがコマンドを受け付けなかったとき（`FAIL ERxx`）に送出される例外の基底クラス。エラーコードごとに`MomongaSkCommandUnknownError`、`MomongaSkCommandUnsupported`、`MomongaSkCommandInvalidArgument`、`MomongaSkCommandInvalidSyntax`、`MomongaSkCommandSerialInputError`、`MomongaSkCommandFailedToExecute`のいずれかになる。
+
+パケット送信中に出たものはMomonga自身が再送で吸収し、使い切ると`MomongaNeedToReopen`になる。呼び出し側に届くのは主に`momonga.open()`の途中で、BルートIDやパスワードの書式が誤っている場合などである。
+
+上の2つの群のどちらにも属さない。再接続では直らないので、待って再試行するのではなく渡した値を確認すること。
+
 ## momonga.MomongaResponseNotPossible
 スマートメーターがリクエストしたEPC (ECHONET Property Code) をサポートしていなかったとき送出される。スマートメーターに対して複数のEPCを同時に発行したとき、ひとつでもサポートされていないEPCがあるとこのエクセプションが送出される。スマートメーターがサポートしているEPCは`momonga.get_properties_to_set_values()`、`momonga.get_properties_to_get_values()`で取得できる。
 
 ## momonga.MomongaResponseNotExpected
 スマートメーターの応答が読めなかったときに送出される。宣言された長さがプロパティに足りない、プロパティコードが要求と一致しない、といった場合。セッションが失われたわけではないので、次のリクエストは通ることが多い。通知（`get_notification()`）ではこの例外は送出されず、読めなかったプロパティの値が生のバイト列のまま返り、警告がログに出る。
+
+## momonga.MomongaKeyError
+Wi-SUNモジュールの応答から必要な項目を取り出せなかったときに送出される。`momonga.open()`中のスキャン応答が途中で切れていた、といった場合。`KeyError`のサブクラスでもある。スマートメーターの応答が読めない場合が`MomongaResponseNotExpected`で、こちらはWi-SUNモジュールの応答が読めない場合にあたる。
 
 ## Exception Handling Example
 ```python3
@@ -188,7 +201,7 @@ while True:
         continue
 ```
 
-`MomongaResponseNotPossible`と`MomongaRuntimeError`を捕捉していないのは意図的である。前者はスマートメーターがそのEPCをサポートしていないという意味で、後者は使い方の誤りなので、どちらも再接続では直らない。握りつぶすと原因が見えないまま無限ループになる。
+`MomongaResponseNotPossible`、`MomongaRuntimeError`、`MomongaSkCommandExecutionFailure`を捕捉していないのは意図的である。順に、スマートメーターがそのEPCをサポートしていない、使い方が誤っている、モジュールが渡された値を受け付けない、という意味で、どれも再接続では直らない。握りつぶすと原因が見えないまま無限ループになる。
 
 ## No Handler At All
 `reopen_delays`で無限に再接続を試み、`scan_retries`と`join_retries`を現実的な範囲で大きな値に設定したうえで、稀な例外は補足せずギブアップしてプロセスを終了するような選択も取り得る。

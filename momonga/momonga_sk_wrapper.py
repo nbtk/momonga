@@ -19,7 +19,8 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkCommandUnsupported,
                                 MomongaSkJoinFailure,
                                 MomongaSkScanFailure,
-                                MomongaTimeoutError)
+                                MomongaTimeoutError,
+                                MomongaValueError)
 from .momonga_response import (DeviceStrategy,
                                SkVerResponse,
                                SkAppVerResponse,
@@ -212,7 +213,7 @@ class MomongaSkWrapper:
                 for line in decoded.splitlines():
                     if line.startswith('FAIL'):
                         self._raise_fail_response('ROPT', line)
-                raise MomongaError('Unexpected ROPT response: %s' % decoded)
+                raise MomongaSkCommandUnknownError('Unexpected ROPT response: %s' % decoded)
         return int(res[res.index(ok) + len(ok):-1].decode())
 
     def _exec_wopt(self,
@@ -222,7 +223,7 @@ class MomongaSkWrapper:
                           1,  # hex ascii mode
                           )
         if opt not in supported_opts:
-            raise MomongaError('WOPT command dose not support the given option: %02d' % opt)
+            raise MomongaValueError('WOPT command does not support the given option: %02d' % opt)
 
         with _port('could not send WOPT'):
             self._ser.write(('WOPT %02d\r' % opt).encode())

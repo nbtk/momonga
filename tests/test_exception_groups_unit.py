@@ -66,11 +66,20 @@ class TestConnectingFailuresAreOneGroup(TimeBoxedTestCase):
                 self.assertFalse(issubclass(exc, MomongaNeedToReopen))
 
 
-class TestOnlyOneOfTheGroupsIsRaisedOnItsOwn(TimeBoxedTestCase):
-    """The manual says MomongaConnectionFailure exists only to be caught and
-    that MomongaNeedToReopen is also raised directly. Both halves are checked
-    against the source, since a `raise MomongaConnectionFailure(...)` added
-    later would make the first sentence wrong without anything failing."""
+class TestGroupingClassesAreOnlyForCatching(TimeBoxedTestCase):
+    """A class that exists to gather others should not also be a failure in its
+    own right - raising it says "something went wrong" and nothing more, when a
+    named subclass was available. MomongaError was raised directly twice: for a
+    ROPT reply that was neither OK nor a readable FAIL, and for an out of range
+    WOPT option, both of which had a fitting subclass already.
+
+    MomongaNeedToReopen is the exception to that, deliberately: eleven places
+    raise it because the caller's answer to all of them is the same session
+    rebuild and no finer name would be acted on.
+    """
+
+    GROUPING = ('MomongaError', 'MomongaConnectionFailure',
+                'MomongaSkCommandExecutionFailure')
 
     @staticmethod
     def _raised_directly(name):
@@ -78,10 +87,22 @@ class TestOnlyOneOfTheGroupsIsRaisedOnItsOwn(TimeBoxedTestCase):
         return sum(src.read_text().count('raise %s(' % name)
                    for src in _p.Path('momonga').glob('*.py'))
 
-    def test_the_connecting_group_is_never_raised_directly(self):
-        self.assertEqual(self._raised_directly('MomongaConnectionFailure'), 0)
+    def test_no_grouping_class_is_raised_on_its_own(self):
+        for name in self.GROUPING:
+            with self.subTest(exception=name):
+                self.assertEqual(self._raised_directly(name), 0)
 
-    def test_the_lost_session_group_is(self):
+    def test_each_grouping_class_actually_groups_something(self):
+        import momonga
+        from momonga import momonga_exception as module
+        for name in self.GROUPING:
+            with self.subTest(exception=name):
+                base = getattr(momonga, name)
+                subs = [c for c in vars(module).values()
+                        if isinstance(c, type) and issubclass(c, base) and c is not base]
+                self.assertGreater(len(subs), 0)
+
+    def test_the_lost_session_group_is_raised_directly_on_purpose(self):
         self.assertGreater(self._raised_directly('MomongaNeedToReopen'), 0)
 
 
@@ -187,6 +208,30 @@ class TestTwoNamesCoverTheLinkFailures(TimeBoxedTestCase):
             with self.subTest(exception=exc.__name__):
                 self.assertFalse(issubclass(exc, handler))
 
+
+class TestEveryExceptionIsInTheManual(TimeBoxedTestCase):
+    """An exception a caller can be handed but cannot look up is a gap in the
+    manual, and adding one is easy to do without noticing. MomongaValueError
+    and MomongaKeyError were both missing: the first is raised by argument
+    checks on the public constructor, the second escapes open() when a scan
+    response arrives truncated.
+
+    A heading is not required - the six FAIL ERxx subclasses are listed inside
+    the entry for the class that groups them - but the name has to be there.
+    """
+
+    def test_no_exception_is_left_out(self):
+        import pathlib
+        import momonga
+        from momonga import momonga_exception as module
+        manual = pathlib.Path('README.md').read_text()
+        for name, cls in vars(module).items():
+            if not (isinstance(cls, type) and issubclass(cls, BaseException)
+                    and cls.__module__ == module.__name__):
+                continue
+            with self.subTest(exception=name):
+                self.assertIn(name, manual)
+                self.assertIs(getattr(momonga, name, None), cls)
 
 if __name__ == '__main__':
     unittest.main()
