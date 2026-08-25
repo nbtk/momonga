@@ -6,7 +6,7 @@
 Python Route B Library: A Communicator for Low-voltage Smart Electric Energy Meters
 
 # Description
-MomongaはBルートサービスを利用してスマートメーターと通信するライブラリである。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2または互換品。
+MomongaはBルートサービスを利用してスマートメーターと通信するPythonライブラリ。ターゲットデバイスはROHM社製Wi-SUNモジュールBP35C2または互換品。
 
 # Tested Devices
 - ラトックシステム RS-WSUHA-P
@@ -16,7 +16,7 @@ MomongaはBルートサービスを利用してスマートメーターと通信
 # Note
 - Momongaは`WOPT 01\r`コマンドを実行して、Wi-SUNモジュールがUDPパケットのペイロードをASCIIフォーマットで出力するように設定する。注意: WOPTコマンドは実行回数に制限があるので初回のみ実行し、その設定はWi-SUNモジュールに保存される。
 - 一部のWi-SUNモジュールでは`ROPT`コマンドが`FAIL ER04`を返しサポートされない。その場合MomongaはASCII出力で動作していると仮定し、`WOPT`コマンドを実行せずに処理を継続する。
-- メソッドは物理量に即して命名しており、ECHONETの英語版ドキュメントの表記とは必ずしも一致しない。対応するEPCを調べる場合はメソッド名ではなくEPCコードで検索すること。
+- メソッドは物理量に即して命名しており、ECHONETの英語版ドキュメントの表記とは必ずしも一致しない。対応するEPCを調べる場合はメソッド名ではなくEPCのコード値で検索すること。
 - 送信ブロッキングなど諸条件により応答が遅延することがあるため、`get_historical_cumulative_energy_1()`は日を跨ぐタイミングで実行すべきではない。
 - プロパティの定義（EDTの長さ、乗率、データなしを表すコードなど）は、ECHONET ConsortiumのMachine Readable Appendix **dataVersion 1.3.2 / release R（2026-06-12、配布物名 MRA_v1.4.0）** の低圧スマート電力量メータクラス（0x0288）および機器オブジェクトスーパークラス（0x0000）に照合している。
 
