@@ -94,6 +94,7 @@ class MomongaSessionManager:
         self._xmit_allowed = threading.Event()
         self._xmit_allowed.set()
         self._rejoin_lock = threading.Lock()
+        self._closing = False
 
         self.on_meter_frame: Callable[[SkParsedRxUdp], None] | None = None
 
@@ -109,6 +110,7 @@ class MomongaSessionManager:
 
     def open(self) -> Self:
         logger.info('Opening a Momonga session...')
+        self._closing = False
         try:
             self.skw.open()
 
@@ -173,6 +175,7 @@ class MomongaSessionManager:
 
     def close(self) -> None:
         logger.info('Closing the Momonga session...')
+        self._closing = True
 
         rejoin_lock_acquired = self._rejoin_lock.acquire(timeout=_REJOIN_LOCK_LIMIT)
         if not rejoin_lock_acquired:
@@ -251,7 +254,18 @@ class MomongaSessionManager:
                             self._rejoin_lock.release()
                     elif num == SkEventNum.rejoined:
                         logger.debug('Successfully rejoined the PAN.')
-                        self.session_established = True
+                        if not self._rejoin_lock.acquire(timeout=_REJOIN_LOCK_LIMIT):
+                            logger.warning('Could not acquire "_rejoin_lock"'
+                                           ' to mark the session as established.')
+                            continue
+                        try:
+                            if self._closing:
+                                logger.debug('The session is being closed;'
+                                             ' ignoring the rejoined event.')
+                                continue
+                            self.session_established = True
+                        finally:
+                            self._rejoin_lock.release()
                         self._open_session_gate()
                     elif num == SkEventNum.rate_limit_exceeded:
                         logger.warning('The transmission rate limit has been exceeded.')
