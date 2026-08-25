@@ -66,6 +66,25 @@ class TestConnectingFailuresAreOneGroup(TimeBoxedTestCase):
                 self.assertFalse(issubclass(exc, MomongaNeedToReopen))
 
 
+class TestOnlyOneOfTheGroupsIsRaisedOnItsOwn(TimeBoxedTestCase):
+    """The manual says MomongaConnectionFailure exists only to be caught and
+    that MomongaNeedToReopen is also raised directly. Both halves are checked
+    against the source, since a `raise MomongaConnectionFailure(...)` added
+    later would make the first sentence wrong without anything failing."""
+
+    @staticmethod
+    def _raised_directly(name):
+        import pathlib as _p
+        return sum(src.read_text().count('raise %s(' % name)
+                   for src in _p.Path('momonga').glob('*.py'))
+
+    def test_the_connecting_group_is_never_raised_directly(self):
+        self.assertEqual(self._raised_directly('MomongaConnectionFailure'), 0)
+
+    def test_the_lost_session_group_is(self):
+        self.assertGreater(self._raised_directly('MomongaNeedToReopen'), 0)
+
+
 class TestLostSessionsAreTheOtherGroup(TimeBoxedTestCase):
 
     def test_each_of_them_is_a_need_to_reopen(self):

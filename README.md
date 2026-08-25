@@ -108,6 +108,8 @@ Momongaが送出する例外すべての基底クラス。原因を問わず「M
 - `MomongaTimeoutError` — Wi-SUNモジュールが応答しない
 - `MomongaIOError` — デバイスファイルやUSBドングルの失敗
 
+この基底クラス自身が直接送出されることはない。捕捉のためだけに存在する。
+
 対になるのが`MomongaNeedToReopen`で、セッションに異常があるときに送出される。セッションを張り直せば直る可能性が高い。
 
 なお`reopen_delays`が働くのはリクエスト中だけで、`momonga.open()`は対象外。対象になるのは`MomongaNeedToReopen`と`MomongaIOError`である。
@@ -126,6 +128,8 @@ PANAセッションを確立できなかったときに送出される。Bルー
 - `MomongaSkCommandCancelled` — `momonga.close()`が実行中のSKコマンドを打ち切った
 
 この基底クラス自身も、応答が得られない、パケット配信元が止まった、といった場合に直接送出される。
+
+対になるのが`MomongaConnectionFailure`で、セッションが乗っているインフラに問題があるときに送出される。
 
 ## momonga.MomongaXmitTimeout
 `momonga.xmit_timeout`で指定した秒数のあいだにパケットを送信できなかったときに送出される。`MomongaNeedToReopen`のサブクラス。
