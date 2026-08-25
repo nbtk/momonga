@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import functools
+import logging
 import math
 import time
 
@@ -11,6 +12,8 @@ from typing import Any, Self
 from .momonga import Momonga
 from .momonga_echonet_enum import EchonetPropertyCode
 from .momonga_exception import MomongaRuntimeError
+
+logger = logging.getLogger(__name__)
 
 _NOTIFICATION_POLL = 1
 
@@ -110,7 +113,14 @@ class AsyncMomonga:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         try:
-            await self._run(self._sync.close, executor=self._life_executor)
+            try:
+                await self._run(self._sync.close, executor=self._life_executor)
+            except Exception:
+                if exc_val is None:
+                    raise
+                logger.warning('Failed to close the session while %s was propagating. '
+                               'Keeping the original exception.',
+                               exc_type.__name__, exc_info=True)
         finally:
             self._executor.shutdown(wait=False)
             self._notif_executor.shutdown(wait=False)

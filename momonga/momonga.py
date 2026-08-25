@@ -106,7 +106,16 @@ class Momonga:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
-        self.close()
+        if value is None:
+            self.close()
+            return
+
+        try:
+            self.close()
+        except Exception:
+            logger.warning('Failed to close the session while %s was propagating. '
+                           'Keeping the original exception.',
+                           type.__name__, exc_info=True)
 
     def _route_meter_frame(self, frame: SkParsedRxUdp) -> None:
         self.lqi = frame.lqi
