@@ -5,6 +5,7 @@ Run:
   python -m unittest tests/test_xmit_timeout_unit.py -v
 """
 import threading
+import momonga
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -70,9 +71,9 @@ class TestOneBudgetPerRequest(TimeBoxedTestCase):
         for spent_before, left in zip(handed, handed[1:]):
             self.assertLessEqual(left, spent_before - SPENT)
 
-    def test_no_budget_restores_the_full_gate_wait(self):
+    def test_the_longest_budget_restores_the_full_gate_wait(self):
         mo, sm = _make_mo(gate_open=False)
-        mo.xmit_timeout = None
+        mo.xmit_timeout = 3600   # the schedule xmitter ran before it had a budget
         waits = []
         with patch.object(sm._xmit_allowed, 'wait',
                           lambda timeout=None: waits.append(timeout) or False):
@@ -80,9 +81,9 @@ class TestOneBudgetPerRequest(TimeBoxedTestCase):
                 mo.get_instantaneous_power()
         self.assertEqual(waits[0], 60)  # the whole 60 s, not a slice of a budget
 
-    def test_without_a_budget_a_reopening_gate_repeats_the_whole_schedule(self):
+    def test_with_the_longest_budget_a_reopening_gate_repeats_the_schedule(self):
         mo, sm = _make_mo(gate_open=False)
-        mo.xmit_timeout = None
+        mo.xmit_timeout = 3600
         waits = []
 
         def opens_on_the_last_wait(timeout=None):
@@ -141,14 +142,17 @@ class TestTheLockWaitAndTheCommandWaitShareOneBudget(TimeBoxedTestCase):
         sm.xmitter(b'\x00', timeout=5)  # must not raise
         self.assertEqual(len(answered), 1)
 
-    def test_no_budget_leaves_the_command_limit_in_charge(self):
+    def test_every_send_is_given_a_deadline_now(self):
+        """There is no longer a setting that leaves one off. Without a deadline
+        the SK command waits on the command lock with no bound at all, which is
+        what xmit_timeout=None used to do underneath its promise of no ceiling."""
         mo, sm = _make_mo(gate_open=True)
-        mo.xmit_timeout = None
+        mo.xmit_timeout = 3600
         try:
             mo.get_instantaneous_power()
         except MomongaNeedToReopen:
             pass
-        self.assertIsNone(sm.skw.sksendto.call_args.kwargs.get('deadline'))
+        self.assertIsNotNone(sm.skw.sksendto.call_args.kwargs.get('deadline'))
 
 
 class TestTheBudgetCoversTransmittingOnly(TimeBoxedTestCase):
@@ -183,8 +187,8 @@ class TestTheBudgetCoversTransmittingOnly(TimeBoxedTestCase):
         # and the module answered each time, so nothing of the budget was used
         self.assertEqual(self._attempts(1), 6)
 
-    def test_the_same_holds_with_no_budget_at_all(self):
-        self.assertEqual(self._attempts(None), 6)
+    def test_the_same_holds_with_the_longest_budget(self):
+        self.assertEqual(self._attempts(3600), 6)
 
     def test_a_spent_budget_is_not_what_ends_it(self):
         skw = MomongaSkWrapper('/dev/ttyUSB0', 115200)
@@ -248,6 +252,71 @@ class TestTheSettingIsReachableFromAsync(TimeBoxedTestCase):
             self.assertEqual(mo._sync.xmit_timeout, 30)
         finally:
             mo._executor.shutdown(wait=False)
+
+
+class TestThereIsNoLongerAValueThatMeansNoCeiling(TimeBoxedTestCase):
+    """None was documented as no ceiling and was not one. The gate wait ran its
+    own schedule of sixty waits of a minute and then raised MomongaNeedToReopen
+    rather than MomongaXmitTimeout, and the SK command underneath was handed no
+    deadline, so it waited on the command lock with no bound - the one wait that
+    really was unbounded, sitting behind the setting that promised to remove
+    every bound.
+
+    3600 runs the identical schedule with neither surprise, so nothing was lost
+    by taking the value away.
+    """
+
+    def _momonga(self):
+        with patch.object(MomongaSkWrapper, '__init__', lambda s, *a, **k: None):
+            return momonga.Momonga('id', 'pw', '/dev/ttyUSB0')
+
+    def test_none_is_refused(self):
+        mo = self._momonga()
+
+        with self.assertRaises(momonga.MomongaValueError):
+            mo.xmit_timeout = None
+
+    def test_the_refusal_says_what_to_write_instead(self):
+        mo = self._momonga()
+
+        with self.assertRaises(momonga.MomongaValueError) as caught:
+            mo.xmit_timeout = None
+
+        self.assertIn('3600', str(caught.exception))
+
+    def test_a_negative_budget_is_refused_too(self):
+        mo = self._momonga()
+
+        with self.assertRaises(momonga.MomongaValueError):
+            mo.xmit_timeout = -1
+
+    def test_zero_is_still_allowed_because_it_means_do_not_wait(self):
+        mo = self._momonga()
+
+        mo.xmit_timeout = 0
+
+        self.assertEqual(mo.xmit_timeout, 0)
+
+    def test_the_default_is_unchanged(self):
+        self.assertEqual(self._momonga().xmit_timeout, 300)
+
+    def test_a_refused_value_leaves_the_old_one_in_place(self):
+        mo = self._momonga()
+        mo.xmit_timeout = 45
+
+        with self.assertRaises(momonga.MomongaValueError):
+            mo.xmit_timeout = None
+
+        self.assertEqual(mo.xmit_timeout, 45)
+
+    def test_the_async_wrapper_refuses_it_as_well(self):
+        amo = momonga.AsyncMomonga('id', 'pw', '/dev/ttyUSB0')
+        self.addCleanup(lambda: [ex.shutdown(wait=False) for ex in
+                                 (amo._executor, amo._notif_executor,
+                                  amo._life_executor)])
+
+        with self.assertRaises(momonga.MomongaValueError):
+            amo.xmit_timeout = None
 
 
 if __name__ == '__main__':

@@ -81,11 +81,11 @@ class AsyncMomonga:
         self._sync.recv_timeout = value
 
     @property
-    def xmit_timeout(self) -> int | float | None:
+    def xmit_timeout(self) -> int | float:
         return self._sync.xmit_timeout
 
     @xmit_timeout.setter
-    def xmit_timeout(self, value: int | float | None) -> None:
+    def xmit_timeout(self, value: int | float) -> None:
         self._sync.xmit_timeout = value
 
     @property

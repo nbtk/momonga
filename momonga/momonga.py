@@ -60,7 +60,7 @@ class Momonga:
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
-        self.xmit_timeout: int | float | None = 300
+        self.xmit_timeout: int | float = 300
         self.internal_xmit_interval: int | float = 5
         self._transaction_id: int = 0
         self.energy_unit: int | float = 1
@@ -101,6 +101,28 @@ class Momonga:
         except MomongaResponseNotPossible:  # due to the property 0xD3 is optional.
             self.energy_coefficient = 1
         time.sleep(self.internal_xmit_interval)
+
+    @property
+    def xmit_timeout(self) -> int | float:
+        return self._xmit_timeout
+
+    @xmit_timeout.setter
+    def xmit_timeout(self, value: int | float) -> None:
+        """Seconds one request may spend waiting to transmit.
+
+        None used to mean no ceiling. It never did: the gate wait ran its own
+        schedule of sixty waits of a minute and then raised MomongaNeedToReopen
+        rather than MomongaXmitTimeout, while the SK command underneath was
+        handed no deadline at all and waited on the command lock without one.
+        Setting 3600 gives that same schedule with neither surprise, so the
+        value that meant "no ceiling" is gone rather than documented.
+        """
+        if value is None:
+            raise MomongaValueError('xmit_timeout must be a number of seconds.'
+                                    ' Use 3600 for the longest wait it used to allow.')
+        if value < 0:
+            raise MomongaValueError('xmit_timeout must not be negative, not %s' % value)
+        self._xmit_timeout = value
 
     def __enter__(self) -> Self:
         return self.open()

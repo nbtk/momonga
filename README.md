@@ -349,7 +349,7 @@ momonga.Momonga(rbid, pwd, dev, join_retries=15)
 ## momonga.xmit_timeout
 ひとつのリクエストが送信権を得るまでに待つ秒数の上限。送信ブロッキングが続いてこの秒数を超えると`MomongaXmitTimeout`を送出する。`MomongaNeedToReopen`のサブクラスなので、`reopen_delays`を指定していれば自動再接続の対象になる。既定値は300。
 
-この上限はリクエスト全体に対して1回分で、`momonga.xmit_retries`の回数だけ繰り返されることはない。`None`を指定すると上限なしになる。
+この上限はリクエスト全体に対して1回分で、`momonga.xmit_retries`の回数だけ繰り返されることはない。0以上の数値を指定すること。`0`は「待たずに諦める」を意味する。以前は`None`が指定できたが、上限がなくなるわけではなく、ゲート待ちは60秒×60回の日程に当たって`MomongaXmitTimeout`ではなく`MomongaNeedToReopen`となり、さらにSKコマンドに期限が渡らずコマンドロックを無期限に待っていた。同じ日程が要る場合は`3600`を指定すること。
 
 `momonga.open()`が内部で発行するリクエスト（積算電力量の単位と係数の取得）にも同じ上限が適用される。PANのスキャンとPANAセッションの確立は対象外なので、影響を受けるのはこの2リクエストだけである。
 
@@ -797,7 +797,7 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 
 放棄された処理はそのリクエストが終わるまで汎用プールの枠を占有する。占有時間は`Momonga`側の設定で決まる。
 
-- `reopen_delays`を指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分
+- `reopen_delays`を指定していない場合の上限はおおむね`xmit_timeout`と`xmit_retries × recv_timeout`の和。既定値では約7分。`xmit_timeout`を大きくすればそのぶん延びる
 - `reopen_delays`に`repeat()`など終わりのない列を渡している場合、放棄されたリクエストは再接続を繰り返していつまでも終わらない
 
 占有時間を短くしたい場合は`xmit_timeout`を下げ、`max_workers`には余裕を持たせること。終わりのない`reopen_delays`を避ければ、占有時間の上限も有限になる。汎用プールが放棄されたリクエストで埋まっても、`async with`文からの退出は専用スレッドで実行されるので待たされない。
