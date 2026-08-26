@@ -12,6 +12,7 @@ from .momonga_exception import (MomongaError,
                                 MomongaNeedToReopen,
                                 MomongaSkCommandBusy,
                                 MomongaSkCommandCancelled,
+                                MomongaSkCommandDeadlineExceeded,
                                 MomongaSkCommandFailedToExecute,
                                 MomongaSkCommandInvalidArgument,
                                 MomongaSkCommandInvalidSyntax,
@@ -312,15 +313,21 @@ class MomongaSkWrapper:
                      deadline: float | None = None,
                      should_stop: Callable[[], bool] | None = None,
                      ) -> list[str]:
+        masked = _mask_secrets(' '.join(c for c in command if c is not None))
         if deadline is not None:
-            lock_timeout = max(0.0, deadline - time.monotonic())
+            lock_timeout = deadline - time.monotonic()
+            if lock_timeout <= 0:
+                raise MomongaSkCommandDeadlineExceeded(
+                    'Ran out of time before running: %s' % masked)
         if not self._acquire_cmd_lock(lock_timeout, should_stop):
             raise MomongaSkCommandBusy('Another SK command is still running: %s'
-                                       % (_mask_secrets(' '.join(
-                                           c for c in command if c is not None))))
+                                       % masked)
         try:
             if deadline is not None:
-                left = max(0.0, deadline - time.monotonic())
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise MomongaSkCommandDeadlineExceeded(
+                        'Ran out of time before running: %s' % masked)
                 timeout = left if timeout is None else min(timeout, left)
             return self._exec_command_locked(command, wait_until, timeout,
                                              payload, should_stop)

@@ -74,6 +74,10 @@ class MomongaSkCommandCancelled(MomongaNeedToReopen):
     pass
 
 
+class MomongaSkCommandDeadlineExceeded(MomongaNeedToReopen):
+    pass
+
+
 class MomongaXmitTimeout(MomongaNeedToReopen):
     pass
 

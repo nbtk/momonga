@@ -125,11 +125,12 @@ PANをスキャンしたが見つからなかったときに送出される。�
 PANAセッションを確立できなかったときに送出される。BルートIDとパスワードを確認し、再試行すること。
 
 ## momonga.MomongaNeedToReopen
-スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される例外の基底クラス。下記の3つがこれを継承する。原因は違うが、呼び出し側の対応は「セッションを張り直す」で共通なので、個別に列挙せずこれを捕捉すればよい。
+スマートメーターに対してコマンドを送信できなかったなどの理由で、スマートメーターに再接続が必要なときに送出される例外の基底クラス。下記の4つがこれを継承する。原因は違うが、呼び出し側の対応は「セッションを張り直す」で共通なので、個別に列挙せずこれを捕捉すればよい。
 
 - `MomongaXmitTimeout` — 制限時間内に送信権を得られない
 - `MomongaSkCommandBusy` — 別のSKコマンドが実行中で開始できない
 - `MomongaSkCommandCancelled` — `momonga.close()`が実行中のSKコマンドを打ち切った
+- `MomongaSkCommandDeadlineExceeded` — SKコマンドに使える時間を使い切った
 
 この基底クラス自身も、応答が得られない、パケット配信元が止まった、といった場合に直接送出される。
 
@@ -143,6 +144,13 @@ PANAセッションを確立できなかったときに送出される。Bルー
 
 ## momonga.MomongaSkCommandCancelled
 `momonga.close()`がセッションを閉じるために、実行中のSKコマンドを打ち切ったときに送出される。`MomongaNeedToReopen`のサブクラス。
+
+## momonga.MomongaSkCommandDeadlineExceeded
+SKコマンドを始める前に、そのコマンドに使える時間を使い切っていたときに送出される。Momongaは`momonga.close()`のSKTERM、再JOINのSKJOIN、パケット送信のSKSENDTOに期限を設けており、その期限が過ぎている場合、コマンドを送らずにこの例外を送出する。`MomongaNeedToReopen`のサブクラス。
+
+`MomongaSkCommandBusy`と紛らわしいが別物である。あちらは他のSKコマンドが実行中でロックを取れなかったという意味で、こちらはロックの状態とは無関係に時間が尽きたという意味である。
+
+`TimeoutError`を継承していないので、`asyncio.wait_for()`で自分が指定した待ち時間と取り違えることはない。
 
 ## momonga.MomongaTimeoutError
 `momonga.open()`の実行中にWi-SUNモジュールが応答しなかったときに送出される。デバイスファイルのパスと、モジュールが正しく接続されているかを確認すること。
