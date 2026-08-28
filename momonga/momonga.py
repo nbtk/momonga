@@ -27,8 +27,6 @@ from .momonga_exception import (MomongaError,
                                 MomongaRuntimeError)
 from .momonga_response import SkEventNum, SkTxResult, SkParsedEvent, SkParsedRxUdp
 from .momonga_session_manager import MomongaSessionManager, SESSION_ENDED
-from .momonga_session_manager import logger as session_manager_logger
-from .momonga_sk_wrapper import logger as sk_wrapper_logger
 
 logger = logging.getLogger(__name__)
 
@@ -240,14 +238,13 @@ class Momonga:
 
         data = frame.data
         if len(data) < 12:
-            logger.warning('Received a malformed notification frame (too short: %d bytes). Discarding.' % len(data))
+            logger.warning('Received a malformed notification frame (too short: %d bytes). Discarding.', len(data))
             return None
         esv = data[ECHONET_ESV_OFFSET]
         opc = data[ECHONET_OPC_OFFSET]
 
         if not self._property_block_is_complete(data, opc):
-            logger.warning('Received a truncated notification frame (%d bytes for OPC %d). Discarding.'
-                           % (len(data), opc))
+            logger.warning('Received a truncated notification frame (%d bytes for OPC %d). Discarding.', len(data), opc)
             return None
 
         if esv == EchonetServiceCode.infc:
@@ -307,8 +304,7 @@ class Momonga:
             return parser(edt)
         except Exception as e:
             logger.warning('Could not read EPC %02X out of a notification (%d bytes). '
-                           'Keeping the raw value. %s: %s'
-                           % (epc, len(edt), type(e).__name__, e))
+                           'Keeping the raw value. %s: %s', epc, len(edt), type(e).__name__, e)
             return edt
 
     def _send_infc_res(self,
@@ -478,24 +474,24 @@ class Momonga:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)
                 except queue.Empty:
-                    logger.warning('The request for transaction id "%04X" timed out.' % tid)
+                    logger.warning('The request for transaction id "%04X" timed out.', tid)
                     break  # to rexmit the request.
 
                 if isinstance(res, SkParsedEvent):
                     if res.num == SkEventNum.tx_done:
                         param = res.param
                         if param == SkTxResult.success:
-                            logger.info('Successfully transmitted a request packet for transaction id "%04X".' % tid)
+                            logger.info('Successfully transmitted a request packet for transaction id "%04X".', tid)
                             continue
                         elif param == SkTxResult.failure:
-                            logger.info('Retransmitting the request packet for transaction id "%04X".' % tid)
+                            logger.info('Retransmitting the request packet for transaction id "%04X".', tid)
                             time.sleep(self.internal_xmit_interval)
                             break  # to rexmit the request.
                         elif param == SkTxResult.neighbor_solicitation:
                             logger.info('Transmitting neighbor solicitation packets.')
                             continue
                         else:
-                            logger.debug('A message for event 21 with an unknown parameter "%s" will be ignored.' % param)
+                            logger.debug('A message for event 21 with an unknown parameter "%s" will be ignored.', param)
                             continue
                     elif res.num == SkEventNum.neighbor_discovery:
                         logger.info('Received a neighbor advertisement packet.')
@@ -515,11 +511,11 @@ class Momonga:
                     except MomongaResponseNotExpected:
                         continue
 
-                    logger.info('Successfully received a response packet for transaction id "%04X".' % tid)
+                    logger.info('Successfully received a response packet for transaction id "%04X".', tid)
                     return res_properties
                 else:
                     continue
-        logger.error('Gave up obtaining a response for transaction id "%04X". Close Momonga and open it again.' % tid)
+        logger.error('Gave up obtaining a response for transaction id "%04X". Close Momonga and open it again.', tid)
         raise MomongaNeedToReopen('Gave up obtaining a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 

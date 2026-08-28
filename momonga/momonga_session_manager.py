@@ -173,7 +173,7 @@ class MomongaSessionManager:
             logger.info('A Momonga session is open.')
             return self
         except Exception as e:
-            logger.error('Could not open a Momonga session. %s: %s' % (type(e).__name__, e))
+            logger.error('Could not open a Momonga session. %s: %s', type(e).__name__, e)
             self.close()
             raise
 
@@ -191,7 +191,7 @@ class MomongaSessionManager:
                 logger.info('Terminating the PANA session...')
                 self.skw.skterm(deadline=time.monotonic() + _SKTERM_LIMIT)
             except Exception as e:
-                logger.warning('Failed to terminate the PANA session. %s: %s' % (type(e).__name__, e))
+                logger.warning('Failed to terminate the PANA session. %s: %s', type(e).__name__, e)
             finally:
                 if rejoin_lock_acquired:
                     self._rejoin_lock.release()
@@ -260,7 +260,7 @@ class MomongaSessionManager:
                                     logger.debug('The session is being closed;'
                                                  ' giving up the rejoin.')
                                 except MomongaSkJoinFailure as e:
-                                    logger.error('%s Close Momonga and open it again.' % (e))
+                                    logger.error('%s Close Momonga and open it again.', e)
                                     raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e)) from e
                         finally:
                             self._rejoin_lock.release()
@@ -301,10 +301,10 @@ class MomongaSessionManager:
                         try:
                             self.on_meter_frame(parsed)
                         except Exception as e:
-                            logger.error('on_meter_frame raised an exception. %s: %s' % (type(e).__name__, e))
+                            logger.error('on_meter_frame raised an exception. %s: %s', type(e).__name__, e)
 
         except Exception as e:
-            logger.error('An exception was raised from the receiver thread. %s: %s' % (type(e).__name__, e))
+            logger.error('An exception was raised from the receiver thread. %s: %s', type(e).__name__, e)
             self.receiver_exception = e
             self.notif_q.put(SESSION_ENDED)
 
@@ -312,8 +312,7 @@ class MomongaSessionManager:
 
     def raise_if_receiver_died(self) -> None:
         if self.receiver_exception is not None:
-            logger.error('Got an exception from the receiver thread. %s: %s'
-                         % (type(self.receiver_exception).__name__, self.receiver_exception))
+            logger.error('Got an exception from the receiver thread. %s: %s', type(self.receiver_exception).__name__, self.receiver_exception)
             raise MomongaNeedToReopen('Got an exception from the receiver thread. %s: %s'
                                       % (type(self.receiver_exception).__name__,
                                          self.receiver_exception)) from self.receiver_exception
@@ -349,7 +348,7 @@ class MomongaSessionManager:
                 if _deadline_passed(deadline):
                     logger.debug('The transmission gate did not open within the given time.')
                     raise MomongaXmitTimeout('The transmission gate did not open within %s seconds.' % (timeout))
-                logger.warning('Transmission gate is still closed. (%d/%d)' % (r + 1, gate_wait_retry_limit))
+                logger.warning('Transmission gate is still closed. (%d/%d)', r + 1, gate_wait_retry_limit)
 
             if not allowed:
                 logger.error('Transmission rights could not be acquired. Close Momonga and open it again.')
@@ -368,7 +367,7 @@ class MomongaSessionManager:
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:
-                logger.warning('Failed to transmit a packet: %s' % (e))
+                logger.warning('Failed to transmit a packet: %s', e)
             except MomongaSkCommandCancelled:
                 raise
             except MomongaNeedToReopen as e:
@@ -377,7 +376,7 @@ class MomongaSessionManager:
                     raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout)) from e
                 raise
             except Exception as e:
-                logger.warning('An error occurred while transmitting a packet. %s: %s' % (type(e).__name__, e))
+                logger.warning('An error occurred while transmitting a packet. %s: %s', type(e).__name__, e)
             if _deadline_passed(deadline):
                 logger.debug('Could not transmit a packet within the given time.')
                 raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout))

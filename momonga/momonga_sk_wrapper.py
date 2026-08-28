@@ -255,7 +255,7 @@ class MomongaSkWrapper:
             data_bytes = self._ser.readline()
             self._ser.timeout = org_timeout
         if data_bytes != b'':
-            logger.debug('<<< %s' % _mask_secrets(str(data_bytes)))
+            logger.debug('<<< %s', _mask_secrets(str(data_bytes)))
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
         return line
 
@@ -272,7 +272,7 @@ class MomongaSkWrapper:
                 for q in list(self.subscribers.values()):
                     q.put(line)  # will dispatch the line to each subscriber
         except Exception as e:
-            logger.error('An exception was raised from the publisher thread. %s: %s' % (type(e).__name__, e))
+            logger.error('An exception was raised from the publisher thread. %s: %s', type(e).__name__, e)
             if self._ser is my_ser:
                 self.publisher_exception = e
                 for q in list(self.subscribers.values()):
@@ -292,7 +292,7 @@ class MomongaSkWrapper:
             data_bytes = (line + '\r\n').encode()
         with _port('could not write to %s' % self.dev):
             self._ser.write(data_bytes)
-            logger.debug('>>> %s' % _mask_secrets(str(data_bytes)))
+            logger.debug('>>> %s', _mask_secrets(str(data_bytes)))
             self._ser.flush()
 
     def cancel_commands(self) -> None:
@@ -523,7 +523,7 @@ class MomongaSkWrapper:
         duration = _SCAN_FIRST_DURATION
         unreadable = None
         for _ in range(retry):
-            logger.debug('Trying to scan a PAN... Duration: %d' % duration)
+            logger.debug('Trying to scan a PAN... Duration: %d', duration)
             res = self.exec_command(self.device_strategy.skscan_command(duration), 'EVENT 22')
             # estimated execution time: 0.0096s*(2^(DURATION=6)+1)*28 = 17.5s
             # estimated execution time: 0.0096s*(2^(DURATION=7)+1)*28 = 34.7s
