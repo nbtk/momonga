@@ -391,7 +391,7 @@ class Momonga:
 
         ehd = data[ECHONET_EHD_SLICE]
         if ehd != ECHONET_LITE_EHD:
-            raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1')
+            raise MomongaResponseNotExpected('The data format is not ECHONET Lite EDATA format 1.')
 
         if data[ECHONET_TID_SLICE] != tid.to_bytes(4, 'big')[-2:]:
             raise MomongaResponseNotExpected('The transaction ID does not match.')
@@ -406,13 +406,13 @@ class Momonga:
 
         esv = data[ECHONET_ESV_OFFSET]
         if 0x50 <= esv <= 0x5F:
-            raise MomongaResponseNotPossible('The target smart meter could not respond. ESV: %X' % esv)
+            raise MomongaResponseNotPossible('The smart meter answered that it could not do this. ESV: %X' % esv)
 
         opc = data[ECHONET_OPC_OFFSET]
         req_opc = len(req_properties)
         if opc != req_opc:
             raise MomongaResponseNotExpected(
-                'Unexpected packet format. OPC is expected %s but %d was set.' % (req_opc, opc))
+                'Unexpected packet format. OPC was expected to be %s but %d was set.' % (req_opc, opc))
 
         if not Momonga._property_block_is_complete(data, opc):
             raise MomongaResponseNotExpected('The response is truncated: %d bytes for OPC %d.' % (len(data), opc))
@@ -523,8 +523,8 @@ class Momonga:
                     return res_properties
                 else:
                     continue
-        logger.error('Gave up to obtain a response for transaction id "%04X". Close Momonga and open it again.' % tid)
-        raise MomongaNeedToReopen('Gave up to obtain a response for transaction id "%04X".'
+        logger.error('Gave up obtaining a response for transaction id "%04X". Close Momonga and open it again.' % tid)
+        raise MomongaNeedToReopen('Gave up obtaining a response for transaction id "%04X".'
                                   ' Close Momonga and open it again.' % tid)
 
     def _reopen_once(self, failed_session_manager: MomongaSessionManager) -> None:

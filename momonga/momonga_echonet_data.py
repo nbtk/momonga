@@ -259,7 +259,7 @@ class EchonetDataParser:
                     0x0D: 10000}
         unit = unit_map.get(unit_index)
         if unit is None:
-            raise MomongaRuntimeError('Obtained unit for cumulative energy (%X) is not defined.' % unit_index)
+            raise MomongaRuntimeError('The unit obtained for cumulative energy (%X) is not defined.' % unit_index)
 
         return unit
 

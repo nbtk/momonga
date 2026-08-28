@@ -146,13 +146,13 @@ class MomongaSkWrapper:
 
                 # to check udp payloads returned from the wi-sun module are in ascii format.
                 if self._exec_ropt() != 1:
-                    logger.warning("Executing 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
-                                    "in ASCII format. Note: WOPT command can only be executed a limited number of times. "
+                    logger.warning("Executing the 'WOPT 01\\r' command to make the Wi-SUN module return UDP payloads "
+                                    "in ASCII format. Note: the WOPT command can only be executed a limited number of times. "
                                     "This configuration is saved in the Wi-SUN module, so this log message should "
                                     "no longer appear.")
                     self._exec_wopt(1)  # to make the wi-sun module return udp payloads in ascii format.
             except MomongaSkCommandUnsupported:
-                logger.info('ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
+                logger.info('The ROPT command is unsupported on this hardware. Assuming ASCII output mode.')
 
             for q in list(self.subscribers.values()):
                 while not q.empty():
@@ -210,7 +210,7 @@ class MomongaSkWrapper:
             with _port('could not read from %s' % self.dev):
                 b = self._ser.read()
             if not b or time.monotonic() >= deadline:
-                raise MomongaTimeoutError('ROPT command timed out.')
+                raise MomongaTimeoutError('The ROPT command timed out.')
             res += b
             if ok in res and res.endswith(b'\r'):
                 break
@@ -229,7 +229,7 @@ class MomongaSkWrapper:
                           1,  # hex ascii mode
                           )
         if opt not in supported_opts:
-            raise MomongaValueError('WOPT command does not support the given option: %02d' % opt)
+            raise MomongaValueError('The WOPT command does not support the given option: %02d' % opt)
 
         with _port('could not send WOPT'):
             self._ser.write(('WOPT %02d\r' % opt).encode())
@@ -240,7 +240,7 @@ class MomongaSkWrapper:
             with _port('could not read from %s' % self.dev):
                 b = self._ser.read()
             if not b or time.monotonic() >= deadline:
-                raise MomongaTimeoutError('WOPT command timed out.')
+                raise MomongaTimeoutError('The WOPT command timed out.')
             res += b
             if b'OK\r' in res:
                 break
@@ -278,7 +278,7 @@ class MomongaSkWrapper:
                 for q in list(self.subscribers.values()):
                     q.put(PUBLISHER_STOPPED)
             else:
-                logger.debug('The publisher that raised it no longer owns the port. Ignoring.')
+                logger.debug('The exception came from a publisher that no longer owns the port. Ignoring.')
 
         logger.debug('The received packet publisher has been stopped.')
 
@@ -563,7 +563,7 @@ class MomongaSkWrapper:
                                     deadline=deadline, should_stop=should_stop)
             # extimated execution time: 2s + 4s + 8s + 8s + 8s + 8s + 8s = 38s ~ 40s
             if res[-1].startswith('EVENT 25'):
-                logger.debug('A PANA Session has been established.')
+                logger.debug('A PANA session has been established.')
                 return
         raise MomongaSkJoinFailure('Could not establish a PANA session.')
 
@@ -597,7 +597,7 @@ class MomongaSkWrapper:
         )
 
     def detect_device(self):
-        logger.debug('Trying to detect device...')
+        logger.debug('Trying to detect the device...')
         dev_info = self.skinfo()
         if dev_info.side == _BP35A1_SIDE_SENTINEL:
             logger.debug('Device type is BP35A1.')

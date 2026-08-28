@@ -138,8 +138,8 @@ class MomongaSessionManager:
                 scan_res = self.skw.skscan(retry=self._scan_retries)
                 logger.info('A PAN was found.')
             except MomongaSkScanFailure as e:
-                logger.error('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.')
-                raise MomongaSkScanFailure('Gave up to find a PAN. Check the device location and Route-B ID. Then try again.') from e
+                logger.error('Gave up looking for a PAN. Check the device location and Route-B ID. Then try again.')
+                raise MomongaSkScanFailure('Gave up looking for a PAN. Check the device location and Route-B ID. Then try again.') from e
             self._smart_meter_mac = scan_res.mac_addr
             self.channel = scan_res.channel
             self.pan_id = scan_res.pan_id
@@ -158,8 +158,8 @@ class MomongaSessionManager:
                 self.session_established = True
                 logger.info('A PANA session has been established.')
             except MomongaSkJoinFailure as e:
-                logger.error('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.')
-                raise MomongaSkJoinFailure('Gave up to establish a PANA session. Check the Route-B ID and password. Then try again.') from e
+                logger.error('Gave up establishing a PANA session. Check the Route-B ID and password. Then try again.')
+                raise MomongaSkJoinFailure('Gave up establishing a PANA session. Check the Route-B ID and password. Then try again.') from e
 
             self._pkt_sbsc_q = queue.Queue()
             while not self.recv_q.empty():
@@ -241,7 +241,7 @@ class MomongaSessionManager:
                 if isinstance(parsed, SkParsedEvent):
                     num = parsed.num
                     if num == SkEventNum.session_lifetime:
-                        logger.debug('The PANA session lifetime has been expired.')
+                        logger.debug('The PANA session lifetime has expired.')
                         self._close_session_gate()
                     elif num == SkEventNum.rejoin_failed:
                         logger.warning('Could not rejoin the PAN.')
@@ -379,7 +379,7 @@ class MomongaSessionManager:
                     raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout))
                 raise
             except Exception as e:
-                logger.warning('An error occurred to transmit a packet. %s: %s' % (type(e).__name__, e))
+                logger.warning('An error occurred while transmitting a packet. %s: %s' % (type(e).__name__, e))
             if _deadline_passed(deadline):
                 logger.debug('Could not transmit a packet within the given time.')
                 raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout))
