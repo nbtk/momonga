@@ -153,9 +153,9 @@ class AsyncMomonga:
                                timeout: int | float | None = None,
                                ) -> dict[str, Any] | None:
         while self._orphaned:
-            notif, session = self._orphaned.popleft()
+            held, session = self._orphaned.popleft()
             if self._sync.is_open and self._sync.session_manager is session:
-                return notif
+                return held
 
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
@@ -170,10 +170,7 @@ class AsyncMomonga:
                 self._sync._read_notification, poll, reply_budget,
                 executor=self._notif_executor)
             try:
-                # shield's _FutureLike[_T] does not admit a _T that is
-                # itself optional, and _read_notification returns None on
-                # a timeout
-                notif = await asyncio.shield(reading)  # type: ignore[arg-type]
+                notif = await asyncio.shield(reading)
             except asyncio.CancelledError:
                 reading.add_done_callback(self._keep_what_was_read)
                 raise
