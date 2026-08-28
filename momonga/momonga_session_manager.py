@@ -4,9 +4,10 @@ import queue
 import time
 
 from collections.abc import Callable
-from typing import Self
+from typing import Any, Self
 
 from .momonga_exception import (MomongaNeedToReopen,
+                                MomongaRuntimeError,
                                        MomongaSkCommandCancelled,
                                        MomongaSkCommandExecutionFailure,
                                        MomongaSkJoinFailure,
@@ -90,8 +91,8 @@ class MomongaSessionManager:
 
         # the following values will be set by open() with skjoin().
         self.session_established = False
-        self._receiver_th = None
-        self.receiver_exception = None
+        self._receiver_th: threading.Thread | None = None
+        self.receiver_exception: Exception | None = None
         self._gate_lock = threading.Lock()
         self._session_available = True
         self._rate_ok = True
@@ -102,15 +103,21 @@ class MomongaSessionManager:
 
         self.on_meter_frame: Callable[[SkParsedRxUdp], None] | None = None
 
-        self._pkt_sbsc_q = queue.Queue()
-        self.recv_q = queue.Queue()
-        self.notif_q = queue.Queue()
+        self._pkt_sbsc_q: queue.Queue[Any] = queue.Queue()
+        self.recv_q: queue.Queue[Any] = queue.Queue()
+        self.notif_q: queue.Queue[Any] = queue.Queue()
 
     def __enter__(self) -> Self:
         return self.open()
 
     def __exit__(self, type, value, traceback) -> None:
         self.close()
+
+    @property
+    def _meter_addr(self) -> str:
+        if self.smart_meter_addr is None:
+            raise MomongaRuntimeError('The smart meter has not been found yet.')
+        return self.smart_meter_addr
 
     def open(self) -> Self:
         logger.info('Opening a Momonga session...')
@@ -152,7 +159,7 @@ class MomongaSessionManager:
             self.skw.sksreg('S3', self.pan_id)
             # to establish a pana session.
             try:
-                self.skw.skjoin(self.smart_meter_addr, retry=self._join_retries)
+                self.skw.skjoin(self._meter_addr, retry=self._join_retries)
                 self.session_established = True
                 logger.info('A PANA session has been established.')
             except MomongaSkJoinFailure as e:
@@ -251,7 +258,7 @@ class MomongaSessionManager:
                                 self.session_established = False
                                 try:
                                     self.skw.skjoin(
-                                        self.smart_meter_addr,
+                                        self._meter_addr,
                                         retry=self._join_retries,
                                         deadline=time.monotonic()
                                         + self._join_retries * _REJOIN_ATTEMPT_LIMIT,
@@ -361,9 +368,9 @@ class MomongaSessionManager:
                     logger.error('Tried to transmit a packet, but no PANA session was established.')
                     raise MomongaNeedToReopen('No PANA session established. Close Momonga and open it again.')
                 if deadline is None:
-                    self.skw.sksendto(self.smart_meter_addr, data)
+                    self.skw.sksendto(self._meter_addr, data)
                 else:
-                    self.skw.sksendto(self.smart_meter_addr, data, deadline=deadline)
+                    self.skw.sksendto(self._meter_addr, data, deadline=deadline)
                 xmitted = True
                 break
             except MomongaSkCommandExecutionFailure as e:

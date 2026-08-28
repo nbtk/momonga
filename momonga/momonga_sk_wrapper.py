@@ -1,3 +1,4 @@
+import builtins
 import logging
 import threading
 import queue
@@ -5,11 +6,14 @@ import serial
 import time
 
 from collections.abc import Callable
-from typing import Self
+from contextlib import AbstractContextManager
+from types import TracebackType
+from typing import Any, Literal, Self
 
 from .momonga_exception import (MomongaError,
                                 MomongaIOError,
                                 MomongaNeedToReopen,
+                                MomongaRuntimeError,
                                 MomongaSkCommandBusy,
                                 MomongaSkCommandCancelled,
                                 MomongaSkCommandDeadlineExceeded,
@@ -75,7 +79,7 @@ _SECRET_COMMANDS = ('SKSETPWD', 'SKSETRBID')
 
 
 
-def _port(what: str):
+def _port(what: str) -> AbstractContextManager[None]:
     """Turn a failure of the serial device itself into a MomongaError.
 
     pyserial raises SerialException, and the OS raises FileNotFoundError or
@@ -86,10 +90,13 @@ def _port(what: str):
     sees it.
     """
     class _Wrap:
-        def __enter__(self):
-            return self
+        def __enter__(self) -> None:
+            return None
 
-        def __exit__(self, exc_type, exc, tb):
+        def __exit__(self,
+                     exc_type: type[BaseException] | None,
+                     exc: BaseException | None,
+                     tb: TracebackType | None) -> Literal[False]:
             if exc is None or isinstance(exc, MomongaError):
                 return False
             if isinstance(exc, OSError):
@@ -116,11 +123,11 @@ class MomongaSkWrapper:
         self.baudrate = baudrate
 
         # the following value will be set a pyserial object.
-        self._ser = None
+        self._ser: serial.Serial | None = None
         self._publisher_th_breaker = False
-        self._publisher_th = None
+        self._publisher_th: threading.Thread | None = None
         self.publisher_exception = None
-        self.subscribers = {'cmd_exec_q': queue.Queue()}
+        self.subscribers: dict[str, queue.Queue[Any]] = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
         self._cmd_lock = threading.Lock()
         self._cancelled = False
@@ -132,8 +139,17 @@ class MomongaSkWrapper:
     def __enter__(self) -> Self:
         return self.open()
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __exit__(self,
+                 type: builtins.type[BaseException] | None,
+                 value: BaseException | None,
+                 traceback: TracebackType | None) -> None:
         self.close()
+
+    @property
+    def _port_or_raise(self) -> serial.Serial:
+        if self._ser is None:
+            raise MomongaRuntimeError('The Wi-SUN module is not open.')
+        return self._ser
 
     def open(self) -> Self:
         with _port('could not open %s' % self.dev):
@@ -185,30 +201,30 @@ class MomongaSkWrapper:
 
     def _clear_buf(self) -> None:  # do not call this after open().
         with _port('could not clear the buffer'):
-            self._ser.write(b'\r\n')
-            self._ser.flush()
-            timeout = self._ser.timeout
-            self._ser.timeout = 2  # will wait the specified seconds.
+            self._port_or_raise.write(b'\r\n')
+            self._port_or_raise.flush()
+            timeout = self._port_or_raise.timeout
+            self._port_or_raise.timeout = 2  # will wait the specified seconds.
             deadline = time.monotonic() + _BUF_CLEAR_LIMIT
-            while self._ser.read():
+            while self._port_or_raise.read():
                 # this loop clears garbage data if it exists.
                 if time.monotonic() >= deadline:
                     logger.warning('Gave up clearing the buffer. The Wi-SUN module keeps sending data.')
                     break
             # to undo the timeout.
-            self._ser.timeout = timeout
+            self._port_or_raise.timeout = timeout
 
     def _exec_ropt(self) -> int:  # do not call this after open().
         with _port('could not send ROPT'):
-            self._ser.write(b'ROPT\r')
-            self._ser.flush()
+            self._port_or_raise.write(b'ROPT\r')
+            self._port_or_raise.flush()
         res = b''
         ok = b'OK '
         fail = b'FAIL'
         deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
             with _port('could not read from %s' % self.dev):
-                b = self._ser.read()
+                b = self._port_or_raise.read()
             if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('The ROPT command timed out.')
             res += b
@@ -232,13 +248,13 @@ class MomongaSkWrapper:
             raise MomongaValueError('The WOPT command does not support the given option: %02d' % opt)
 
         with _port('could not send WOPT'):
-            self._ser.write(('WOPT %02d\r' % opt).encode())
-            self._ser.flush()
+            self._port_or_raise.write(('WOPT %02d\r' % opt).encode())
+            self._port_or_raise.flush()
         res = b''
         deadline = time.monotonic() + _SK_COMMAND_LIMIT
         while True:
             with _port('could not read from %s' % self.dev):
-                b = self._ser.read()
+                b = self._port_or_raise.read()
             if not b or time.monotonic() >= deadline:
                 raise MomongaTimeoutError('The WOPT command timed out.')
             res += b
@@ -250,10 +266,10 @@ class MomongaSkWrapper:
                    timeout: int | None = None,
                    ) -> str:
         with _port('could not read from %s' % self.dev):
-            org_timeout = self._ser.timeout
-            self._ser.timeout = timeout
-            data_bytes = self._ser.readline()
-            self._ser.timeout = org_timeout
+            org_timeout = self._port_or_raise.timeout
+            self._port_or_raise.timeout = timeout
+            data_bytes = self._port_or_raise.readline()
+            self._port_or_raise.timeout = org_timeout
         if data_bytes != b'':
             logger.debug('<<< %s', _mask_secrets(str(data_bytes)))
         line = data_bytes.decode(errors='replace').split('\r\n')[0]
@@ -291,9 +307,9 @@ class MomongaSkWrapper:
         else:
             data_bytes = (line + '\r\n').encode()
         with _port('could not write to %s' % self.dev):
-            self._ser.write(data_bytes)
+            self._port_or_raise.write(data_bytes)
             logger.debug('>>> %s', _mask_secrets(str(data_bytes)))
-            self._ser.flush()
+            self._port_or_raise.flush()
 
     def cancel_commands(self) -> None:
         running = self._cmd_lock.locked()
@@ -367,10 +383,9 @@ class MomongaSkWrapper:
                               payload: bytes | None,
                               should_stop: Callable[[], bool] | None,
                               ) -> list[str]:
-        command = ' '.join([c for c in command if c is not None])
+        line = ' '.join([c for c in command if c is not None])
 
-        if type(wait_until) is str:
-            wait_until = [wait_until]
+        expected = [wait_until] if isinstance(wait_until, str) else wait_until
 
         subscriber_q = self.subscribers['cmd_exec_q']
         while not subscriber_q.empty():
@@ -379,7 +394,7 @@ class MomongaSkWrapper:
         self._raise_if_publisher_died()
         self._raise_if_cancelled()
 
-        self._writeline(command, payload)
+        self._writeline(line, payload)
 
         deadline = None if timeout is None else time.monotonic() + timeout
 
@@ -394,21 +409,21 @@ class MomongaSkWrapper:
                                               ' Close Momonga and open it again.')
                 if r is _COMMANDS_CANCELLED:
                     raise MomongaSkCommandCancelled('The command was cancelled: %s'
-                                                    % (_mask_secrets(command)))
+                                                    % (_mask_secrets(line)))
             except queue.Empty:
                 self._raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'
-                                          ' Close Momonga and open it again: %s' % (_mask_secrets(command))) from None
+                                          ' Close Momonga and open it again: %s' % (_mask_secrets(line))) from None
 
             if r.startswith('ERXUDP'):
                 continue
 
             if r[:4] == 'FAIL':
-                self._raise_fail_response(_mask_secrets(command), r)
+                self._raise_fail_response(_mask_secrets(line), r)
             else:
                 res.append(r)
                 matched = False
-                for w in wait_until:
+                for w in expected:
                     if r.startswith(w):
                         matched = True
                         break
@@ -417,7 +432,7 @@ class MomongaSkWrapper:
         return res
 
     def _next_response_line(self,
-                            subscriber_q: queue.Queue,
+                            subscriber_q: queue.Queue[Any],
                             remaining: int | float | None,
                             should_stop: Callable[[], bool] | None,
                             ) -> str:
@@ -596,7 +611,7 @@ class MomongaSkWrapper:
             deadline=deadline,
         )
 
-    def detect_device(self):
+    def detect_device(self) -> DeviceType:
         logger.debug('Trying to detect the device...')
         dev_info = self.skinfo()
         if dev_info.side == _BP35A1_SIDE_SENTINEL:

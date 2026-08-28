@@ -87,7 +87,7 @@ def parse_sk_line(line: str, strategy: DeviceStrategy) -> SkParsedEvent | SkPars
 
 
 class MomongaSkResponseBase:
-    def __init__(self, res):
+    def __init__(self, res: list[str]) -> None:
         self.raw_response = res
         try:
             self.decode()
@@ -98,10 +98,10 @@ class MomongaSkResponseBase:
                 'Could not read the %s response: %s: %s'
                 % (type(self).__name__, type(err).__name__, err)) from err
 
-    def decode(self):
+    def decode(self) -> None:
         pass
 
-    def extract(self, key):
+    def extract(self, key: str) -> str:
         for elm in reversed(self.raw_response):
             if key in elm:
                 return elm
@@ -109,19 +109,29 @@ class MomongaSkResponseBase:
 
 
 class SkVerResponse(MomongaSkResponseBase):
-    def decode(self):
+    stack_ver: str
+
+    def decode(self) -> None:
         res_list = self.extract('EVER').split()
         self.stack_ver = res_list[1]
 
 
 class SkAppVerResponse(MomongaSkResponseBase):
-    def decode(self):
+    app_ver: str
+
+    def decode(self) -> None:
         res_list = self.extract('EAPPVER').split()
         self.app_ver = res_list[1]
 
 
 class SkInfoResponse(MomongaSkResponseBase):
-    def decode(self):
+    ip6_addr: str
+    mac_addr: bytes
+    channel: int
+    pan_id: bytes
+    side: int
+
+    def decode(self) -> None:
         res_list = self.extract('EINFO').split()
         self.ip6_addr = res_list[1]
         self.mac_addr = bytes.fromhex(res_list[2])
@@ -131,11 +141,20 @@ class SkInfoResponse(MomongaSkResponseBase):
 
 
 class SkScanResponse(MomongaSkResponseBase):
-    def __init__(self, res, strategy: DeviceStrategy):
+    channel: int
+    channel_page: int
+    pan_id: bytes
+    mac_addr: bytes
+    lqi: int
+    rssi: float
+    side: int | None
+    pair_id: bytes
+
+    def __init__(self, res: list[str], strategy: DeviceStrategy) -> None:
         self.strategy = strategy
         super().__init__(res)
 
-    def decode(self):
+    def decode(self) -> None:
         self.channel = int(self.extract('Channel:').split(':')[-1], 16)
         self.channel_page = int(self.extract('Channel Page:').split(':')[-1], 16)
         self.pan_id = bytes.fromhex(self.extract('Pan ID:').split(':')[-1])
@@ -147,5 +166,7 @@ class SkScanResponse(MomongaSkResponseBase):
 
 
 class SkLl64Response(MomongaSkResponseBase):
-    def decode(self):
+    ip6_addr: str
+
+    def decode(self) -> None:
         self.ip6_addr = self.extract('FE80:')

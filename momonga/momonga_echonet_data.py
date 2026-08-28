@@ -1,6 +1,7 @@
 import datetime
 import inspect
 from collections.abc import Callable
+from typing import Any
 
 from .momonga_echonet_enum import EchonetPropertyCode
 from .momonga_exception import (MomongaResponseNotExpected, MomongaRuntimeError,
@@ -27,6 +28,16 @@ def _require_edt(edt: bytes | None, at_least: int, what: str) -> None:
             % (what, 'no' if edt is None else len(edt), at_least))
 
 
+def _scaled_energy(raw: int,
+                   energy_unit: int | float,
+                   energy_coefficient: int,
+                   ) -> int | float | None:
+    """A cumulative energy reading in kWh, or None where the meter has none."""
+    if raw == _CUMULATIVE_ENERGY_MISSING:
+        return None
+    return raw * energy_unit * energy_coefficient
+
+
 class EchonetProperty:
     def __init__(self,
                  epc: EchonetPropertyCode | int,
@@ -49,13 +60,10 @@ class EchonetDataParser:
         _require_edt(edt, 1, 'an operation status')
         status = int.from_bytes(edt, 'big')
         if status == 0x30:  # turned on
-            status = True
-        elif status == 0x31:  # turned off
-            status = False
-        else:
-            status = None  # unknown
-
-        return status
+            return True
+        if status == 0x31:  # turned off
+            return False
+        return None  # unknown
 
     @classmethod
     def parse_installation_location(cls, edt: bytes) -> str:
@@ -199,19 +207,11 @@ class EchonetDataParser:
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
 
-        normal_direction_energy = int.from_bytes(edt[7:11], 'big')
-        if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-            normal_direction_energy = None
-        else:
-            normal_direction_energy *= energy_unit
-            normal_direction_energy *= energy_coefficient
+        normal_direction_energy = _scaled_energy(int.from_bytes(edt[7:11], 'big'),
+                                                  energy_unit, energy_coefficient)
 
-        reverse_direction_energy = int.from_bytes(edt[11:15], 'big')
-        if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-            reverse_direction_energy = None
-        else:
-            reverse_direction_energy *= energy_unit
-            reverse_direction_energy *= energy_coefficient
+        reverse_direction_energy = _scaled_energy(int.from_bytes(edt[11:15], 'big'),
+                                                   energy_unit, energy_coefficient)
 
         return {'timestamp': timestamp,
                 'cumulative energy': {'normal direction': normal_direction_energy,
@@ -237,12 +237,8 @@ class EchonetDataParser:
             energy_coefficient: int,
     ) -> int | float | None:
         _require_edt(edt, 4, 'a cumulative energy')
-        cumulative_energy = int.from_bytes(edt, 'big')
-        if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
-            return None
-        cumulative_energy *= energy_unit
-        cumulative_energy *= energy_coefficient
-        return cumulative_energy
+        return _scaled_energy(int.from_bytes(edt, 'big'),
+                              energy_unit, energy_coefficient)
 
     @classmethod
     def parse_unit_for_cumulative_energy(cls, edt: bytes) -> int | float:
@@ -278,12 +274,8 @@ class EchonetDataParser:
         historical_cumulative_energy = []
         for i in range(48):
             j = i * 4
-            cumulative_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
-                cumulative_energy = None
-            else:
-                cumulative_energy *= energy_unit
-                cumulative_energy *= energy_coefficient
+            cumulative_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
+                                                energy_unit, energy_coefficient)
             historical_cumulative_energy.append({'timestamp': timestamp, 'cumulative energy': cumulative_energy})
             timestamp += datetime.timedelta(minutes=30)
 
@@ -323,12 +315,8 @@ class EchonetDataParser:
         _require_edt(edt, 11, 'a cumulative energy at a fixed time')
         timestamp = datetime.datetime(int.from_bytes(edt[0:2], 'big'),
                                       edt[2], edt[3], edt[4], edt[5], edt[6])
-        cumulative_energy = int.from_bytes(edt[7:], 'big')
-        if cumulative_energy == _CUMULATIVE_ENERGY_MISSING:
-            cumulative_energy = None
-        else:
-            cumulative_energy *= energy_unit
-            cumulative_energy *= energy_coefficient
+        cumulative_energy = _scaled_energy(int.from_bytes(edt[7:], 'big'),
+                                            energy_unit, energy_coefficient)
         return {'timestamp': timestamp, 'cumulative energy': cumulative_energy}
 
     @classmethod
@@ -349,19 +337,11 @@ class EchonetDataParser:
         historical_cumulative_energy = []
         for i in range(num_of_data_points):
             j = i * 8
-            normal_direction_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-                normal_direction_energy = None
-            else:
-                normal_direction_energy *= energy_unit
-                normal_direction_energy *= energy_coefficient
+            normal_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
+                                                      energy_unit, energy_coefficient)
 
-            reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
-            if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-                reverse_direction_energy = None
-            else:
-                reverse_direction_energy *= energy_unit
-                reverse_direction_energy *= energy_coefficient
+            reverse_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j + 4:j + 8], 'big'),
+                                                       energy_unit, energy_coefficient)
 
             historical_cumulative_energy.append(
                 {'timestamp': timestamp,
@@ -402,19 +382,11 @@ class EchonetDataParser:
         historical_cumulative_energy = []
         for i in range(num_of_data_points):
             j = i * 8
-            normal_direction_energy = int.from_bytes(energy_data_points[j:j + 4], 'big')
-            if normal_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-                normal_direction_energy = None
-            else:
-                normal_direction_energy *= energy_unit
-                normal_direction_energy *= energy_coefficient
+            normal_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
+                                                      energy_unit, energy_coefficient)
 
-            reverse_direction_energy = int.from_bytes(energy_data_points[j + 4:j + 8], 'big')
-            if reverse_direction_energy == _CUMULATIVE_ENERGY_MISSING:
-                reverse_direction_energy = None
-            else:
-                reverse_direction_energy *= energy_unit
-                reverse_direction_energy *= energy_coefficient
+            reverse_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j + 4:j + 8], 'big'),
+                                                       energy_unit, energy_coefficient)
 
             historical_cumulative_energy.append(
                 {'timestamp': timestamp,
@@ -438,7 +410,7 @@ class EchonetDataParser:
                 'number of data points': num_of_data_points}
 
 
-PARSER_MAP: dict[EchonetPropertyCode, Callable] = {
+PARSER_MAP: dict[EchonetPropertyCode, Callable[..., Any]] = {
     EchonetPropertyCode.operation_status: EchonetDataParser.parse_operation_status,
     EchonetPropertyCode.installation_location: EchonetDataParser.parse_installation_location,
     EchonetPropertyCode.standard_version_information: EchonetDataParser.parse_standard_version_information,
@@ -470,7 +442,7 @@ PARSER_MAP: dict[EchonetPropertyCode, Callable] = {
     EchonetPropertyCode.time_for_historical_data_3: EchonetDataParser.parse_time_for_historical_data_3,
 }
 
-ENERGY_PARSERS: frozenset = frozenset(
+ENERGY_PARSERS: frozenset[Callable[..., Any]] = frozenset(
     fn for fn in PARSER_MAP.values()
     if 'energy_unit' in inspect.signature(fn).parameters
 )
@@ -499,14 +471,10 @@ class EchonetDataBuilder:
         month = timestamp.month.to_bytes(1, 'big')
         day = timestamp.day.to_bytes(1, 'big')
         hour = timestamp.hour.to_bytes(1, 'big')
-        if 0 <= timestamp.minute < 30:
-            minute = 0
-        else:
-            minute = 30
+        half_hour = 0 if 0 <= timestamp.minute < 30 else 30
 
-        minute = minute.to_bytes(1, 'big')
-        num_of_data_points = num_of_data_points.to_bytes(1, 'big')
-        return year + month + day + hour + minute + num_of_data_points
+        return (year + month + day + hour + half_hour.to_bytes(1, 'big')
+                + num_of_data_points.to_bytes(1, 'big'))
 
     @classmethod
     def build_edata_to_set_time_for_historical_data_3(cls,
@@ -524,5 +492,5 @@ class EchonetDataBuilder:
         day = timestamp.day.to_bytes(1, 'big')
         hour = timestamp.hour.to_bytes(1, 'big')
         minute = timestamp.minute.to_bytes(1, 'big')
-        num_of_data_points = num_of_data_points.to_bytes(1, 'big')
-        return year + month + day + hour + minute + num_of_data_points
+        return (year + month + day + hour + minute
+                + num_of_data_points.to_bytes(1, 'big'))

@@ -8,13 +8,15 @@ import time
 
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import AsyncGenerator, Callable, Iterable
-from typing import Any, Self
+from typing import Any, Self, TypeVar
 
 from .momonga import Momonga
 from .momonga_echonet_enum import EchonetPropertyCode
 from .momonga_exception import MomongaRuntimeError
 
 logger = logging.getLogger(__name__)
+
+_Result = TypeVar('_Result')
 
 _NOTIFICATION_POLL = 1
 
@@ -43,7 +45,7 @@ class AsyncMomonga:
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays,
                              scan_retries, join_retries)
-        self._orphaned: collections.deque = collections.deque()
+        self._orphaned: collections.deque[tuple[dict[str, Any], Any]] = collections.deque()
         self._executor = ThreadPoolExecutor(max_workers=max_workers,
                                             thread_name_prefix='momonga')
         self._notif_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
@@ -51,7 +53,11 @@ class AsyncMomonga:
         self._life_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
                                                  thread_name_prefix='momonga-life')
 
-    def _run(self, fn, *args, executor: ThreadPoolExecutor | None = None) -> asyncio.Future:
+    def _run(self,
+             fn: Callable[..., _Result],
+             *args: Any,
+             executor: ThreadPoolExecutor | None = None,
+             ) -> asyncio.Future[_Result]:
         loop = asyncio.get_running_loop()
         try:
             return loop.run_in_executor(executor or self._executor,

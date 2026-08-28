@@ -4,8 +4,8 @@ import queue
 import threading
 import time
 
-from collections.abc import Callable, Iterable
-from typing import TypedDict, Any, Self
+from collections.abc import Callable, Iterable, Iterator
+from typing import TypedDict, Any, Self, TypeVar
 
 from .momonga_echonet_data import (EchonetProperty,
                                    EchonetPropertyWithData,
@@ -28,6 +28,8 @@ from .momonga_exception import (MomongaError,
 from .momonga_response import SkEventNum, SkTxResult, SkParsedEvent, SkParsedRxUdp
 from .momonga_session_manager import MomongaSessionManager, SESSION_ENDED
 
+_Parsed = TypeVar('_Parsed')
+
 logger = logging.getLogger(__name__)
 
 _INFC_RES_XMIT_LIMIT = 15
@@ -38,7 +40,7 @@ class _ReplayableIterator:
         self._source = source
         self._seen: list[float] = []
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[float]:
         yield from self._seen
         for delay in self._source:
             self._seen.append(delay)
@@ -208,13 +210,13 @@ class Momonga:
     def _reopen_in_progress(self) -> bool:
         return not self._reopen_done.is_set() and not getattr(self._local, 'reopening', False)
 
-    def get_notification(self, timeout: int | float | None = None) -> dict | None:
+    def get_notification(self, timeout: int | float | None = None) -> dict[str, Any] | None:
         return self._read_notification(timeout, None)
 
     def _read_notification(self,
                             timeout: int | float | None,
                             reply_budget: int | float | None,
-                            ) -> dict | None:
+                            ) -> dict[str, Any] | None:
         deadline = None if timeout is None else time.monotonic() + timeout
 
         if not self.is_open:
@@ -274,8 +276,8 @@ class Momonga:
     @staticmethod
     def _parse_or_wrap(epc: EchonetPropertyCode | int,
                        edt: bytes | None,
-                       parser: Callable[..., Any],
-                       *args: Any) -> Any:
+                       parser: Callable[..., _Parsed],
+                       *args: Any) -> _Parsed:
         """Read one property, or say that the response could not be read.
 
         A parser hands an EDT that got past its length check to datetime, int
@@ -335,12 +337,11 @@ class Momonga:
 
     @staticmethod
     def _build_request_header(tid: int, esv: EchonetServiceCode) -> bytes:
-        ehd = ECHONET_LITE_EHD
-        tid = tid.to_bytes(4, 'big')[-2:]
-        seoj = CONTROLLER_EOJ
-        deoj = SMART_METER_EOJ
-        esv = esv.to_bytes(1, 'big')
-        return ehd + tid + seoj + deoj + esv
+        return (ECHONET_LITE_EHD
+                + tid.to_bytes(4, 'big')[-2:]
+                + CONTROLLER_EOJ
+                + SMART_METER_EOJ
+                + esv.to_bytes(1, 'big'))
 
     def _build_request_payload_with_data(self,
                                           tid: int,
@@ -351,10 +352,10 @@ class Momonga:
         opc = len(properties_with_data).to_bytes(1, 'big')
         payload = header + opc
         for pd in properties_with_data:
-            epc = pd.epc.to_bytes(1, 'big')
-            pdc = len(pd.edt).to_bytes(1, 'big')
-            edt = pd.edt
-            payload += epc + pdc + edt
+            edt = pd.edt if pd.edt is not None else b''
+            payload += (pd.epc.to_bytes(1, 'big')
+                        + len(edt).to_bytes(1, 'big')
+                        + edt)
 
         return payload
 
