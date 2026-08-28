@@ -24,13 +24,8 @@ _DEFAULT_MAX_WORKERS = 4
 # the next one from starting
 _RESERVED_WORKERS = 2
 
-# a read that was cancelled after the meter had already handed a notification
-# over has nowhere to put it, and the meter does not send it again, so it is
-# held for the next reader. More than one can be waiting: two reads can be in
-# flight at once, and every cancel-and-start-again adds another. The meter
-# sends these at its own pace - the fixed-time reading once every 30 minutes -
-# so a queue this long is many hours of them, and filling it means nobody is
-# reading them at all.
+# notifications taken off the meter by reads that were cancelled, held for
+# whoever reads next; past this the oldest is dropped with a warning
 _ORPHAN_LIMIT = 32
 
 

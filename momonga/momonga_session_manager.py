@@ -36,10 +36,8 @@ _STOP_RECEIVER = _StopReceiver()
 
 _REJOIN_LOCK_LIMIT = 120
 
-# the module's own estimate for one SKJOIN is 40 s, so this is that with room
-# to spare, and the budget is this per attempt the caller asked for. close()
-# no longer waits a rejoin out - it says it is closing and the rejoin gives up
-# - so the budget only has to be long enough to succeed.
+# how long one SKJOIN attempt may take; the rejoin's budget is this times the
+# number of attempts the caller asked for
 _REJOIN_ATTEMPT_LIMIT = 60
 
 _SKTERM_LIMIT = 30

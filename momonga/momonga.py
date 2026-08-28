@@ -110,16 +110,12 @@ class Momonga:
     def xmit_timeout(self, value: int | float) -> None:
         """Seconds one request may spend waiting to transmit.
 
-        None used to mean no ceiling. It never did: the gate wait ran its own
-        schedule of sixty waits of a minute and then raised MomongaNeedToReopen
-        rather than MomongaXmitTimeout, while the SK command underneath was
-        handed no deadline at all and waited on the command lock without one.
-        Setting 3600 gives that same schedule with neither surprise, so the
-        value that meant "no ceiling" is gone rather than documented.
+        Zero gives up without waiting. The longest wait the gate itself will
+        run is 3600.
         """
         if value is None:
             raise MomongaValueError('xmit_timeout must be a number of seconds.'
-                                    ' Use 3600 for the longest wait it used to allow.')
+                                    ' Use 3600 for the longest wait the gate will run.')
         if value < 0:
             raise MomongaValueError('xmit_timeout must not be negative, not %s' % value)
         self._xmit_timeout = value
