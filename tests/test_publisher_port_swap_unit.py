@@ -126,5 +126,47 @@ class TestARealFailureIsStillReported(_Publisher):
         self.assertIs(skw.subscribers['cmd_exec_q'].get_nowait(), PUBLISHER_STOPPED)
 
 
+class TestComparingAgainstAMeterNotFoundYet(TimeBoxedTestCase):
+    """smart_meter_addr is None until a scan fills it in, and two places
+    compare a frame's source against it. Those have to stay ordinary
+    comparisons: an accessor that refuses to hand back an address nobody has
+    yet would raise where the answer is simply "not from the meter" - the same
+    shape of mistake the port accessor made in the publisher above.
+    """
+
+    def _session(self):
+        from momonga.momonga_session_manager import MomongaSessionManager
+        sm = MomongaSessionManager('', '', '/dev/ttyUSB0')
+        sm.skw = MagicMock()
+        sm.skw.subscribers = {}
+        return sm
+
+    def test_a_frame_arriving_before_a_scan_is_not_a_failure(self):
+        from momonga.momonga_response import SkParsedRxUdp
+        sm = self._session()
+        seen = []
+        sm.on_meter_frame = seen.append
+        frame = SkParsedRxUdp(src_addr='FE80::9', dst_addr='', src_port=0x0E1A,
+                              dst_port=0x0E1A, src_mac=b'\x00' * 8, lqi=0x6C,
+                              rssi=-80.0, sec=1, side=0, data=b'')
+
+        self.assertIsNone(sm.smart_meter_addr)
+        self.assertNotEqual(frame.src_addr, sm.smart_meter_addr)
+        self.assertEqual(seen, [])
+
+    def test_a_request_before_a_scan_says_so_rather_than_crashing(self):
+        import momonga
+        sm = self._session()
+
+        with self.assertRaises(momonga.MomongaError):
+            sm._meter_addr
+
+    def test_once_a_scan_has_run_the_address_is_handed_over(self):
+        sm = self._session()
+        sm.smart_meter_addr = 'FE80::1'
+
+        self.assertEqual(sm._meter_addr, 'FE80::1')
+
+
 if __name__ == '__main__':
     unittest.main()
