@@ -20,6 +20,7 @@ setuptools.setup(
         'License :: OSI Approved :: MIT License',
     ],
     packages=setuptools.find_packages(exclude=['tests', 'tests.*']),
+    package_data={'momonga': ['py.typed']},
     install_requires=[
         'pyserial~=3.5',
     ],
