@@ -66,11 +66,18 @@ jobs:
           python -m build
           python -m pip install dist/*.whl
 
+      - name: Check from outside the checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/asacaller"
+          cp tests/typing/*.py "$RUNNER_TEMP/asacaller/"
+
       - name: A caller running --strict sees the annotations
-        run: mypy --strict tests/typing/consumer.py
+        working-directory: ${{ runner.temp }}/asacaller
+        run: mypy --strict consumer.py
 
       - name: And is told when the types are wrong
+        working-directory: ${{ runner.temp }}/asacaller
         run: |
-          mypy --strict tests/typing/consumer_mistakes.py > out.txt 2>&1 || true
+          mypy --strict consumer_mistakes.py > out.txt 2>&1 || true
           cat out.txt
           grep -q 'Found 4 errors' out.txt
