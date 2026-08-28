@@ -261,7 +261,7 @@ class MomongaSessionManager:
                                                  ' giving up the rejoin.')
                                 except MomongaSkJoinFailure as e:
                                     logger.error('%s Close Momonga and open it again.' % (e))
-                                    raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e))
+                                    raise MomongaNeedToReopen('%s Close Momonga and open it again.' % (e)) from e
                         finally:
                             self._rejoin_lock.release()
                     elif num == SkEventNum.rejoined:
@@ -371,10 +371,10 @@ class MomongaSessionManager:
                 logger.warning('Failed to transmit a packet: %s' % (e))
             except MomongaSkCommandCancelled:
                 raise
-            except MomongaNeedToReopen:
+            except MomongaNeedToReopen as e:
                 if _deadline_passed(deadline):
                     logger.debug('Could not transmit a packet within the given time.')
-                    raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout))
+                    raise MomongaXmitTimeout('Could not transmit a packet within %s seconds.' % (timeout)) from e
                 raise
             except Exception as e:
                 logger.warning('An error occurred while transmitting a packet. %s: %s' % (type(e).__name__, e))

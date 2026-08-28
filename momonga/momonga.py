@@ -860,7 +860,7 @@ class Momonga:
             try:
                 parser = PARSER_MAP[r.epc]
             except KeyError:
-                raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc)
+                raise MomongaRuntimeError('No parser found for EPC: %X' % r.epc) from None
 
             if parser in ENERGY_PARSERS:
                 parsed_results[r.epc] = self._parse_or_wrap(

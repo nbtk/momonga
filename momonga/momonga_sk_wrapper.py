@@ -398,7 +398,7 @@ class MomongaSkWrapper:
             except queue.Empty:
                 self._raise_if_publisher_died()
                 raise MomongaNeedToReopen('The module did not respond to a command.'
-                                          ' Close Momonga and open it again: %s' % (_mask_secrets(command)))
+                                          ' Close Momonga and open it again: %s' % (_mask_secrets(command))) from None
 
             if r.startswith('ERXUDP'):
                 continue
