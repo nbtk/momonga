@@ -1,10 +1,12 @@
 import datetime
+import builtins
 import logging
 import queue
 import threading
 import time
 
 from collections.abc import Callable, Iterable, Iterator
+from types import TracebackType
 from typing import TypedDict, Any, Self, TypeVar
 
 from .momonga_echonet_data import (EchonetProperty,
@@ -123,7 +125,10 @@ class Momonga:
     def __enter__(self) -> Self:
         return self.open()
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __exit__(self,
+                 type: builtins.type[BaseException] | None,
+                 value: BaseException | None,
+                 traceback: TracebackType | None) -> None:
         if value is None:
             self.close()
             return
@@ -133,7 +138,7 @@ class Momonga:
         except Exception:
             logger.warning('Failed to close the session while %s was propagating. '
                            'Keeping the original exception.',
-                           type.__name__, exc_info=True)
+                           value.__class__.__name__, exc_info=True)
 
     def _route_meter_frame(self, frame: SkParsedRxUdp) -> None:
         self.lqi = frame.lqi
@@ -413,10 +418,11 @@ class Momonga:
         properties = []
         cur = 12
         for rp in req_properties:
+            raw = data[cur]
             try:
-                epc = EchonetPropertyCode(data[cur])
+                epc: EchonetPropertyCode | int = EchonetPropertyCode(raw)
             except ValueError:
-                epc = data[cur]
+                epc = raw
 
             if epc != rp.epc:
                 raise MomongaResponseNotExpected('The property code does not match. EPC: %X' % rp.epc)
@@ -454,9 +460,11 @@ class Momonga:
                          ) -> list[EchonetPropertyWithData]:
         tid = self._get_transaction_id()
         if esv == EchonetServiceCode.set_c:
-            tx_payload = self._build_request_payload_with_data(tid, esv, req_properties)
+            with_data = [p for p in req_properties if isinstance(p, EchonetPropertyWithData)]
+            tx_payload = self._build_request_payload_with_data(tid, esv, with_data)
         elif esv == EchonetServiceCode.get:
-            tx_payload = self._build_request_payload(tid, esv, req_properties)
+            plain = [EchonetProperty(p.epc) for p in req_properties]
+            tx_payload = self._build_request_payload(tid, esv, plain)
         else:
             raise MomongaRuntimeError('Unsupported service code.')
 
@@ -700,7 +708,7 @@ class Momonga:
     def get_historical_cumulative_energy_1(self,
                                            day: int = 0,
                                            reverse: bool = False,
-                                           ) -> list[dict[str, datetime.datetime | dict[str, int | float | None]]]:
+                                           ) -> list[dict[str, datetime.datetime | int | float | None]]:
         self.set_day_for_historical_data_1(day)
 
         if reverse is False:
@@ -790,8 +798,7 @@ class Momonga:
     def get_historical_cumulative_energy_3(self,
                                            timestamp: datetime.datetime | None = None,
                                            num_of_data_points: int = 10,
-                                           ) -> list[dict[str, datetime.datetime |
-                                                               dict[str, int | float | None]]]:
+                                           ) -> list[dict[str, datetime.datetime | dict[str, int | float | None]]]:
         if timestamp is None:
             timestamp = datetime.datetime.now()
 
@@ -850,7 +857,8 @@ class Momonga:
         self._request_to_set(properties_with_data)
 
     def request_to_get(self,
-                       properties: set[EchonetPropertyCode]) -> dict[EchonetPropertyCode, Any]:
+                       properties: set[EchonetPropertyCode]
+                       ) -> dict[EchonetPropertyCode | int, Any]:
         results = self._request_to_get([EchonetProperty(epc) for epc in properties])
         parsed_results = {}
         for r in results:

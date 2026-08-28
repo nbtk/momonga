@@ -8,6 +8,7 @@ import time
 
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import AsyncGenerator, Callable, Iterable
+from types import TracebackType
 from typing import Any, Self, TypeVar
 
 from .momonga import Momonga
@@ -121,7 +122,10 @@ class AsyncMomonga:
         await self._run(self._sync.open, executor=self._life_executor)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self,
+                        exc_type: type[BaseException] | None,
+                        exc_val: BaseException | None,
+                        exc_tb: TracebackType | None) -> None:
         try:
             try:
                 await self._run(self._sync.close, executor=self._life_executor)
@@ -130,7 +134,7 @@ class AsyncMomonga:
                     raise
                 logger.warning('Failed to close the session while %s was propagating. '
                                'Keeping the original exception.',
-                               exc_type.__name__, exc_info=True)
+                               exc_val.__class__.__name__, exc_info=True)
         finally:
             self._executor.shutdown(wait=False)
             self._notif_executor.shutdown(wait=False)
@@ -147,7 +151,7 @@ class AsyncMomonga:
 
     async def get_notification(self,
                                timeout: int | float | None = None,
-                               ) -> dict | None:
+                               ) -> dict[str, Any] | None:
         while self._orphaned:
             notif, session = self._orphaned.popleft()
             if self._sync.is_open and self._sync.session_manager is session:
@@ -155,17 +159,21 @@ class AsyncMomonga:
 
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
-            poll = _NOTIFICATION_POLL
+            poll: int | float = _NOTIFICATION_POLL
             if deadline is not None:
                 poll = min(poll, max(0.0, deadline - time.monotonic()))
             # the poll slice is this loop's business; the reply may use what the
             # caller actually allowed, which is everything when they set no timeout
             reply_budget = (math.inf if deadline is None
                             else max(0.0, deadline - time.monotonic()))
-            reading = self._run(self._sync._read_notification, poll, reply_budget,
-                                executor=self._notif_executor)
+            reading: asyncio.Future[dict[str, Any] | None] = self._run(
+                self._sync._read_notification, poll, reply_budget,
+                executor=self._notif_executor)
             try:
-                notif = await asyncio.shield(reading)
+                # shield's _FutureLike[_T] does not admit a _T that is
+                # itself optional, and _read_notification returns None on
+                # a timeout
+                notif = await asyncio.shield(reading)  # type: ignore[arg-type]
             except asyncio.CancelledError:
                 reading.add_done_callback(self._keep_what_was_read)
                 raise
@@ -174,7 +182,7 @@ class AsyncMomonga:
             if deadline is not None and time.monotonic() >= deadline:
                 return None
 
-    def _keep_what_was_read(self, reading: asyncio.Future) -> None:
+    def _keep_what_was_read(self, reading: asyncio.Future[Any]) -> None:
         if reading.cancelled() or reading.exception() is not None:
             return
         notif = reading.result()
@@ -190,7 +198,7 @@ class AsyncMomonga:
 
     async def notifications(self,
                             timeout: int | float = 60,
-                            ) -> AsyncGenerator[dict, None]:
+                            ) -> AsyncGenerator[dict[str, Any], None]:
         while True:
             notif = await self.get_notification(timeout=timeout)
             if notif is not None:
@@ -255,7 +263,7 @@ class AsyncMomonga:
             self,
             day: int = 0,
             reverse: bool = False,
-    ) -> list[dict[str, datetime.datetime | dict[str, int | float | None]]]:
+    ) -> list[dict[str, datetime.datetime | int | float | None]]:
         return await self._run(self._sync.get_historical_cumulative_energy_1, day, reverse)
 
     async def set_day_for_historical_data_1(self, day: int = 0) -> None:
@@ -322,5 +330,5 @@ class AsyncMomonga:
 
     async def request_to_get(self,
                              properties: set[EchonetPropertyCode],
-                             ) -> dict[EchonetPropertyCode, Any]:
+                             ) -> dict[EchonetPropertyCode | int, Any]:
         return await self._run(self._sync.request_to_get, properties)

@@ -126,7 +126,7 @@ class MomongaSkWrapper:
         self._ser: serial.Serial | None = None
         self._publisher_th_breaker = False
         self._publisher_th: threading.Thread | None = None
-        self.publisher_exception = None
+        self.publisher_exception: Exception | None = None
         self.subscribers: dict[str, queue.Queue[Any]] = {'cmd_exec_q': queue.Queue()}
         self.device_strategy: DeviceStrategy = BP35C2Strategy()
         self._cmd_lock = threading.Lock()
@@ -403,11 +403,11 @@ class MomongaSkWrapper:
             remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
             try:
                 r = self._next_response_line(subscriber_q, remaining, should_stop)
-                if r is PUBLISHER_STOPPED:
+                if isinstance(r, _PublisherStopped):
                     self._raise_if_publisher_died()
                     raise MomongaNeedToReopen('The packet publisher has stopped.'
                                               ' Close Momonga and open it again.')
-                if r is _COMMANDS_CANCELLED:
+                if isinstance(r, _CommandsCancelled):
                     raise MomongaSkCommandCancelled('The command was cancelled: %s'
                                                     % (_mask_secrets(line)))
             except queue.Empty:
@@ -435,13 +435,14 @@ class MomongaSkWrapper:
                             subscriber_q: queue.Queue[Any],
                             remaining: int | float | None,
                             should_stop: Callable[[], bool] | None,
-                            ) -> str:
+                            ) -> str | _PublisherStopped | _CommandsCancelled:
         """One line from the module, in slices if the caller can be told to
         stop. Unlike the lock, cancel_commands() does reach this wait - but
         close() only sends it once it has finished waiting for the lock this
         command holds, which is the wait it would have cut short."""
         if should_stop is None:
-            return subscriber_q.get(timeout=remaining)
+            line: str | _PublisherStopped | _CommandsCancelled = subscriber_q.get(timeout=remaining)
+            return line
 
         give_up_at = None if remaining is None else time.monotonic() + remaining
         while True:
@@ -456,9 +457,10 @@ class MomongaSkWrapper:
                 wait = min(wait, left)
 
             try:
-                return subscriber_q.get(timeout=wait)
+                sliced: str | _PublisherStopped | _CommandsCancelled = subscriber_q.get(timeout=wait)
             except queue.Empty:
                 continue
+            return sliced
 
     def _raise_if_publisher_died(self) -> None:
         if self.publisher_exception is not None:
@@ -516,11 +518,13 @@ class MomongaSkWrapper:
                reg: str,
                val: str | int | bytes,
                ) -> None:
-        if type(val) is int:
-            val = '%X' % val
-        elif type(val) is bytes:
-            val = val.hex().upper()
-        self.exec_command(['SKSREG', reg, val])
+        if isinstance(val, int):
+            text = '%X' % val
+        elif isinstance(val, bytes):
+            text = val.hex().upper()
+        else:
+            text = val
+        self.exec_command(['SKSREG', reg, text])
 
     def sksetrbid(self,
                   rbid: str,
@@ -611,7 +615,7 @@ class MomongaSkWrapper:
             deadline=deadline,
         )
 
-    def detect_device(self) -> DeviceType:
+    def detect_device(self) -> None:
         logger.debug('Trying to detect the device...')
         dev_info = self.skinfo()
         if dev_info.side == _BP35A1_SIDE_SENTINEL:

@@ -1,9 +1,11 @@
+import builtins
 import logging
 import threading
 import queue
 import time
 
 from collections.abc import Callable
+from types import TracebackType
 from typing import Any, Self
 
 from .momonga_exception import (MomongaNeedToReopen,
@@ -84,10 +86,10 @@ class MomongaSessionManager:
         self.skw = MomongaSkWrapper(dev, baudrate)
 
         # the following values will be set by open() with skscan().
-        self._smart_meter_mac = None
-        self.smart_meter_addr = None
-        self.channel = None
-        self.pan_id = None
+        self._smart_meter_mac: bytes | None = None
+        self.smart_meter_addr: str | None = None
+        self.channel: int | None = None
+        self.pan_id: bytes | None = None
 
         # the following values will be set by open() with skjoin().
         self.session_established = False
@@ -110,7 +112,10 @@ class MomongaSessionManager:
     def __enter__(self) -> Self:
         return self.open()
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __exit__(self,
+                 type: builtins.type[BaseException] | None,
+                 value: BaseException | None,
+                 traceback: TracebackType | None) -> None:
         self.close()
 
     @property

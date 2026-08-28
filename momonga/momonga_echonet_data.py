@@ -271,7 +271,7 @@ class EchonetDataParser:
         timestamp = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
         timestamp -= datetime.timedelta(days=day)
         energy_data_points = edt[2:]
-        historical_cumulative_energy = []
+        historical_cumulative_energy: list[dict[str, datetime.datetime | int | float | None]] = []
         for i in range(48):
             j = i * 4
             cumulative_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
@@ -334,7 +334,7 @@ class EchonetDataParser:
         year = int.from_bytes(edt[0:2], 'big')
         energy_data_points = edt[7:]
         timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
-        historical_cumulative_energy = []
+        historical_cumulative_energy: list[dict[str, datetime.datetime | dict[str, int | float | None]]] = []
         for i in range(num_of_data_points):
             j = i * 8
             normal_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
@@ -371,7 +371,7 @@ class EchonetDataParser:
             energy_unit: int | float,
             energy_coefficient: int,
     ) -> list[dict[str, datetime.datetime |
-                        dict[str, dict[str, int | float | None]]]]:
+                        dict[str, int | float | None]]]:
         _require_edt(edt, 7, 'a historical cumulative energy 3')
         num_of_data_points = edt[6]
         _require_edt(edt, 7 + num_of_data_points * 8,
@@ -379,7 +379,7 @@ class EchonetDataParser:
         year = int.from_bytes(edt[0:2], 'big')
         energy_data_points = edt[7:]
         timestamp = datetime.datetime(year, edt[2], edt[3], edt[4], edt[5])
-        historical_cumulative_energy = []
+        historical_cumulative_energy: list[dict[str, datetime.datetime | dict[str, int | float | None]]] = []
         for i in range(num_of_data_points):
             j = i * 8
             normal_direction_energy = _scaled_energy(int.from_bytes(energy_data_points[j:j + 4], 'big'),
@@ -410,7 +410,7 @@ class EchonetDataParser:
                 'number of data points': num_of_data_points}
 
 
-PARSER_MAP: dict[EchonetPropertyCode, Callable[..., Any]] = {
+PARSER_MAP: dict[EchonetPropertyCode | int, Callable[..., Any]] = {
     EchonetPropertyCode.operation_status: EchonetDataParser.parse_operation_status,
     EchonetPropertyCode.installation_location: EchonetDataParser.parse_installation_location,
     EchonetPropertyCode.standard_version_information: EchonetDataParser.parse_standard_version_information,
