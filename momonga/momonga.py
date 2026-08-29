@@ -50,6 +50,23 @@ class _ReplayableIterator:
 
 
 class Momonga:
+    """A session with a low-voltage smart electric energy meter over Route B.
+
+    Opening scans for the meter's PAN and establishes a PANA session, which
+    takes tens of seconds to a few minutes; use it as a context manager, or
+    call open() and close() yourself.
+
+        with Momonga(rbid, pwd, dev) as mo:
+            print(mo.get_instantaneous_power())
+
+    Readings come back as None where the meter reports no data, so check
+    before doing arithmetic on one.
+
+    Failures fall into three groups. MomongaConnectionFailure is the radio or
+    the device below the session - wait and try again. MomongaNeedToReopen is
+    the session itself - build a new one, or set reopen_delays and let this
+    class do it. Anything else means the call was wrong.
+    """
     def __init__(self,
                  rbid: str,
                  pwd: str,
@@ -106,15 +123,17 @@ class Momonga:
 
     @property
     def xmit_timeout(self) -> int | float:
+        """Seconds one request may spend waiting to transmit.
+
+        Zero gives up without waiting. The longest wait the gate itself will
+        run is 3600. Exceeding it raises MomongaXmitTimeout, which
+        reopen_delays covers. The allowance is for the whole request, not
+        for each retry.
+        """
         return self._xmit_timeout
 
     @xmit_timeout.setter
     def xmit_timeout(self, value: int | float) -> None:
-        """Seconds one request may spend waiting to transmit.
-
-        Zero gives up without waiting. The longest wait the gate itself will
-        run is 3600.
-        """
         if value is None:  # pyright: ignore[reportUnnecessaryComparison]
             raise MomongaValueError('xmit_timeout must be a number of seconds.'
                                     ' Use 3600 for the longest wait the gate will run.')
@@ -153,6 +172,14 @@ class Momonga:
             self.session_manager.recv_q.put(frame)
 
     def open(self) -> Self:
+        """Scan for the PAN and establish the PANA session.
+
+        How long this takes is dominated by the radio: tens of seconds to a few
+        minutes. A failure costs about the same before it raises, and raising is
+        what it does - MomongaSkScanFailure if no PAN answered, MomongaSkJoinFailure
+        if one did but the session never came up. scan_retries and join_retries
+        raise both the time and the number of chances.
+        """
         logger.info('Opening Momonga.')
         self.lqi = None
         self.rssi = None
@@ -172,12 +199,26 @@ class Momonga:
         return self
 
     def close(self) -> None:
+        """End the PANA session and let the device go.
+
+        Safe to call on a session that is already closed.
+        """
         logger.info('Closing Momonga.')
         self.is_open = False
         self.session_manager.close()
         logger.info('Momonga is closed.')
 
     def reopen(self) -> None:
+        """End the session and build a new one in its place.
+
+        For recovering by hand after MomongaNeedToReopen. With reopen_delays set
+        this happens on its own and there is no reason to call it.
+
+        is_open is False while it runs. A request from another thread during that
+        window raises MomongaNeedToReopen, and is retried for you once the session
+        is back if reopen_delays is set. get_notification() waits for the new
+        session rather than failing.
+        """
         logger.info('Reopening Momonga session.')
         self._local.reopening = True
         self._reopen_done.clear()
@@ -216,6 +257,11 @@ class Momonga:
         return not self._reopen_done.is_set() and not getattr(self._local, 'reopening', False)
 
     def get_notification(self, timeout: int | float | None = None) -> dict[str, Any] | None:
+        """Take one notification the meter sent of its own accord.
+
+        Waits up to timeout seconds, or until one arrives when timeout is None, and
+        returns None if the wait runs out. An INFC is answered for you.
+        """
         return self._read_notification(timeout, None)
 
     def _read_notification(self,
@@ -591,72 +637,96 @@ class Momonga:
         return self._request_with_recovery(EchonetServiceCode.get, properties)
 
     def get_operation_status(self) -> bool | None:
+        """Whether the meter says it is operating.
+
+        None when it will not say.
+        """
         req = EchonetProperty(EchonetPropertyCode.operation_status)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_operation_status)
 
     def get_installation_location(self) -> str:
+        """Where the meter says it is installed."""
         req = EchonetProperty(EchonetPropertyCode.installation_location)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_installation_location)
 
     def get_standard_version(self) -> str:
+        """The release of the ECHONET Lite property set the meter implements."""
         req = EchonetProperty(EchonetPropertyCode.standard_version_information)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_standard_version_information)
 
     def get_fault_status(self) -> bool | None:
+        """Whether the meter is reporting a fault.
+
+        True means a fault is present. None when it will not say.
+        """
         req = EchonetProperty(EchonetPropertyCode.fault_status)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_fault_status)
 
     def get_manufacturer_code(self) -> bytes:
+        """The three-byte manufacturer code."""
         req = EchonetProperty(EchonetPropertyCode.manufacturer_code)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_manufacturer_code)
 
     def get_serial_number(self) -> str:
+        """The meter's serial number."""
         req = EchonetProperty(EchonetPropertyCode.serial_number)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_serial_number)
 
     def get_current_time_setting(self) -> datetime.time:
+        """The time the meter is keeping."""
         req = EchonetProperty(EchonetPropertyCode.current_time_setting)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_current_time_setting)
 
     def get_current_date_setting(self) -> datetime.date:
+        """The date the meter is keeping."""
         req = EchonetProperty(EchonetPropertyCode.current_date_setting)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_current_date_setting)
 
     def get_properties_for_status_notification(self) -> set[EchonetPropertyCode | int]:
+        """The properties the meter announces when they change.
+
+        Take the announcements with get_notification().
+        """
         req = EchonetProperty(EchonetPropertyCode.properties_for_status_notification)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_property_map)
 
     def get_properties_to_set_values(self) -> set[EchonetPropertyCode | int]:
+        """The properties the meter will let you write."""
         req = EchonetProperty(EchonetPropertyCode.properties_to_set_values)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_property_map)
 
     def get_properties_to_get_values(self) -> set[EchonetPropertyCode | int]:
+        """The properties the meter will let you read."""
         req = EchonetProperty(EchonetPropertyCode.properties_to_get_values)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_property_map)
 
     def get_route_b_id(self) -> dict[str, bytes]:
+        """The Route-B identifier, split into its two parts.
+
+        {'manufacturer code': bytes, 'authentication id': bytes}
+        """
         req = EchonetProperty(EchonetPropertyCode.route_b_id)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -664,6 +734,12 @@ class Momonga:
 
     def get_one_minute_measured_cumulative_energy(self) -> dict[str, datetime.datetime |
                                                                      dict[str, int | float | None]]:
+        """Cumulative energy in both directions, as of the last minute boundary.
+
+        {'timestamp': datetime, 'cumulative energy': {'normal direction': kWh,
+        'reverse direction': kWh}}. Either direction is None when the meter has no
+        value for it.
+        """
         req = EchonetProperty(EchonetPropertyCode.one_minute_measured_cumulative_energy)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -672,12 +748,17 @@ class Momonga:
                                    self.energy_coefficient)
 
     def get_coefficient_for_cumulative_energy(self) -> int:
+        """The coefficient the meter's raw energy counts carry.
+
+        Already applied to every reading this library returns.
+        """
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_coefficient_for_cumulative_energy)
 
     def get_number_of_effective_digits_for_cumulative_energy(self) -> int:
+        """How many digits of the cumulative energy counter are significant."""
         req = EchonetProperty(EchonetPropertyCode.number_of_effective_digits_for_cumulative_energy)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -686,6 +767,11 @@ class Momonga:
     def get_measured_cumulative_energy(self,
                                        reverse: bool = False,
                                        ) -> int | float | None:
+        """Cumulative energy, in kWh.
+
+        Pass reverse=True for energy flowing the other way. None when the meter has
+        no value.
+        """
         if reverse is False:
             epc = EchonetPropertyCode.measured_cumulative_energy
         else:
@@ -699,6 +785,10 @@ class Momonga:
                                    self.energy_coefficient)
 
     def get_unit_for_cumulative_energy(self) -> int | float:
+        """The unit the meter counts energy in, as a multiple of one kWh.
+
+        Already applied to every reading this library returns.
+        """
         req = EchonetProperty(EchonetPropertyCode.unit_for_cumulative_energy)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -708,6 +798,16 @@ class Momonga:
                                            day: int = 0,
                                            reverse: bool = False,
                                            ) -> list[dict[str, datetime.datetime | int | float | None]]:
+        """A day of cumulative energy, half-hourly, in kWh.
+
+        day is how many days back to read: 0 is today, 1 yesterday. Pass
+        reverse=True for energy flowing the other way. Each entry is
+        {'timestamp': datetime, 'cumulative energy': kWh}, and any entry the meter
+        has no value for is None.
+
+        The timestamps are this library's, not the meter's, so a read that spans
+        midnight can date its entries a day off.
+        """
         self.set_day_for_historical_data_1(day)
 
         if reverse is False:
@@ -725,23 +825,37 @@ class Momonga:
     def set_day_for_historical_data_1(self,
                                       day: int = 0,
                                       ) -> None:
+        """Choose which day get_historical_cumulative_energy_1() reads.
+
+        0 is today, 1 yesterday.
+        """
         edt = EchonetDataBuilder.build_edata_to_set_day_for_historical_data_1(day)
         req = EchonetPropertyWithData(EchonetPropertyCode.day_for_historical_data_1, edt)
         self._request_to_set([req])
 
     def get_day_for_historical_data_1(self) -> int:
+        """Which day get_historical_cumulative_energy_1() is set to read."""
         req = EchonetProperty(EchonetPropertyCode.day_for_historical_data_1)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_day_for_historical_data_1)
 
     def get_instantaneous_power(self) -> int | None:
+        """Power right now, in watts.
+
+        None when the meter has no value.
+        """
         req = EchonetProperty(EchonetPropertyCode.instantaneous_power)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
                                    EchonetDataParser.parse_instantaneous_power)
 
     def get_instantaneous_current(self) -> dict[str, float | None]:
+        """Current right now, in amperes, per phase.
+
+        {'r phase current': A, 't phase current': A}. Each phase is decided on its
+        own, so one can be None while the other is a reading.
+        """
         req = EchonetProperty(EchonetPropertyCode.instantaneous_current)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -750,6 +864,12 @@ class Momonga:
     def get_cumulative_energy_measured_at_fixed_time(self,
                                                      reverse: bool = False,
                                                      ) -> dict[str, datetime.datetime | int | float | None]:
+        """Cumulative energy at the last half-hour boundary, in kWh.
+
+        Pass reverse=True for energy flowing the other way. Returns
+        {'timestamp': datetime, 'cumulative energy': kWh}, and the energy is None
+        when the meter has no value.
+        """
         if reverse is False:
             epc = EchonetPropertyCode.cumulative_energy_measured_at_fixed_time
         else:
@@ -767,6 +887,14 @@ class Momonga:
                                            num_of_data_points: int = 12,
                                            ) -> list[dict[str, datetime.datetime |
                                                                dict[str, int | float | None]]]:
+        """Half-hourly cumulative energy in both directions, up to six hours.
+
+        Reads back from timestamp, or from now when it is None.
+        num_of_data_points is how many half-hourly data points to ask for,
+        1 to 12. Each entry is {'timestamp': datetime, 'cumulative energy':
+        {'normal direction': kWh, 'reverse direction': kWh}}, and either
+        direction is None when the meter has no value for it.
+        """
         if timestamp is None:
             timestamp = datetime.datetime.now()
 
@@ -783,12 +911,20 @@ class Momonga:
                                        timestamp: datetime.datetime,
                                        num_of_data_points: int = 12,
                                        ) -> None:
+        """Choose what get_historical_cumulative_energy_2() reads.
+
+        num_of_data_points is how many half-hourly data points, 1 to 12.
+        """
         edt = EchonetDataBuilder.build_edata_to_set_time_for_historical_data_2(timestamp,
                                                                                num_of_data_points)
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_2, edt)
         self._request_to_set([req])
 
     def get_time_for_historical_data_2(self) -> dict[str, datetime.datetime | None | int]:
+        """What get_historical_cumulative_energy_2() is set to read.
+
+        {'timestamp': datetime | None, 'number of data points': int}
+        """
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_2)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -798,6 +934,14 @@ class Momonga:
                                            timestamp: datetime.datetime | None = None,
                                            num_of_data_points: int = 10,
                                            ) -> list[dict[str, datetime.datetime | dict[str, int | float | None]]]:
+        """Minute-by-minute cumulative energy in both directions, up to ten minutes.
+
+        Reads back from timestamp, or from now when it is None.
+        num_of_data_points is how many one-minute data points to ask for,
+        1 to 10. Each entry is {'timestamp': datetime, 'cumulative energy':
+        {'normal direction': kWh, 'reverse direction': kWh}}, and either
+        direction is None when the meter has no value for it.
+        """
         if timestamp is None:
             timestamp = datetime.datetime.now()
 
@@ -814,12 +958,20 @@ class Momonga:
                                        timestamp: datetime.datetime,
                                        num_of_data_points: int = 10,
                                        ) -> None:
+        """Choose what get_historical_cumulative_energy_3() reads.
+
+        num_of_data_points is how many one-minute data points, 1 to 10.
+        """
         edt = EchonetDataBuilder.build_edata_to_set_time_for_historical_data_3(timestamp,
                                                                                num_of_data_points)
         req = EchonetPropertyWithData(EchonetPropertyCode.time_for_historical_data_3, edt)
         self._request_to_set([req])
 
     def get_time_for_historical_data_3(self) -> dict[str, datetime.datetime | None | int]:
+        """What get_historical_cumulative_energy_3() is set to read.
+
+        {'timestamp': datetime | None, 'number of data points': int}
+        """
         req = EchonetProperty(EchonetPropertyCode.time_for_historical_data_3)
         res = self._request_to_get([req])[0]
         return self._parse_or_wrap(req.epc, res.edt,
@@ -840,6 +992,11 @@ class Momonga:
                        day_for_historical_data_1: DayForHistoricalData1 | None = None,
                        time_for_historical_data_2: TimeForHistoricalData2 | None = None,
                        time_for_historical_data_3: TimeForHistoricalData3 | None = None) -> None:
+        """Set several properties in one request.
+
+        Each argument takes what the matching setter takes. Only the ones you pass
+        are sent, and passing none sends nothing.
+        """
         properties_with_data: list[EchonetPropertyWithData] = []
         if day_for_historical_data_1 is None and time_for_historical_data_2 is None and time_for_historical_data_3 is None:
             return
@@ -858,6 +1015,11 @@ class Momonga:
     def request_to_get(self,
                        properties: set[EchonetPropertyCode]
                        ) -> dict[EchonetPropertyCode | int, Any]:
+        """Read several properties in one request.
+
+        Returns each property code with its parsed value, the same value its own
+        getter would return.
+        """
         results = self._request_to_get([EchonetProperty(epc) for epc in properties])
         parsed_results: dict[EchonetPropertyCode | int, Any] = {}
         for r in results:

@@ -33,6 +33,19 @@ _ORPHAN_LIMIT = 32
 
 
 class AsyncMomonga:
+    """Momonga with an asyncio interface.
+
+    Every call hands the synchronous library to a thread, so the event loop is
+    never blocked. Use it as an async context manager, or await open() and
+    close() yourself.
+
+        async with AsyncMomonga(rbid, pwd, dev) as mo:
+            print(await mo.get_instantaneous_power())
+
+    Readings, failure groups and None where the meter reports no data are all
+    as they are on Momonga. Notifications come one at a time from
+    get_notification(), or as a stream from notifications().
+    """
     def __init__(self,
                  rbid: str,
                  pwd: str,
@@ -68,6 +81,10 @@ class AsyncMomonga:
 
     @property
     def xmit_retries(self) -> int:
+        """How many times one request is sent again before it is given up on.
+
+        Running out raises MomongaNeedToReopen.
+        """
         return self._sync.xmit_retries
 
     @xmit_retries.setter
@@ -76,6 +93,12 @@ class AsyncMomonga:
 
     @property
     def recv_timeout(self) -> int | float:
+        """Seconds to wait for an answer before sending the request again.
+
+        xmit_retries times this is roughly how long a silent meter is waited on -
+        about 144 seconds at the defaults - not counting time spent waiting to
+        transmit, which xmit_timeout bounds.
+        """
         return self._sync.recv_timeout
 
     @recv_timeout.setter
@@ -84,6 +107,12 @@ class AsyncMomonga:
 
     @property
     def xmit_timeout(self) -> int | float:
+        """Seconds one request may spend waiting to transmit.
+
+        Zero gives up without waiting. The longest wait the gate itself will run
+        is 3600. Exceeding it raises MomongaXmitTimeout, which reopen_delays
+        covers. The allowance is for the whole request, not for each retry.
+        """
         return self._sync.xmit_timeout
 
     @xmit_timeout.setter
@@ -92,6 +121,12 @@ class AsyncMomonga:
 
     @property
     def internal_xmit_interval(self) -> int | float:
+        """Seconds to leave between transmissions of its own.
+
+        Used inside open(), and before sending again when the module reports that
+        a transmission failed. Not used when a request is repeated because the
+        meter did not answer.
+        """
         return self._sync.internal_xmit_interval
 
     @internal_xmit_interval.setter
@@ -100,22 +135,44 @@ class AsyncMomonga:
 
     @property
     def is_open(self) -> bool:
+        """Whether a session is up.
+
+        False while reopen() is rebuilding one.
+        """
         return self._sync.is_open
 
     @property
     def energy_unit(self) -> int | float:
+        """The unit the meter counts energy in, as a multiple of one kWh.
+
+        Read when the session opens, and already applied to every reading.
+        """
         return self._sync.energy_unit
 
     @property
     def energy_coefficient(self) -> int:
+        """The coefficient the meter's raw energy counts carry.
+
+        Read when the session opens, and already applied to every reading.
+        """
         return self._sync.energy_coefficient
 
     @property
     def lqi(self) -> int | None:
+        """Link quality of the last frame from the meter, 0 to 255.
+
+        None until a frame has arrived, and None again after the session is
+        rebuilt. BP35A1 modules never report it, so it stays None there.
+        """
         return self._sync.lqi
 
     @property
     def rssi(self) -> float | None:
+        """Received power of the last frame from the meter, in dBm.
+
+        Worked out from lqi as 0.275 x lqi - 104.27, so it is None whenever lqi
+        is.
+        """
         return self._sync.rssi
 
     async def __aenter__(self) -> Self:
@@ -197,6 +254,12 @@ class AsyncMomonga:
     async def notifications(self,
                             timeout: int | float = 60,
                             ) -> AsyncGenerator[dict[str, Any], None]:
+        """Yield notifications the meter sends of its own accord, as they arrive.
+
+        timeout bounds each individual wait, not the stream: a wait that runs out
+        yields nothing and the next one begins. Nothing ends this generator on its
+        own - break out of the loop, or leave the session.
+        """
         while True:
             notif = await self.get_notification(timeout=timeout)
             if notif is not None:
@@ -330,3 +393,17 @@ class AsyncMomonga:
                              properties: set[EchonetPropertyCode],
                              ) -> dict[EchonetPropertyCode | int, Any]:
         return await self._run(self._sync.request_to_get, properties)
+
+
+def _inherit_docstrings() -> None:
+    for name, method in vars(AsyncMomonga).items():
+        if name.startswith('_') or isinstance(method, property):
+            continue
+        if getattr(method, '__doc__', None) is not None:
+            continue
+        counterpart = getattr(Momonga, name, None)
+        if counterpart is not None:
+            method.__doc__ = counterpart.__doc__
+
+
+_inherit_docstrings()
