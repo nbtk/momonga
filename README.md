@@ -374,13 +374,13 @@ mo.xmit_timeout = 300 # give up after five minutes of blocked transmission
 ```
 
 ## momonga.open()
-PANをスキャンし、PANAセッションの確立を行う。　
+PANをスキャンし、PANAセッションの確立を行う。自身を返すので`with`のほか`mo = Momonga(...).open()`とも書ける。　
 
 所要時間はPANのスキャンとPANAセッションの確立が支配的で、電波状況によって数十秒から数分かかる。確立できなかった場合も、`MomongaSkScanFailure`または`MomongaSkJoinFailure`を送出するまでに同程度の時間がかかる。既定値での上限はスキャンが約2分（17秒＋35秒＋69秒）、確立が約2分（40秒×3回）で、`scan_retries`と`join_retries`を増やせばそのぶん延びる。`reopen_delays`で再接続の間隔を決めるときは、1回の再接続にこの時間が加わることを見込むこと。
 ### Arguments
 - Void
 ### Return Value
-- None
+- Momonga: 自身
 
 ## momonga.close()
 PANAセッションを終了する。
@@ -615,8 +615,8 @@ e.g.
 
 e.g.
 ```python3
-{'r phase current': float,
- 't phase current': float}
+{'r phase current': float | None,
+ 't phase current': float | None}
 ```
 
 ## momonga.get_cumulative_energy_measured_at_fixed_time(reverse: bool = False)
@@ -629,7 +629,7 @@ e.g.
 e.g.
 ```python3
 {'timestamp': datetime.datetime,
- 'cumulative energy': int | float}
+ 'cumulative energy': int | float | None}
 ```
 
 ## momonga.get_historical_cumulative_energy_2(timestamp: datetime.datetime | None = None, num_of_data_points: int = 12)
