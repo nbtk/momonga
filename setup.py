@@ -18,6 +18,7 @@ setuptools.setup(
         'Development Status :: 4 - Beta',
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
+        'Typing :: Typed',
     ],
     packages=setuptools.find_packages(exclude=['tests', 'tests.*']),
     package_data={'momonga': ['py.typed']},
