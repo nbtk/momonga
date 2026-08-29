@@ -239,8 +239,8 @@ class MomongaSkWrapper:
         return int(res[res.index(ok) + len(ok):-1].decode())
 
     def _exec_wopt(self,
-                    opt: int,
-                    ) -> None:  # do not call this after open().
+                   opt: int,
+                   ) -> None:  # do not call this after open().
         supported_opts = (0,  # binary mode
                           1,  # hex ascii mode
                           )
@@ -263,8 +263,8 @@ class MomongaSkWrapper:
         return
 
     def _readline(self,
-                   timeout: int | None = None,
-                   ) -> str:
+                  timeout: int | None = None,
+                  ) -> str:
         with _port('could not read from %s' % self.dev):
             org_timeout = self._port_or_raise.timeout
             self._port_or_raise.timeout = timeout
@@ -299,9 +299,9 @@ class MomongaSkWrapper:
         logger.debug('The received packet publisher has been stopped.')
 
     def _writeline(self,
-                    line: str,
-                    payload: bytes | None = None,
-                    ) -> None:
+                   line: str,
+                   payload: bytes | None = None,
+                   ) -> None:
         if payload is not None:
             data_bytes = (line + ' ').encode() + payload
         else:
@@ -377,12 +377,12 @@ class MomongaSkWrapper:
                 return True
 
     def _exec_command_locked(self,
-                              command: list[str],
-                              wait_until: str | list[str],
-                              timeout: int | float | None,
-                              payload: bytes | None,
-                              should_stop: Callable[[], bool] | None,
-                              ) -> list[str]:
+                             command: list[str],
+                             wait_until: str | list[str],
+                             timeout: int | float | None,
+                             payload: bytes | None,
+                             should_stop: Callable[[], bool] | None,
+                             ) -> list[str]:
         line = ' '.join(command)
 
         expected = [wait_until] if isinstance(wait_until, str) else wait_until

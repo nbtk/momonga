@@ -265,9 +265,9 @@ class Momonga:
         return self._read_notification(timeout, None)
 
     def _read_notification(self,
-                            timeout: int | float | None,
-                            reply_budget: int | float | None,
-                            ) -> dict[str, Any] | None:
+                           timeout: int | float | None,
+                           reply_budget: int | float | None,
+                           ) -> dict[str, Any] | None:
         deadline = None if timeout is None else time.monotonic() + timeout
 
         if not self.is_open:
@@ -361,9 +361,9 @@ class Momonga:
             return edt
 
     def _send_infc_res(self,
-                        infc_data: bytes,
-                        timeout: int | float | None = None,
-                        ) -> None:
+                       infc_data: bytes,
+                       timeout: int | float | None = None,
+                       ) -> None:
         tid_int = int.from_bytes(infc_data[ECHONET_TID_SLICE], 'big')
         header = self._build_request_header(tid_int, EchonetServiceCode.infc_res)
         opc = infc_data[ECHONET_OPC_OFFSET]
@@ -395,10 +395,10 @@ class Momonga:
                 + esv.to_bytes(1, 'big'))
 
     def _build_request_payload_with_data(self,
-                                          tid: int,
-                                          esv: EchonetServiceCode,
-                                          properties_with_data: list[EchonetPropertyWithData],
-                                          ) -> bytes:
+                                         tid: int,
+                                         esv: EchonetServiceCode,
+                                         properties_with_data: list[EchonetPropertyWithData],
+                                         ) -> bytes:
         header = self._build_request_header(tid, esv)
         opc = len(properties_with_data).to_bytes(1, 'big')
         payload = header + opc
@@ -411,10 +411,10 @@ class Momonga:
         return payload
 
     def _build_request_payload(self,
-                                tid: int,
-                                esv: EchonetServiceCode,
-                                properties: list[EchonetProperty],
-                                ) -> bytes:
+                               tid: int,
+                               esv: EchonetServiceCode,
+                               properties: list[EchonetProperty],
+                               ) -> bytes:
         header = self._build_request_header(tid, esv)
         opc = len(properties).to_bytes(1, 'big')
         payload = header + opc
@@ -427,9 +427,9 @@ class Momonga:
 
     @staticmethod
     def _extract_response_payload(data: bytes,
-                                   tid: int,
-                                   req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
-                                   ) -> list[EchonetPropertyWithData]:
+                                  tid: int,
+                                  req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                                  ) -> list[EchonetPropertyWithData]:
         if len(data) < 12:
             raise MomongaResponseNotExpected('The response is too short: %d bytes.' % len(data))
 
@@ -488,9 +488,9 @@ class Momonga:
         return properties
 
     def _request(self,
-                  esv: EchonetServiceCode,
-                  req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
-                  ) -> list[EchonetPropertyWithData]:
+                 esv: EchonetServiceCode,
+                 req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                 ) -> list[EchonetPropertyWithData]:
         logger.debug('Checking if Momonga is open: is_open=%s', self.is_open)
         if not self.is_open:
             if self._reopen_in_progress():
@@ -501,9 +501,9 @@ class Momonga:
             return self._request_locked(esv, req_properties)
 
     def _request_locked(self,
-                         esv: EchonetServiceCode,
-                         req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
-                         ) -> list[EchonetPropertyWithData]:
+                        esv: EchonetServiceCode,
+                        req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                        ) -> list[EchonetPropertyWithData]:
         tid = self._get_transaction_id()
         if esv == EchonetServiceCode.set_c:
             with_data = [p for p in req_properties if isinstance(p, EchonetPropertyWithData)]
@@ -585,9 +585,9 @@ class Momonga:
         return MomongaNeedToReopen('%s: %s' % (type(err).__name__, err))
 
     def _request_with_recovery(self,
-                                esv: EchonetServiceCode,
-                                req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
-                                ) -> list[EchonetPropertyWithData]:
+                               esv: EchonetServiceCode,
+                               req_properties: list[EchonetPropertyWithData] | list[EchonetProperty],
+                               ) -> list[EchonetPropertyWithData]:
         if self.reopen_delays is None or getattr(self._local, 'reopening', False):
             return self._request(esv, req_properties)
 
@@ -627,13 +627,13 @@ class Momonga:
         raise last_error
 
     def _request_to_set(self,
-                         properties_with_data: list[EchonetPropertyWithData]
-                         ) -> None:
+                        properties_with_data: list[EchonetPropertyWithData]
+                        ) -> None:
         self._request_with_recovery(EchonetServiceCode.set_c, properties_with_data)
 
     def _request_to_get(self,
-                         properties: list[EchonetProperty],
-                         ) -> list[EchonetPropertyWithData]:
+                        properties: list[EchonetProperty],
+                        ) -> list[EchonetPropertyWithData]:
         return self._request_with_recovery(EchonetServiceCode.get, properties)
 
     def get_operation_status(self) -> bool | None:
