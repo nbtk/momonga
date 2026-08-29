@@ -10,6 +10,7 @@ import unittest
 import momonga
 from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
+from momonga.momonga_session_manager import GATE_WAIT_LIMIT
 
 
 def _own_doc(obj):
@@ -81,6 +82,22 @@ class DocstringTestCase(unittest.TestCase):
                 if len(lines) > 1:
                     self.assertEqual('', lines[1],
                                      'a blank line should follow the summary')
+
+
+class NumbersInDocstringsTestCase(unittest.TestCase):
+    """A number a reader cannot work out for themselves has to stay true."""
+
+    def test_the_gate_schedule_xmit_timeout_names_is_the_one_that_runs(self):
+        for cls in (Momonga, AsyncMomonga):
+            doc = _own_doc(vars(cls)['xmit_timeout'])
+            with self.subTest(cls=cls.__name__):
+                self.assertIn(str(GATE_WAIT_LIMIT), doc)
+
+    def test_the_message_for_None_names_the_same_schedule(self):
+        mo = Momonga('id', 'pw', '/dev/ttyUSB0')
+        with self.assertRaises(momonga.MomongaValueError) as caught:
+            mo.xmit_timeout = None  # type: ignore[assignment]
+        self.assertIn(str(GATE_WAIT_LIMIT), str(caught.exception))
 
 
 if __name__ == '__main__':

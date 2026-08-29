@@ -95,9 +95,9 @@ class AsyncMomonga:
     def recv_timeout(self) -> int | float:
         """Seconds to wait for an answer before sending the request again.
 
-        xmit_retries times this is roughly how long a silent meter is waited on -
-        about 144 seconds at the defaults - not counting time spent waiting to
-        transmit, which xmit_timeout bounds.
+        Multiplied by xmit_retries, this is roughly how long a silent meter is
+        waited on, not counting time spent waiting to transmit, which
+        xmit_timeout bounds.
         """
         return self._sync.recv_timeout
 

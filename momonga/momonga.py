@@ -28,7 +28,9 @@ from .momonga_exception import (MomongaError,
                                 MomongaValueError,
                                 MomongaRuntimeError)
 from .momonga_response import SkEventNum, SkTxResult, SkParsedEvent, SkParsedRxUdp
-from .momonga_session_manager import MomongaSessionManager, SESSION_ENDED
+from .momonga_session_manager import (GATE_WAIT_LIMIT,
+                                      MomongaSessionManager,
+                                      SESSION_ENDED)
 
 _Parsed = TypeVar('_Parsed')
 
@@ -142,7 +144,8 @@ class Momonga:
     def xmit_timeout(self, value: int | float) -> None:
         if value is None:  # pyright: ignore[reportUnnecessaryComparison]
             raise MomongaValueError('xmit_timeout must be a number of seconds.'
-                                    ' Use 3600 for the longest wait the gate will run.')
+                                    ' Use %s for the longest wait the gate will run.'
+                                    % GATE_WAIT_LIMIT)
         if value < 0:
             raise MomongaValueError('xmit_timeout must not be negative, not %s' % value)
         self._xmit_timeout = value

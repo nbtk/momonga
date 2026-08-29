@@ -48,6 +48,10 @@ _SKTERM_LIMIT = 30
 
 _RECEIVER_JOIN_LIMIT = 30
 
+_GATE_WAIT_TIMEOUT = 60
+_GATE_WAIT_RETRY_LIMIT = 60
+GATE_WAIT_LIMIT = _GATE_WAIT_TIMEOUT * _GATE_WAIT_RETRY_LIMIT
+
 
 def _capped_wait(deadline: float | None, cap: int | float) -> int | float:
     if deadline is None:
@@ -343,8 +347,8 @@ class MomongaSessionManager:
                 timeout: int | float | None = None,
                 ) -> None:
         xmit_retry_limit      = 3
-        gate_wait_retry_limit = 60
-        gate_wait_timeout     = 60
+        gate_wait_retry_limit = _GATE_WAIT_RETRY_LIMIT
+        gate_wait_timeout     = _GATE_WAIT_TIMEOUT
         xmit_retry_interval   = 3
         xmitted = False
         deadline = None if timeout is None else time.monotonic() + timeout
