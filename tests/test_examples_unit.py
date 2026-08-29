@@ -381,7 +381,8 @@ def _annotated_types(annotation):
         part = part.strip()
         if '[' in part:
             part = part.split('[')[0]
-        out.add(part.replace('NoneType', 'None').removeprefix('momonga.'))
+        out.add(part.replace('NoneType', 'None').rsplit('.', 1)[-1]
+                if part.startswith('momonga.') else part.replace('NoneType', 'None'))
     return out
 
 
@@ -409,8 +410,10 @@ class TestTheManualSaysWhatTheApiReturns(TimeBoxedTestCase):
             declared = _declared_types(bullet)
             actual = _annotated_types(inspect.signature(method).return_annotation)
             with self.subTest(method=name):
-                self.assertTrue(declared & actual,
-                                'manual says %s, signature says %s' % (declared, actual))
+                self.assertEqual(declared - {'None'}, actual - {'None'},
+                                 'manual says %s, signature says %s' % (declared, actual))
+                self.assertEqual('None' in declared, 'None' in actual,
+                                 'manual says %s, signature says %s' % (declared, actual))
 
     def test_it_says_None_wherever_the_meter_can_withhold_a_value(self):
         for name, bullet, method, body in self._pairs():
