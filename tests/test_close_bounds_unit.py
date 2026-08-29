@@ -10,6 +10,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
+from momonga.momonga import Momonga
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 from tests._timebox import TimeBoxedTestCase
@@ -162,3 +163,26 @@ class TestARejoinLockCloseIsNotAnError(TimeBoxedTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestCloseCanBeCalledOnAClosedSession(TimeBoxedTestCase):
+    """What close()'s docstring promises: calling it again is not an error."""
+
+    def test_a_session_that_was_never_opened_can_be_closed(self):
+        mo = Momonga('id', 'pw', '/dev/ttyUSB0')
+        mo.close()
+
+    def test_closing_twice_raises_nothing(self):
+        mo = Momonga('id', 'pw', '/dev/ttyUSB0')
+        mo.close()
+        mo.close()
+
+    def test_an_established_session_can_be_closed_twice(self):
+        sm = MomongaSessionManager('id', 'pw', '/dev/ttyUSB0')
+        sm.session_established = True
+        sm.skw = MagicMock()
+        sm.close()
+        self.assertFalse(sm.session_established)
+        self.assertEqual(sm.skw.skterm.call_count, 1)
+        sm.close()
+        self.assertEqual(sm.skw.skterm.call_count, 1)  # not sent to a closed session

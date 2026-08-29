@@ -145,7 +145,9 @@ class AsyncMomonga:
     def energy_unit(self) -> int | float:
         """The unit the meter counts energy in, as a multiple of one kWh.
 
-        Read when the session opens, and already applied to every reading.
+        Read when the session opens, and already applied to the cumulative
+        energy readings. Instantaneous power and current are not counted in
+        it and are returned as they come.
         """
         return self._sync.energy_unit
 
@@ -153,7 +155,8 @@ class AsyncMomonga:
     def energy_coefficient(self) -> int:
         """The coefficient the meter's raw energy counts carry.
 
-        Read when the session opens, and already applied to every reading.
+        Read when the session opens, and already applied to the cumulative
+        energy readings, which are the only ones it bears on.
         """
         return self._sync.energy_coefficient
 

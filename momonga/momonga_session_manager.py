@@ -68,7 +68,7 @@ class MomongaSessionManager:
                  reset_dev: bool = True,
                  scan_retries: int = 3,
                  join_retries: int = 3,
-                ) -> None:
+                 ) -> None:
         self.dev = dev
         self.baudrate = baudrate
         self._rbid = rbid
@@ -341,7 +341,7 @@ class MomongaSessionManager:
     def xmitter(self,
                 data: bytes,
                 timeout: int | float | None = None,
-               ) -> None:
+                ) -> None:
         xmit_retry_limit      = 3
         gate_wait_retry_limit = 60
         gate_wait_timeout     = 60

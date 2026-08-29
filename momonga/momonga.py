@@ -62,10 +62,16 @@ class Momonga:
     Readings come back as None where the meter reports no data, so check
     before doing arithmetic on one.
 
-    Failures fall into three groups. MomongaConnectionFailure is the radio or
-    the device below the session - wait and try again. MomongaNeedToReopen is
-    the session itself - build a new one, or set reopen_delays and let this
-    class do it. Anything else means the call was wrong.
+    Two failure groups are worth catching by their base.
+    MomongaConnectionFailure is the radio or the device below the session -
+    wait and try again. MomongaNeedToReopen is the session itself - build a
+    new one, or set reopen_delays and let this class do it.
+
+    What is in neither is not one kind of thing. MomongaRuntimeError and
+    MomongaValueError are calls that cannot work. MomongaResponseNotPossible
+    is a property this meter does not have. MomongaResponseNotExpected is a
+    reply that could not be read, and there the session is fine and the next
+    request usually goes through.
     """
     def __init__(self,
                  rbid: str,
@@ -259,8 +265,11 @@ class Momonga:
     def get_notification(self, timeout: int | float | None = None) -> dict[str, Any] | None:
         """Take one notification the meter sent of its own accord.
 
-        Waits up to timeout seconds, or until one arrives when timeout is None, and
-        returns None if the wait runs out. An INFC is answered for you.
+        Waits up to timeout seconds, or until one arrives when timeout is None,
+        and returns None if the wait runs out. An INFC is answered for you as
+        far as it can be: the reply is given 15 seconds to go out, and a
+        warning is logged if it does not. The notification is yours either
+        way.
         """
         return self._read_notification(timeout, None)
 
@@ -750,7 +759,8 @@ class Momonga:
     def get_coefficient_for_cumulative_energy(self) -> int:
         """The coefficient the meter's raw energy counts carry.
 
-        Already applied to every reading this library returns.
+        Already applied to the cumulative energy readings, which are the only
+        ones it bears on.
         """
         req = EchonetProperty(EchonetPropertyCode.coefficient_for_cumulative_energy)
         res = self._request_to_get([req])[0]
@@ -787,7 +797,8 @@ class Momonga:
     def get_unit_for_cumulative_energy(self) -> int | float:
         """The unit the meter counts energy in, as a multiple of one kWh.
 
-        Already applied to every reading this library returns.
+        Already applied to the cumulative energy readings. Instantaneous power
+        and current are not counted in it and are returned as they come.
         """
         req = EchonetProperty(EchonetPropertyCode.unit_for_cumulative_energy)
         res = self._request_to_get([req])[0]
@@ -1017,8 +1028,11 @@ class Momonga:
                        ) -> dict[EchonetPropertyCode | int, Any]:
         """Read several properties in one request.
 
-        Returns each property code with its parsed value, the same value its own
-        getter would return.
+        Returns each property code with its parsed value, read by the same
+        parser its own getter uses. Not always the same value: a getter that
+        writes before it reads - the historical ones choose a day or a time
+        first - is not doing that here, so what comes back is whatever the
+        meter is currently set to give.
         """
         results = self._request_to_get([EchonetProperty(epc) for epc in properties])
         parsed_results: dict[EchonetPropertyCode | int, Any] = {}
