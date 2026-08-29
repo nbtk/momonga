@@ -757,7 +757,9 @@ with momonga.Momonga(rbid, pwd, dev) as mo:
 ### Arguments
 - timeout: 待機秒数。Noneのとき通知が届くまでブロッキングする
 ### Return Value
-- dict | None: 通知データ。タイムアウト時はNone
+- Notification | None: 通知データ。タイムアウト時はNone
+
+`Notification`は`TypedDict`で、キーは`'esv'`（`EchonetServiceCode`）と`'properties'`（EPCと値の辞書）の2つ。実体は`dict`なので、そのまま添字で読める。
 
 ```python3
 {'esv': momonga.EchonetServiceCode.inf,

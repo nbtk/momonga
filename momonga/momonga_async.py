@@ -59,7 +59,7 @@ class AsyncMomonga:
                  ) -> None:
         self._sync = Momonga(rbid, pwd, dev, baudrate, reset_dev, reopen_delays,
                              scan_retries, join_retries)
-        self._orphaned: collections.deque[tuple[dict[str, Any], Any]] = collections.deque()
+        self._orphaned: collections.deque[tuple[Momonga.Notification, Any]] = collections.deque()
         self._executor = ThreadPoolExecutor(max_workers=max_workers,
                                             thread_name_prefix='momonga')
         self._notif_executor = ThreadPoolExecutor(max_workers=_RESERVED_WORKERS,
@@ -211,7 +211,7 @@ class AsyncMomonga:
 
     async def get_notification(self,
                                timeout: int | float | None = None,
-                               ) -> dict[str, Any] | None:
+                               ) -> Momonga.Notification | None:
         while self._orphaned:
             held, session = self._orphaned.popleft()
             if self._sync.is_open and self._sync.session_manager is session:
@@ -226,7 +226,7 @@ class AsyncMomonga:
             # caller actually allowed, which is everything when they set no timeout
             reply_budget = (math.inf if deadline is None
                             else max(0.0, deadline - time.monotonic()))
-            reading: asyncio.Future[dict[str, Any] | None] = self._run(
+            reading: asyncio.Future[Momonga.Notification | None] = self._run(
                 self._sync._read_notification,  # pyright: ignore[reportPrivateUsage]
                 poll, reply_budget,
                 executor=self._notif_executor)
@@ -256,7 +256,7 @@ class AsyncMomonga:
 
     async def notifications(self,
                             timeout: int | float = 60,
-                            ) -> AsyncGenerator[dict[str, Any], None]:
+                            ) -> AsyncGenerator[Momonga.Notification, None]:
         """Yield notifications the meter sends of its own accord, as they arrive.
 
         timeout bounds each individual wait, not the stream: a wait that runs out

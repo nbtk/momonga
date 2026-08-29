@@ -265,7 +265,17 @@ class Momonga:
     def _reopen_in_progress(self) -> bool:
         return not self._reopen_done.is_set() and not getattr(self._local, 'reopening', False)
 
-    def get_notification(self, timeout: int | float | None = None) -> dict[str, Any] | None:
+    class Notification(TypedDict):
+        """What the meter announced, and what it announced about.
+
+        properties maps each property code the frame carried to the value its
+        own getter would give, or to None where the frame carried no data. A
+        value the parser could not read is left as the raw bytes.
+        """
+        esv: EchonetServiceCode
+        properties: dict[EchonetPropertyCode | int, Any]
+
+    def get_notification(self, timeout: int | float | None = None) -> Notification | None:
         """Take one notification the meter sent of its own accord.
 
         Waits up to timeout seconds, or until one arrives when timeout is None,
@@ -279,7 +289,7 @@ class Momonga:
     def _read_notification(self,
                            timeout: int | float | None,
                            reply_budget: int | float | None,
-                           ) -> dict[str, Any] | None:
+                           ) -> Notification | None:
         deadline = None if timeout is None else time.monotonic() + timeout
 
         if not self.is_open:
@@ -316,7 +326,7 @@ class Momonga:
             self._send_infc_res(data, self._remaining(deadline)
                                 if reply_budget is None else reply_budget)
 
-        properties = {}
+        properties: dict[EchonetPropertyCode | int, Any] = {}
         cur = 12
         for _ in range(opc):
             try:
