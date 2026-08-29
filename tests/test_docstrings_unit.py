@@ -5,6 +5,7 @@ Run:
   python -m unittest tests/test_docstrings_unit.py -v
 """
 import inspect
+import logging
 import unittest
 
 import momonga
@@ -22,6 +23,15 @@ def _own_doc(obj):
     else:
         doc = getattr(obj, '__doc__', None)
     return doc if doc and doc.strip() else None
+
+
+def _exported():
+    """Names __all__ offers that can hold a docstring at all."""
+    for name in momonga.__all__:
+        obj = getattr(momonga, name)
+        if isinstance(obj, logging.Logger):
+            continue
+        yield name
 
 
 def _public_members(cls):
@@ -44,12 +54,16 @@ class DocstringTestCase(unittest.TestCase):
                 with self.subTest(member='%s.%s' % (cls.__name__, name)):
                     self.assertIsNotNone(_own_doc(obj))
 
-    def test_every_exception_is_described(self):
-        for name in momonga.__all__:
-            obj = getattr(momonga, name)
-            if isinstance(obj, type) and issubclass(obj, BaseException):
-                with self.subTest(exception=name):
-                    self.assertIsNotNone(_own_doc(obj))
+    def test_every_exported_name_is_described(self):
+        """Everything __all__ offers, not just the two classes and the exceptions.
+
+        The loggers are instances, which carry logging.Logger's own docstring
+        and cannot carry one of their own; the README is where they are
+        described.
+        """
+        for name in _exported():
+            with self.subTest(name=name):
+                self.assertIsNotNone(_own_doc(getattr(momonga, name)))
 
     def test_async_says_what_its_sync_counterpart_says(self):
         """A delegating method describes itself by carrying the original's words."""
@@ -68,9 +82,7 @@ class DocstringTestCase(unittest.TestCase):
         subjects = [('%s.%s' % (cls.__name__, n), o)
                     for cls in (Momonga, AsyncMomonga) for n, o in _public_members(cls)]
         subjects += [(c.__name__, c) for c in (Momonga, AsyncMomonga)]
-        subjects += [(n, getattr(momonga, n)) for n in momonga.__all__
-                     if isinstance(getattr(momonga, n), type)
-                     and issubclass(getattr(momonga, n), BaseException)]
+        subjects += [(n, getattr(momonga, n)) for n in _exported()]
         for label, obj in subjects:
             doc = _own_doc(obj)
             if doc is None:

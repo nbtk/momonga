@@ -18,6 +18,11 @@ CONTROLLER_EOJ  = b'\x05\xFF\x01'  # Controller (home energy management system)
 
 
 class EchonetServiceCode(enum.IntEnum):
+    """What a frame is for: writing, reading, or announcing.
+
+    A notification carries one under 'esv' - inf for an announcement that
+    wants no answer, infc for one that does, which this library answers.
+    """
     set_c = 0x61
     get = 0x62
     inf = 0x73
@@ -26,6 +31,14 @@ class EchonetServiceCode(enum.IntEnum):
 
 
 class EchonetPropertyCode(enum.IntEnum):
+    """The properties of a meter, by the code ECHONET gives each one.
+
+    Name these to read several at once with request_to_get(), which returns
+    them as its keys. A meter need not implement all of them, and says which
+    it does through get_properties_to_get_values() and
+    get_properties_to_set_values(); asking for one it does not have raises
+    MomongaResponseNotPossible.
+    """
     operation_status = 0x80
     installation_location = 0x81
     standard_version_information = 0x82

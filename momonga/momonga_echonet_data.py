@@ -39,6 +39,8 @@ def _scaled_energy(raw: int,
 
 
 class EchonetProperty:
+    """A property code on its own, which is what asking for one takes."""
+
     def __init__(self,
                  epc: EchonetPropertyCode | int,
                  ) -> None:
@@ -46,6 +48,11 @@ class EchonetProperty:
 
 
 class EchonetPropertyWithData:
+    """A property code with its value as the meter sends it, undecoded.
+
+    edt is None where the frame carried a code and no data.
+    """
+
     def __init__(self,
                  epc: EchonetPropertyCode | int,
                  edt: bytes | None = None,
