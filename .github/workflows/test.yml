@@ -84,3 +84,10 @@ jobs:
           mypy --strict consumer_mistakes.py > out.txt 2>&1 || true
           cat out.txt
           grep -q 'Found 4 errors' out.txt
+
+      - name: Every public method is annotated tightly enough to catch a misuse
+        working-directory: ${{ runner.temp }}/asacaller
+        run: |
+          python generate_mistakes.py every_misuse.py
+          mypy --strict every_misuse.py > every.txt 2>&1 || true
+          python check_all_reported.py every_misuse.py every.txt
