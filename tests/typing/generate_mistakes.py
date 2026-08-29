@@ -143,8 +143,12 @@ def emit(cls, varname, await_, skipped):
                 skipped.append('%s.%s(%s: %s) admits everything'
                                % (cls.__name__, name, pname, p.annotation))
                 continue
-            lines.append('%s%s.%s(%s=%s)  # want: arg-type'
-                         % (prefix, varname, name, pname, ARG_VALUE[wrong]))
+            args = ['%s=%s' % (n, sample(q)) for n, q in sig.parameters.items()
+                    if n not in ('self', pname)
+                    and q.default is inspect.Parameter.empty]
+            args.append('%s=%s' % (pname, ARG_VALUE[wrong]))
+            lines.append('%s%s.%s(%s)  # want: arg-type'
+                         % (prefix, varname, name, ', '.join(args)))
             count += 1
         # 2. 返り値を違う型で受ける
         ret = sig.return_annotation
