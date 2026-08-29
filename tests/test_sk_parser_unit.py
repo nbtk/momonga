@@ -6,9 +6,10 @@ Run:
 """
 import unittest
 
-from momonga.momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
+from momonga.momonga_device import (BP35A1Strategy, BP35C2Strategy,
+                                    parse_sk_line)
 from momonga.momonga_response import (
-    SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line,
+    SkEventNum, SkParsedEvent, SkParsedRxUdp,
 )
 from tests._timebox import TimeBoxedTestCase
 

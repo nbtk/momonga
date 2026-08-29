@@ -8,8 +8,8 @@ import logging
 import unittest
 from unittest.mock import MagicMock, patch
 
-from momonga.momonga_device_enum import DeviceType
-from momonga.momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
+from momonga.momonga_device import DeviceType
+from momonga.momonga_device import BP35C2Strategy, BP35A1Strategy
 from momonga.momonga_response import SkParsedEvent, SkParsedRxUdp
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 from tests._timebox import TimeBoxedTestCase

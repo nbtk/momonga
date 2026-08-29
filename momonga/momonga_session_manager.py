@@ -16,7 +16,8 @@ from .momonga_exception import (MomongaNeedToReopen,
                                        MomongaSkScanFailure,
                                        MomongaValueError,
                                        MomongaXmitTimeout)
-from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp, parse_sk_line
+from .momonga_device import parse_sk_line
+from .momonga_response import SkEventNum, SkParsedEvent, SkParsedRxUdp
 from .momonga_sk_wrapper import MomongaSkWrapper, PUBLISHER_STOPPED
 
 logger = logging.getLogger(__name__)

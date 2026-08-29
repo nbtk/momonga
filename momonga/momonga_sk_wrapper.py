@@ -28,14 +28,15 @@ from .momonga_exception import (MomongaError,
                                 MomongaSkScanFailure,
                                 MomongaTimeoutError,
                                 MomongaValueError)
-from .momonga_response import (DeviceStrategy,
-                               SkVerResponse,
+from .momonga_device import (BP35A1Strategy,
+                             BP35C2Strategy,
+                             DeviceStrategy,
+                             DeviceType)
+from .momonga_response import (SkVerResponse,
                                SkAppVerResponse,
                                SkInfoResponse,
                                SkScanResponse,
                                SkLl64Response)
-from .momonga_device_enum import DeviceType
-from .momonga_device_strategy import BP35C2Strategy, BP35A1Strategy
 from .momonga_echonet_enum import ECHONET_LITE_PORT
 
 logger = logging.getLogger(__name__)
@@ -549,7 +550,7 @@ class MomongaSkWrapper:
             # estimated execution time: 0.0096s*(2^(DURATION=8)+1)*28 = 69.1s
             if 'EPANDESC' in res:
                 try:
-                    return SkScanResponse(res, self.device_strategy)
+                    return SkScanResponse(res, self.device_strategy.decode_scan_side)
                 except MomongaSkResponseNotExpected as err:
                     unreadable = err
                     logger.warning('A PAN was announced but its description '

@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga, _INFC_RES_XMIT_LIMIT
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_exception import (MomongaNeedToReopen, MomongaXmitTimeout,
                                        MomongaSkCommandCancelled, MomongaSkCommandBusy)
 from momonga.momonga_response import SkParsedRxUdp

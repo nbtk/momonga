@@ -13,7 +13,7 @@ Run:
 import unittest
 from unittest.mock import MagicMock
 
-from momonga.momonga_device_strategy import BP35A1Strategy, BP35C2Strategy
+from momonga.momonga_device import BP35A1Strategy, BP35C2Strategy
 from momonga.momonga_exception import (MomongaError, MomongaKeyError,
                                        MomongaSkCommandFailedToExecute,
                                        MomongaSkCommandInvalidArgument,
@@ -110,7 +110,7 @@ class TestTheModuleResponsesDecode(TimeBoxedTestCase):
                 '  PairID:12345678']
 
     def test_skscan_on_a_bp35c2(self):
-        res = SkScanResponse(self._scan_lines(), BP35C2Strategy())
+        res = SkScanResponse(self._scan_lines(), BP35C2Strategy().decode_scan_side)
 
         self.assertEqual(res.channel, 0x21)
         self.assertEqual(res.channel_page, 0x09)
@@ -122,7 +122,7 @@ class TestTheModuleResponsesDecode(TimeBoxedTestCase):
         self.assertEqual(res.pair_id, bytes.fromhex('12345678'))
 
     def test_skscan_on_a_bp35a1_has_no_side(self):
-        res = SkScanResponse(self._scan_lines(), BP35A1Strategy())
+        res = SkScanResponse(self._scan_lines(), BP35A1Strategy().decode_scan_side)
 
         self.assertIsNone(res.side)
         self.assertEqual(res.channel, 0x21)

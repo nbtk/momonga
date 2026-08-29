@@ -7,7 +7,7 @@ Run:
 import unittest
 from unittest.mock import MagicMock, patch, call
 
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_exception import (
     MomongaSkCommandExecutionFailure,
     MomongaNeedToReopen,

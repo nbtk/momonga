@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_echonet_data import EchonetDataParser as Parser
 from momonga.momonga_echonet_enum import (CONTROLLER_EOJ, ECHONET_LITE_EHD,
                                           ECHONET_LITE_PORT, EchonetPropertyCode,

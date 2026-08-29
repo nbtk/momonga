@@ -1,10 +1,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Protocol
 
 from .momonga_exception import MomongaKeyError, MomongaSkResponseNotExpected
-from .momonga_device_enum import DeviceType
 
 
 class SkEventNum(IntEnum):
@@ -51,39 +49,6 @@ class SkParsedRxUdp:
     rssi: float | None = None
 
 
-class DeviceStrategy(Protocol):
-    """Encapsulates all behavior that differs between Wi-SUN module models."""
-    device_type: DeviceType
-
-    def parse_event(self, parts: list[str]) -> SkParsedEvent | None: ...
-    def parse_erxudp(self, parts: list[str]) -> SkParsedRxUdp | None: ...
-    def skscan_command(self, duration: int) -> list[str]: ...
-    def sksendto_args(self, handle: int, ip6_addr: str, port: int, sec: int, side: int, length: int) -> list[str]: ...
-    def decode_scan_side(self, extract: Callable[[str], str]) -> int | None: ...
-
-
-def parse_sk_line(line: str, strategy: DeviceStrategy) -> SkParsedEvent | SkParsedRxUdp | None:
-    """Parse a raw Wi-SUN serial line into a typed event object.
-
-    Returns None for lines that are not EVENT or ERXUDP (e.g. OK, EPANDESC).
-    """
-    parts = line.split()
-    if not parts:
-        return None
-
-    if parts[0] == 'EVENT':
-        try:
-            return strategy.parse_event(parts)
-        except (ValueError, IndexError):
-            return None
-
-    if parts[0] == 'ERXUDP':
-        try:
-            return strategy.parse_erxudp(parts)
-        except (ValueError, IndexError):
-            return None
-
-    return None
 
 
 class MomongaSkResponseBase:
@@ -150,8 +115,11 @@ class SkScanResponse(MomongaSkResponseBase):
     side: int | None
     pair_id: bytes
 
-    def __init__(self, res: list[str], strategy: DeviceStrategy) -> None:
-        self.strategy = strategy
+    def __init__(self,
+                 res: list[str],
+                 decode_side: Callable[[Callable[[str], str]], int | None],
+                 ) -> None:
+        self.decode_side = decode_side
         super().__init__(res)
 
     def decode(self) -> None:
@@ -161,7 +129,7 @@ class SkScanResponse(MomongaSkResponseBase):
         self.mac_addr = bytes.fromhex(self.extract('Addr:').split(':')[-1])
         self.lqi = int(self.extract('LQI:').split(':')[-1], 16)
         self.rssi = 0.275 * self.lqi - 104.27
-        self.side = self.strategy.decode_scan_side(self.extract)
+        self.side = self.decode_side(self.extract)
         self.pair_id = bytes.fromhex(self.extract('PairID:').split(':')[-1])
 
 

@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_session_manager import MomongaSessionManager
 from tests._timebox import TimeBoxedTestCase
 

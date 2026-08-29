@@ -9,7 +9,7 @@ from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
 from momonga.momonga_echonet_data import EchonetDataBuilder, EchonetDataParser
 from momonga.momonga_echonet_enum import EchonetPropertyCode, EchonetServiceCode
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_response import SkParsedRxUdp
 from momonga.momonga_session_manager import _STOP_RECEIVER
 from tests._timebox import TimeBoxedTestCase

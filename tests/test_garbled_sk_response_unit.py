@@ -23,7 +23,7 @@ from unittest.mock import patch
 
 import momonga
 
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_response import (SkInfoResponse,
                                       SkScanResponse,
                                       SkVerResponse)
@@ -43,7 +43,7 @@ def _replacing(prefix, line):
 class TestAScanDescriptionThatCannotBeRead(TimeBoxedTestCase):
 
     def _scan(self, lines):
-        return SkScanResponse(lines, BP35C2Strategy())
+        return SkScanResponse(lines, BP35C2Strategy().decode_scan_side)
 
     def test_a_complete_one_still_reads(self):
         res = self._scan(EPANDESC)

@@ -1,7 +1,55 @@
 from collections.abc import Callable
+from enum import Enum
+from typing import Protocol
 
-from .momonga_device_enum import DeviceType
-from .momonga_response import DeviceStrategy, SkParsedEvent, SkParsedRxUdp
+from .momonga_response import SkParsedEvent, SkParsedRxUdp
+
+
+class DeviceType(Enum):
+    """
+    Additional Wi-SUN Modules are included here for completeness but not all are supported.
+    Web archive of ROHM Wi-SUN B-Route modules as of November 29, 2025:
+    https://web.archive.org/web/20251129002611/https://www.chip1stop.com/sp/products/rohm_wi-sun-module
+    """
+    BP35A1 = 1  # Internal IC for RL7023 Stick-D/IPS. Now marked Obsolete and EOL
+    BP35C0 = 2  # Wi-SUN/HAN Module. Not currently supported in Momonga
+    BP35C1 = 3  # Wi-SUN/E-HAN Module. Not currently supported in Momonga
+    BP35C2 = 4  # Internal IC for RS-WSUHA-P and RL7023 Stick-D/DSS
+
+
+class DeviceStrategy(Protocol):
+    """Encapsulates all behavior that differs between Wi-SUN module models."""
+    device_type: DeviceType
+
+    def parse_event(self, parts: list[str]) -> SkParsedEvent | None: ...
+    def parse_erxudp(self, parts: list[str]) -> SkParsedRxUdp | None: ...
+    def skscan_command(self, duration: int) -> list[str]: ...
+    def sksendto_args(self, handle: int, ip6_addr: str, port: int, sec: int, side: int, length: int) -> list[str]: ...
+    def decode_scan_side(self, extract: Callable[[str], str]) -> int | None: ...
+
+
+def parse_sk_line(line: str, strategy: DeviceStrategy) -> SkParsedEvent | SkParsedRxUdp | None:
+    """Parse a raw Wi-SUN serial line into a typed event object.
+
+    Returns None for lines that are not EVENT or ERXUDP (e.g. OK, EPANDESC).
+    """
+    parts = line.split()
+    if not parts:
+        return None
+
+    if parts[0] == 'EVENT':
+        try:
+            return strategy.parse_event(parts)
+        except (ValueError, IndexError):
+            return None
+
+    if parts[0] == 'ERXUDP':
+        try:
+            return strategy.parse_erxudp(parts)
+        except (ValueError, IndexError):
+            return None
+
+    return None
 
 
 class BP35C2Strategy(DeviceStrategy):

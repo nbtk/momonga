@@ -17,7 +17,7 @@ Run:
 import unittest
 from unittest.mock import MagicMock, patch
 
-from momonga.momonga_device_strategy import BP35A1Strategy, BP35C2Strategy
+from momonga.momonga_device import BP35A1Strategy, BP35C2Strategy
 from momonga.momonga_exception import MomongaSkJoinFailure, MomongaSkScanFailure
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
 from tests._timebox import TimeBoxedTestCase

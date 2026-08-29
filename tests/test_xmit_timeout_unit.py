@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from momonga.momonga import Momonga
 from momonga.momonga_async import AsyncMomonga
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_exception import MomongaNeedToReopen, MomongaXmitTimeout
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper

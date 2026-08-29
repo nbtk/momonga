@@ -22,7 +22,7 @@ import serial
 
 import momonga
 from momonga.momonga import Momonga
-from momonga.momonga_device_strategy import BP35C2Strategy
+from momonga.momonga_device import BP35C2Strategy
 from momonga.momonga_exception import MomongaError, MomongaIOError
 from momonga.momonga_session_manager import MomongaSessionManager
 from momonga.momonga_sk_wrapper import MomongaSkWrapper
