@@ -354,3 +354,72 @@ class TestTheManualSaysTheSameThing(TimeBoxedTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def _manual_sections():
+    """Each `## momonga.name(...)` heading in the manual with the text under it."""
+    for m in re.finditer(r'^## (?:async )?(?:momonga|AsyncMomonga)\.(\w+)\(', MANUAL, re.M):
+        end = MANUAL.find('\n## ', m.end())
+        yield m.group(1), MANUAL[m.end():end if end > 0 else len(MANUAL)]
+
+
+def _declared_types(bullet):
+    """The type names a `- int | float | None: ...` bullet claims."""
+    head = bullet.split(':')[0] if not bullet.startswith('{') else bullet
+    return {p.strip() for p in head.split('|') if p.strip()}
+
+
+def _annotated_types(annotation):
+    """The same, read off the annotation, as a reader of the manual would write them."""
+    if annotation is None or annotation is type(None):
+        return {'None'}
+    text = str(annotation).replace("<class '", '').replace("'>", '')
+    if text == 'typing.Self':
+        return {'Momonga'}
+    out = set()
+    for part in re.split(r'\|(?![^\[]*\])', text.split('[')[0] if '[' in text else text):
+        part = part.strip()
+        if '[' in part:
+            part = part.split('[')[0]
+        out.add(part.replace('NoneType', 'None').removeprefix('momonga.'))
+    return out
+
+
+class TestTheManualSaysWhatTheApiReturns(TimeBoxedTestCase):
+    """The manual's Return Value is the first thing a reader trusts and the last
+    thing anything checked. Three of them described something the code has never
+    done - one naming the wrong type outright, two leaving out the no-data case
+    their own sentence above them described."""
+
+    def _pairs(self):
+        for name, body in _manual_sections():
+            method = getattr(momonga.Momonga, name, None)
+            if method is None:
+                continue
+            bullet = re.search(r'### Return Value\n- (.*)', body)
+            if bullet is None:
+                continue
+            yield name, bullet.group(1).strip(), method, body
+
+    def test_the_manual_documents_the_methods(self):
+        self.assertGreater(len(list(self._pairs())), 25)
+
+    def test_the_type_it_names_is_the_type_that_comes_back(self):
+        for name, bullet, method, _ in self._pairs():
+            declared = _declared_types(bullet)
+            actual = _annotated_types(inspect.signature(method).return_annotation)
+            with self.subTest(method=name):
+                self.assertTrue(declared & actual,
+                                'manual says %s, signature says %s' % (declared, actual))
+
+    def test_it_says_None_wherever_the_meter_can_withhold_a_value(self):
+        for name, bullet, method, body in self._pairs():
+            annotation = str(inspect.signature(method).return_annotation)
+            if 'None' not in annotation:
+                continue
+            for block in re.findall(r'^```python3\n(.*?)^```', body, re.S | re.M):
+                if 'momonga.' in block or 'import ' in block:
+                    continue                       # code, not a shape
+                with self.subTest(method=name):
+                    self.assertIn('None', block,
+                                  'the shape leaves out the no-data case')
