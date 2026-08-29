@@ -167,7 +167,8 @@ class AsyncMomonga:
             reply_budget = (math.inf if deadline is None
                             else max(0.0, deadline - time.monotonic()))
             reading: asyncio.Future[dict[str, Any] | None] = self._run(
-                self._sync._read_notification, poll, reply_budget,
+                self._sync._read_notification,  # pyright: ignore[reportPrivateUsage]
+                poll, reply_budget,
                 executor=self._notif_executor)
             try:
                 notif = await asyncio.shield(reading)

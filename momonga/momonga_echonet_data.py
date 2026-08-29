@@ -165,7 +165,7 @@ class EchonetDataParser:
         _require_edt(edt, 1 + (num_of_properties if num_of_properties < 16 else 16),
                      'a property map of %d properties' % num_of_properties)
         property_map = edt[1:]
-        properties = set()
+        properties: set[EchonetPropertyCode | int] = set()
         if num_of_properties < 16:
             for prop_code in property_map:
                 try:
@@ -298,7 +298,7 @@ class EchonetDataParser:
     @classmethod
     def parse_instantaneous_current(cls, edt: bytes) -> dict[str, float | None]:
         _require_edt(edt, 4, 'an instantaneous current')
-        currents = []
+        currents: list[float | None] = []
         for raw in (edt[0:2], edt[2:4]):
             current = int.from_bytes(raw, 'big', signed=True)
             currents.append(None if current == _INSTANTANEOUS_CURRENT_MISSING

@@ -62,7 +62,7 @@ class Momonga:
                  ) -> None:
         self.xmit_retries: int = 12
         self.recv_timeout: int | float = 12
-        self.xmit_timeout: int | float = 300
+        self.xmit_timeout = 300
         self.internal_xmit_interval: int | float = 5
         self._transaction_id: int = 0
         self.energy_unit: int | float = 1
@@ -115,7 +115,7 @@ class Momonga:
         Zero gives up without waiting. The longest wait the gate itself will
         run is 3600.
         """
-        if value is None:
+        if value is None:  # pyright: ignore[reportUnnecessaryComparison]
             raise MomongaValueError('xmit_timeout must be a number of seconds.'
                                     ' Use 3600 for the longest wait the gate will run.')
         if value < 0:
@@ -415,7 +415,7 @@ class Momonga:
         if not Momonga._property_block_is_complete(data, opc):
             raise MomongaResponseNotExpected('The response is truncated: %d bytes for OPC %d.' % (len(data), opc))
 
-        properties = []
+        properties: list[EchonetPropertyWithData] = []
         cur = 12
         for rp in req_properties:
             raw = data[cur]
@@ -477,8 +477,7 @@ class Momonga:
             try:
                 self.session_manager.xmitter(tx_payload, timeout=xmit_budget)
             finally:
-                if xmit_budget is not None:
-                    xmit_budget = max(0.0, xmit_budget - (time.monotonic() - xmit_started))
+                xmit_budget = max(0.0, xmit_budget - (time.monotonic() - xmit_started))
             while True:
                 try:
                     res = self.session_manager.recv_q.get(timeout=self.recv_timeout)
@@ -841,7 +840,7 @@ class Momonga:
                        day_for_historical_data_1: DayForHistoricalData1 | None = None,
                        time_for_historical_data_2: TimeForHistoricalData2 | None = None,
                        time_for_historical_data_3: TimeForHistoricalData3 | None = None) -> None:
-        properties_with_data = []
+        properties_with_data: list[EchonetPropertyWithData] = []
         if day_for_historical_data_1 is None and time_for_historical_data_2 is None and time_for_historical_data_3 is None:
             return
         if day_for_historical_data_1 is not None:
@@ -860,7 +859,7 @@ class Momonga:
                        properties: set[EchonetPropertyCode]
                        ) -> dict[EchonetPropertyCode | int, Any]:
         results = self._request_to_get([EchonetProperty(epc) for epc in properties])
-        parsed_results = {}
+        parsed_results: dict[EchonetPropertyCode | int, Any] = {}
         for r in results:
             try:
                 parser = PARSER_MAP[r.epc]

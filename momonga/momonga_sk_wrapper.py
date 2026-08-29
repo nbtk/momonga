@@ -329,7 +329,7 @@ class MomongaSkWrapper:
                      deadline: float | None = None,
                      should_stop: Callable[[], bool] | None = None,
                      ) -> list[str]:
-        masked = _mask_secrets(' '.join(c for c in command if c is not None))
+        masked = _mask_secrets(' '.join(command))
         if deadline is not None:
             lock_timeout = deadline - time.monotonic()
             if lock_timeout <= 0:
@@ -383,7 +383,7 @@ class MomongaSkWrapper:
                               payload: bytes | None,
                               should_stop: Callable[[], bool] | None,
                               ) -> list[str]:
-        line = ' '.join([c for c in command if c is not None])
+        line = ' '.join(command)
 
         expected = [wait_until] if isinstance(wait_until, str) else wait_until
 
@@ -398,7 +398,7 @@ class MomongaSkWrapper:
 
         deadline = None if timeout is None else time.monotonic() + timeout
 
-        res = []
+        res: list[str] = []
         while True:
             remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
             try:
