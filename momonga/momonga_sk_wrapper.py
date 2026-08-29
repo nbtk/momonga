@@ -181,7 +181,6 @@ class MomongaSkWrapper:
             self._publisher_th = threading.Thread(target=self.received_packet_publisher, daemon=True)
             self._publisher_th.start()
 
-            # Detects device type
             self.detect_device()
         except Exception:
             self.close()
@@ -581,7 +580,7 @@ class MomongaSkWrapper:
             logger.debug('Trying to establish a PANA session...')
             res = self.exec_command(['SKJOIN', ip6_addr], ['EVENT 24', 'EVENT 25'],
                                     deadline=deadline, should_stop=should_stop)
-            # extimated execution time: 2s + 4s + 8s + 8s + 8s + 8s + 8s = 38s ~ 40s
+            # estimated execution time: 2s + 4s + 8s + 8s + 8s + 8s + 8s = 38s ~ 40s
             if res[-1].startswith('EVENT 25'):
                 logger.debug('A PANA session has been established.')
                 return

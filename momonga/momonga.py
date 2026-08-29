@@ -415,7 +415,7 @@ class Momonga:
                                 esv: EchonetServiceCode,
                                 properties: list[EchonetProperty],
                                 ) -> bytes:
-        header = self._build_request_header(tid, esv)  # get
+        header = self._build_request_header(tid, esv)
         opc = len(properties).to_bytes(1, 'big')
         payload = header + opc
         for p in properties:

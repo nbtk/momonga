@@ -154,7 +154,6 @@ class MomongaSessionManager:
             self._smart_meter_mac = scan_res.mac_addr
             self.channel = scan_res.channel
             self.pan_id = scan_res.pan_id
-            # converting mac addr to ip6 addr.
             self.smart_meter_addr = self.skw.skll64(scan_res.mac_addr).ip6_addr
 
             # joining a PAN from here.

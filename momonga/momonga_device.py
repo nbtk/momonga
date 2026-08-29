@@ -6,15 +6,22 @@ from .momonga_response import SkParsedEvent, SkParsedRxUdp
 
 
 class DeviceType(Enum):
+    """Which ROHM module is on the other end of the serial port.
+
+    The two that are supported do not speak the same SK dialect. BP35C2
+    puts a side field in EVENT and ERXUDP, takes an extra argument in
+    SKSCAN and SKSENDTO, and reports the link quality of each frame;
+    BP35A1 does none of those, which is why lqi and rssi stay None on it.
+    Holding that difference is what DeviceStrategy is for.
+
+    SKINFO tells the two apart: where BP35C2 answers with a side of 0 or 1,
+    BP35A1 answers 0xFFFE, having no side to report. BP35C0 and BP35C1 are
+    names here with no strategy behind them.
     """
-    Additional Wi-SUN Modules are included here for completeness but not all are supported.
-    Web archive of ROHM Wi-SUN B-Route modules as of November 29, 2025:
-    https://web.archive.org/web/20251129002611/https://www.chip1stop.com/sp/products/rohm_wi-sun-module
-    """
-    BP35A1 = 1  # Internal IC for RL7023 Stick-D/IPS. Now marked Obsolete and EOL
-    BP35C0 = 2  # Wi-SUN/HAN Module. Not currently supported in Momonga
-    BP35C1 = 3  # Wi-SUN/E-HAN Module. Not currently supported in Momonga
-    BP35C2 = 4  # Internal IC for RS-WSUHA-P and RL7023 Stick-D/DSS
+    BP35A1 = 1  # inside RL7023 Stick-D/IPS, discontinued
+    BP35C0 = 2  # Wi-SUN/HAN, no strategy
+    BP35C1 = 3  # Wi-SUN/E-HAN, no strategy
+    BP35C2 = 4  # inside RS-WSUHA-P and RL7023 Stick-D/DSS
 
 
 class DeviceStrategy(Protocol):
